@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+    <!-- Outer Circle (Compass Body) -->
+    <circle cx="60" cy="60" r="56" fill="#ffffff" stroke="#1a237e" stroke-width="6"/>
+
+    <!-- Needle Group (Centered, Tilted 45 degrees) -->
+    <g transform="translate(10, 10) rotate(45, 50, 50)">
+        <!-- Gold part (Bottom/Full) -->
+        <polygon points="50,0 60,50 50,100 40,50" fill="#c5a059"/>
+        <!-- Red part (Top Tip) -->
+        <polygon points="50,0 60,50 50,50 50,0" fill="#c62828"/>
+    </g>
+</svg>

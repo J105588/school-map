@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校内Mapエディタ v8.3</title>
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <style>
+        body {
+            font-family: "Helvetica Neue", Arial, sans-serif;
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            background-color: #f4f7f6;
+            height: 95vh;
+            box-sizing: border-box;
+            color: #333;
+        }
+
+        /* Canvas Area */
+        #canvas-wrapper {
+            position: relative;
+            border: 2px solid #ccc;
+            overflow: hidden;
+            flex-grow: 1;
+            background: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 8px;
+        }
+
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+
+        /* Sidebar */
+        #sidebar {
+            width: 350px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            height: 100%;
+            min-width: 350px;
+            overflow-y: auto;
+        }
+
+        .panel {
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            border-radius: 8px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        h3 {
+            margin: 0 0 10px 0;
+            font-size: 15px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 5px;
+            color: #555;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Forms & Buttons */
+        input,
+        select,
+        button,
+        textarea {
+            padding: 8px;
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        textarea {
+            resize: vertical;
+            font-family: monospace;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        button:hover {
+            background: #0056b3;
+            transform: translateY(-1px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button.secondary {
+            background: #6c757d;
+        }
+
+        button.secondary:hover {
+            background: #5a6268;
+        }
+
+        button.danger {
+            background: #dc3545;
+        }
+
+        button.danger:hover {
+            background: #c82333;
+        }
+
+        button.mode-btn {
+            background: white;
+            color: #333;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+
+        button.mode-btn:hover {
+            background: #f8f9fa;
+        }
+
+        button.mode-btn.active {
+            background: #e6f2ff;
+            color: #007bff;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
+        }
+
+        /* List */
+        .list-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            height: 150px;
+            border-radius: 4px;
+        }
+
+        .list-item {
+            padding: 8px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .list-item:hover {
+            background: #f5faff;
+        }
+
+        .list-item.selected {
+            background: #e6f2ff;
+            border-left: 4px solid #007bff;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        small {
+            color: #666;
+            font-size: 11px;
+            display: block;
+            margin-bottom: 5px;
+            line-height: 1.4;
+        }
+
+        .tool-row {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 5px;
+        }
+
+        .tool-row button {
+            margin-bottom: 0;
+        }
+
+        .type-badge {
+            padding: 2px 6px;
+            border-radius: 10px;
+            color: white;
+            font-size: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="canvas-wrapper" oncontextmenu="return false;">
+        <canvas id="mapCanvas"></canvas>
+    </div>
+
+    <div id="sidebar">
+        <!-- 1. ファイル操作 -->
+        <div class="panel">
+            <h3>📂 ファイル入出力</h3>
+            <small>1. 図面画像を読み込む</small>
+            <input type="file" id="imageLoader" accept="image/*">
+
+            <small style="margin-top:10px;">2. JSONデータの読込 (復元)</small>
+            <div style="display:flex; gap:5px;">
+                <input type="file" id="jsonLoader" accept=".json">
+            </div>
+            <textarea id="jsonInput" placeholder="またはJSONをここに貼り付け" style="height:40px;"></textarea>
+            <button class="secondary" onclick="importJSON()">JSONデータを反映</button>
+        </div>
+
+        <!-- 2. 編集ツール -->
+        <div class="panel" style="flex-grow: 1; display: flex; flex-direction: column;">
+            <h3>🛠️ 編集モード</h3>
+
+            <div class="tool-row">
+                <button class="mode-btn active" id="btnPath" onclick="setMode('path')">🛣️ 廊下(線)</button>
+                <button class="mode-btn" id="btnConnect" onclick="setMode('connect')">🔗 つなぐ</button>
+                <button class="mode-btn" id="btnRoom" onclick="setMode('room')">📍 部屋(点)</button>
+                <!-- 選択モードを追加して明示的に消せるようにする -->
+                <button class="mode-btn" id="btnSelect" onclick="setMode('select')"
+                    style="flex-basis: 40px;">👆</button>
+            </div>
+
+            <div
+                style="background: #fff3cd; padding: 10px; border-radius: 4px; margin-bottom: 10px; border: 1px solid #ffeeba;">
+                <small id="guideText" style="color:#856404; margin:0;">
+                    <b>廊下モード:</b> クリックで点を追加。
+                </small>
+                <button id="undoBtn" class="secondary" style="margin-top:5px; display:none;"
+                    onclick="undoLastPoint()">↩️ 一つ戻る (描画中のみ)</button>
+            </div>
+
+            <!-- 編集フォーム -->
+            <div id="nodeEditor" class="hidden"
+                style="background:#f8f9fa; padding:10px; border-radius:4px; margin-bottom:10px; border:1px solid #dee2e6;">
+                <label style="font-size:12px; font-weight:bold; display:block; margin-bottom:5px;">選択中のポイント</label>
+
+                <div id="roomFields">
+                    <input type="text" id="nodeEventName" placeholder="企画名 (例: お化け屋敷)">
+                    <input type="text" id="nodeName" placeholder="部屋名 (例: 1-1)">
+                    <select id="nodeType">
+                        <option value="junction">廊下・分岐点</option>
+                        <option value="room">教室/部屋</option>
+                        <option value="toilet">トイレ</option>
+                        <option value="stairs">階段</option>
+                        <option value="elevator">EV</option>
+                        <option value="entrance">出入口</option>
+                        <option value="vending">自動販売機</option>
+                        <option value="area">エリア</option>
+                        <option value="others">その他</option>
+                    </select>
+                    <button onclick="updateNode()">保存</button>
+                </div>
+
+                <button class="danger" onclick="deleteNode()">🗑️ この点を削除</button>
+                <small style="color:#dc3545; margin-top:5px;">※つながっている線も消えます</small>
+            </div>
+
+            <h3>登録データ一覧</h3>
+            <div class="list-container" id="dataList"></div>
+        </div>
+
+        <!-- 3. エクスポート -->
+        <div class="panel">
+            <h3>📤 保存</h3>
+            <button onclick="exportJSON()">JSONデータをコピー</button>
+            <textarea id="jsonOutput" style="height: 60px;" readonly></textarea>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('mapCanvas');
+        const ctx = canvas.getContext('2d');
+        let img = new Image();
+
+        let nodes = [];
+        let edges = [];
+
+        let mode = 'path'; // 'path' | 'connect' | 'room' | 'select'
+        let activePath = [];
+        let selectedNodeId = null;
+
+        let hoverPos = { x: 0, y: 0 };
+        let snapTarget = null;
+        const SNAP_RADIUS = 20;
+
+        // --- 初期化 ---
+        document.getElementById('imageLoader').addEventListener('change', e => {
+            const f = e.target.files[0];
+            if (!f) return;
+            const r = new FileReader();
+            r.onload = ev => { img.onload = () => { canvas.width = img.width; canvas.height = img.height; draw(); }; img.src = ev.target.result; };
+            r.readAsDataURL(f);
+        });
+
+        document.getElementById('jsonLoader').addEventListener('change', e => {
+            const f = e.target.files[0];
+            if (!f) return;
+            const r = new FileReader();
+            r.onload = ev => { document.getElementById('jsonInput').value = ev.target.result; importJSON(); };
+            r.readAsText(f);
+        });
+
+        function importJSON() {
+            try {
+                const raw = document.getElementById('jsonInput').value;
+                if (!raw) return;
+                const data = JSON.parse(raw);
+                if (data.nodes && data.edges) {
+                    nodes = data.nodes;
+                    edges = data.edges;
+                    updateList();
+                    draw();
+                    alert("データを読み込みました");
+                }
+            } catch (e) {
+                alert("JSON形式エラー: " + e);
+            }
+        }
+
+        // --- マウス操作 ---
+        canvas.addEventListener('mousemove', e => {
+            const rawPos = getPos(e);
+            hoverPos = rawPos;
+            snapTarget = null;
+
+            // どのモードでも既存ノードへの吸着・ハイライトは有効にする
+            const nearestNode = findNearestNode(rawPos, SNAP_RADIUS);
+            if (nearestNode) {
+                hoverPos = { x: nearestNode.x, y: nearestNode.y };
+                snapTarget = { type: 'node', id: nearestNode.id };
+                canvas.style.cursor = 'pointer';
+            } else {
+                // ノードがない場合
+                if (mode === 'room') {
+                    const nearestEdge = findNearestEdgePoint(rawPos, SNAP_RADIUS);
+                    if (nearestEdge) {
+                        hoverPos = nearestEdge.point;
+                        snapTarget = { type: 'edge', ...nearestEdge };
+                        canvas.style.cursor = 'copy';
+                    } else {
+                        canvas.style.cursor = 'default';
+                    }
+                } else if (mode === 'path') {
+                    canvas.style.cursor = 'crosshair';
+                } else {
+                    canvas.style.cursor = 'default';
+                }
+            }
+            draw();
+        });
+
+        canvas.addEventListener('mousedown', e => {
+            if (e.button === 2) {
+                if (mode === 'path' && activePath.length > 0) undoLastPoint();
+                return;
+            }
+
+            // 共通: 既存ノードをクリックしたら選択状態にする（どのモードでも編集可能にするため）
+            if (snapTarget && snapTarget.type === 'node') {
+                // Connectモードの始点選択は別途処理が必要だが、
+                // 基本的にはクリックで選択状態にしてOK
+                selectNode(snapTarget.id);
+
+                if (mode === 'connect') {
+                    handleConnectClick();
+                    return; // 選択だけして抜ける
+                }
+                if (mode === 'path') {
+                    handlePathClick(); // 選択しつつ、パスも引く
+                    return;
+                }
+                return;
+            }
+
+            // 何もないところをクリックしたら選択解除
+            if (!snapTarget) {
+                if (mode === 'select') {
+                    selectedNodeId = null;
+                    document.getElementById('nodeEditor').classList.add('hidden');
+                    updateList();
+                    draw();
+                }
+            }
+
+            // 各モード固有処理（新規作成など）
+            if (mode === 'path') {
+                handlePathClick();
+            }
+            else if (mode === 'room') {
+                handleRoomClick();
+            }
+            draw();
+        });
+
+        canvas.addEventListener('contextmenu', e => e.preventDefault());
+        canvas.addEventListener('dblclick', e => {
+            if (mode === 'path') finishPath();
+        });
+
+        // --- モード別ロジック ---
+
+        function handlePathClick() {
+            let nodeId;
+            if (snapTarget && snapTarget.type === 'node') {
+                nodeId = snapTarget.id;
+            } else {
+                nodeId = addNode(hoverPos.x, hoverPos.y, 'junction');
+            }
+
+            // 直前の選択を解除して、今作った点を選択
+            selectNode(nodeId);
+
+            if (activePath.length > 0) {
+                const prevId = activePath[activePath.length - 1];
+                if (prevId !== nodeId) addEdge(prevId, nodeId);
+            }
+            activePath.push(nodeId);
+            document.getElementById('undoBtn').style.display = 'inline-block';
+        }
+
+        function undoLastPoint() {
+            if (activePath.length === 0) return;
+            const currentId = activePath.pop();
+
+            if (activePath.length > 0) {
+                const prevId = activePath[activePath.length - 1];
+                edges = edges.filter(e =>
+                    !((e.from === prevId && e.to === currentId) || (e.from === currentId && e.to === prevId))
+                );
+            }
+
+            const isConnected = edges.some(e => e.from === currentId || e.to === currentId);
+            if (!isConnected) {
+                const n = nodes.find(n => n.id === currentId);
+                if (n && n.type === 'junction') {
+                    nodes = nodes.filter(n => n.id !== currentId);
+                    if (selectedNodeId === currentId) {
+                        selectedNodeId = null;
+                        document.getElementById('nodeEditor').classList.add('hidden');
+                    }
+                }
+            }
+            draw();
+            if (activePath.length === 0) document.getElementById('undoBtn').style.display = 'none';
+        }
+
+        function finishPath() {
+            activePath = [];
+            document.getElementById('undoBtn').style.display = 'none';
+            draw();
+        }
+
+        let connectStartId = null;
+        function handleConnectClick() {
+            if (!snapTarget || snapTarget.type !== 'node') return;
+            const clickedId = snapTarget.id;
+            if (connectStartId === null) {
+                connectStartId = clickedId;
+            } else {
+                if (connectStartId !== clickedId) {
+                    addEdge(connectStartId, clickedId);
+                    connectStartId = null;
+                } else {
+                    connectStartId = null;
+                }
+            }
+        }
+
+        function handleRoomClick() {
+            if (!snapTarget) return;
+            if (snapTarget.type === 'edge') {
+                const newNodeId = splitEdgeAndAddNode(snapTarget.edgeIndex, snapTarget.point);
+                selectNode(newNodeId);
+            }
+        }
+
+        // --- データ操作 ---
+
+        function addNode(x, y, type, name = '') {
+            const id = Date.now() + Math.random();
+            nodes.push({ id, x, y, type, name });
+            return id;
+        }
+
+        function addEdge(from, to) {
+            if (edges.some(e => (e.from === from && e.to === to) || (e.from === to && e.to === from))) return;
+            const n1 = nodes.find(n => n.id === from);
+            const n2 = nodes.find(n => n.id === to);
+            if (!n1 || !n2) return;
+            const dist = Math.hypot(n1.x - n2.x, n1.y - n2.y);
+            edges.push({ from, to, dist });
+        }
+
+        function splitEdgeAndAddNode(edgeIndex, point) {
+            const oldEdge = edges[edgeIndex];
+            edges.splice(edgeIndex, 1);
+            const newNodeId = addNode(point.x, point.y, 'room', '新規ポイント');
+            addEdge(oldEdge.from, newNodeId);
+            addEdge(newNodeId, oldEdge.to);
+            updateList();
+            return newNodeId;
+        }
+
+        function findNearestNode(pos, range) {
+            let minD = range;
+            let target = null;
+            for (const n of nodes) {
+                const d = Math.hypot(n.x - pos.x, n.y - pos.y);
+                if (d < minD) { minD = d; target = n; }
+            }
+            return target;
+        }
+
+        function findNearestEdgePoint(pos, range) {
+            let minD = range;
+            let result = null;
+            edges.forEach((edge, index) => {
+                const n1 = nodes.find(n => n.id === edge.from);
+                const n2 = nodes.find(n => n.id === edge.to);
+                if (!n1 || !n2) return;
+                const A = pos.x - n1.x; const B = pos.y - n1.y;
+                const C = n2.x - n1.x; const D = n2.y - n1.y;
+                const dot = A * C + B * D; const lenSq = C * C + D * D;
+                let param = -1; if (lenSq !== 0) param = dot / lenSq;
+                let xx, yy;
+                if (param < 0) { xx = n1.x; yy = n1.y; }
+                else if (param > 1) { xx = n2.x; yy = n2.y; }
+                else { xx = n1.x + param * C; yy = n1.y + param * D; }
+                const d = Math.hypot(pos.x - xx, pos.y - yy);
+                if (d < minD) { minD = d; result = { edgeIndex: index, point: { x: xx, y: yy } }; }
+            });
+            return result;
+        }
+
+        // --- UI制御 ---
+
+        function setMode(m) {
+            mode = m;
+            activePath = [];
+            connectStartId = null;
+
+            // ボタン更新
+            ['btnPath', 'btnConnect', 'btnRoom', 'btnSelect'].forEach(id => {
+                document.getElementById(id).className = 'mode-btn';
+            });
+            const activeBtn = m === 'path' ? 'btnPath' : m === 'connect' ? 'btnConnect' : m === 'room' ? 'btnRoom' : 'btnSelect';
+            document.getElementById(activeBtn).classList.add('active');
+
+            const guides = {
+                path: "<b>廊下モード:</b> クリックで点を追加。既存の点もクリックで選択・編集可能。",
+                connect: "<b>つなぐモード:</b> 2つの点を順にクリックして接続。",
+                room: "<b>部屋モード:</b> 線の上をクリックして部屋を追加。",
+                select: "<b>選択モード:</b> 点をクリックして選択・削除します。"
+            };
+            document.getElementById('guideText').innerHTML = guides[m];
+            document.getElementById('undoBtn').style.display = 'none';
+            draw();
+        }
+
+        function selectNode(id) {
+            selectedNodeId = id;
+            const n = nodes.find(x => x.id === id);
+            if (!n) return;
+
+            document.getElementById('nodeName').value = n.name || '';
+            document.getElementById('nodeEventName').value = n.eventName || '';
+            document.getElementById('nodeType').value = n.type;
+
+            // 部屋以外の場合は名前入力欄を隠すなどしても良いが、
+            // 利便性のためすべて表示しておく
+            document.getElementById('roomFields').style.display = 'block';
+
+            document.getElementById('nodeEditor').classList.remove('hidden');
+            updateList();
+            draw();
+        }
+
+        function updateNode() {
+            if (!selectedNodeId) return;
+            const n = nodes.find(x => x.id === selectedNodeId);
+            n.name = document.getElementById('nodeName').value;
+            n.eventName = document.getElementById('nodeEventName').value;
+            n.type = document.getElementById('nodeType').value;
+            updateList();
+            draw();
+        }
+
+        function deleteNode() {
+            if (!selectedNodeId) return;
+            if (!confirm("この点と、接続されている線を削除しますか？")) return;
+
+            // 削除実行
+            nodes = nodes.filter(n => n.id !== selectedNodeId);
+            edges = edges.filter(e => e.from !== selectedNodeId && e.to !== selectedNodeId);
+
+            // パス描画中の場合、パスからも除去
+            activePath = activePath.filter(id => id !== selectedNodeId);
+
+            selectedNodeId = null;
+            document.getElementById('nodeEditor').classList.add('hidden');
+            updateList();
+            draw();
+        }
+
+        function updateList() {
+            const l = document.getElementById('dataList');
+            l.innerHTML = '';
+            // リストには部屋などの施設のみ表示（廊下の点は多すぎるため除外）
+            nodes.filter(n => n.type !== 'junction').forEach(n => {
+                const div = document.createElement('div');
+                div.className = `list-item ${n.id === selectedNodeId ? 'selected' : ''}`;
+                div.innerHTML = `
+                <div><b>${n.name || '(名称未設定)'}</b></div>
+                <span class="type-badge" style="background:${getColor(n.type)}">${translateType(n.type)}</span>
+            `;
+                div.onclick = () => selectNode(n.id);
+                l.appendChild(div);
+            });
+        }
+
+        // --- 描画 ---
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (img.src) ctx.drawImage(img, 0, 0);
+
+            // エッジ
+            ctx.lineWidth = 3;
+            edges.forEach(e => {
+                const n1 = nodes.find(n => n.id === e.from);
+                const n2 = nodes.find(n => n.id === e.to);
+                if (n1 && n2) {
+                    ctx.strokeStyle = '#007bff';
+                    ctx.beginPath(); ctx.moveTo(n1.x, n1.y); ctx.lineTo(n2.x, n2.y); ctx.stroke();
+                }
+            });
+
+            // パス
+            if (activePath.length > 0) {
+                ctx.strokeStyle = 'rgba(0, 123, 255, 0.6)';
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                const start = nodes.find(n => n.id === activePath[0]);
+                if (start) ctx.moveTo(start.x, start.y);
+                for (let i = 1; i < activePath.length; i++) {
+                    const p = nodes.find(n => n.id === activePath[i]);
+                    if (p) ctx.lineTo(p.x, p.y);
+                }
+                if (hoverPos) ctx.lineTo(hoverPos.x, hoverPos.y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Connect
+            if (mode === 'connect' && connectStartId) {
+                const s = nodes.find(n => n.id === connectStartId);
+                if (s && hoverPos) {
+                    ctx.strokeStyle = '#ffc107';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([3, 3]);
+                    ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(hoverPos.x, hoverPos.y); ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+
+            // ノード
+            nodes.forEach(n => {
+                const isSel = n.id === selectedNodeId;
+                const isStart = n.id === connectStartId;
+                const isJunc = n.type === 'junction';
+
+                ctx.beginPath();
+                const radius = isJunc ? 4 : 7;
+                ctx.arc(n.x, n.y, radius, 0, Math.PI * 2);
+
+                if (isJunc) {
+                    ctx.fillStyle = isStart ? '#ffc107' : '#fff';
+                    ctx.strokeStyle = '#007bff';
+                } else {
+                    ctx.fillStyle = getColor(n.type);
+                    ctx.strokeStyle = (isSel || isStart) ? 'black' : 'white';
+                }
+                // 選択時は赤枠で目立たせる
+                if (isSel) {
+                    ctx.strokeStyle = '#dc3545'; // Red
+                    ctx.lineWidth = 3;
+                } else {
+                    ctx.lineWidth = (isStart) ? 2 : 1;
+                }
+
+                ctx.fill();
+                ctx.stroke();
+                ctx.lineWidth = 3; // reset
+
+                if (!isJunc) {
+                    ctx.fillStyle = 'black'; ctx.textAlign = 'center';
+
+                    if (n.eventName) {
+                        // 企画名がある場合: 企画名を太字、部屋名をその下に小さく表示
+                        ctx.font = 'bold 13px sans-serif';
+                        ctx.fillText(n.eventName, n.x, n.y - 20);
+
+                        ctx.font = '10px sans-serif';
+                        ctx.fillText(n.name, n.x, n.y - 8);
+                    } else {
+                        // 通常
+                        ctx.font = 'bold 11px sans-serif';
+                        ctx.fillText(n.name, n.x, n.y - 12);
+                    }
+                }
+            });
+
+            // ガイド
+            if (hoverPos) {
+                if (snapTarget) {
+                    ctx.beginPath(); ctx.arc(hoverPos.x, hoverPos.y, 12, 0, Math.PI * 2);
+                    ctx.strokeStyle = mode === 'connect' ? '#ffc107' : (mode === 'select' ? '#dc3545' : '#28a745');
+                    ctx.lineWidth = 2; ctx.stroke();
+                }
+            }
+        }
+
+        function getColor(t) {
+            const m = {
+                'room': '#4CAF50', 'toilet': '#E91E63', 'stairs': '#9C27B0', 'elevator': '#607D8B',
+                'entrance': '#FF9800', 'vending': '#3F51B5', 'area': '#795548', 'others': '#9E9E9E'
+            };
+            return m[t] || '#333';
+        }
+
+        function translateType(t) {
+            const m = { 'room': '部屋', 'toilet': 'トイレ', 'stairs': '階段', 'elevator': 'EV', 'entrance': '入口', 'vending': '自販機', 'area': 'エリア', 'others': 'その他' };
+            return m[t] || t;
+        }
+
+        function getPos(e) {
+            const r = canvas.getBoundingClientRect();
+            return { x: (e.clientX - r.left) * (canvas.width / r.width), y: (e.clientY - r.top) * (canvas.height / r.height) };
+        }
+
+        window.exportJSON = () => {
+            const data = { nodes, edges };
+            document.getElementById('jsonOutput').value = JSON.stringify(data, null, 2);
+        }
+    </script>
+</body>
+
+</html>
