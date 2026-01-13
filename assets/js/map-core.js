@@ -383,12 +383,107 @@ class MapEngine {
         d3.select(this.canvas).transition().call(this.zoom.scaleBy, 0.8);
     }
 
+    // --- Transforms ---
     fitToScreen() {
         // Fit 2F (Middle) default
         this.switchFloor(AppConfig.DEFAULT_FLOOR_ID);
+
+        // Mobile Adjustment: Zoom in a bit more initially for visibility
+        if (window.innerWidth <= 768) {
+            setTimeout(() => {
+                d3.select(this.canvas).transition().duration(500).call(this.zoom.scaleBy, 1.5);
+            }, 800);
+        }
     }
 
-    // --- Rendering ---
+    fitToPath(pathNodes) {
+        if (!pathNodes || pathNodes.length === 0) return;
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        pathNodes.forEach(id => {
+            const n = this.getNode(id);
+            if (n) {
+                minX = Math.min(minX, n.x);
+                minY = Math.min(minY, n.y);
+                maxX = Math.max(maxX, n.x);
+                maxY = Math.max(maxY, n.y);
+            }
+        });
+
+        // Add padding
+        const padding = 100;
+        const width = maxX - minX + padding * 2;
+        const height = maxY - minY + padding * 2;
+        const cx = (minX + maxX) / 2;
+        const cy = (minY + maxY) / 2;
+
+        const scaleX = this.canvas.width / width;
+        const scaleY = this.canvas.height / height;
+        let scale = Math.min(scaleX, scaleY);
+
+        // Limit max zoom to avoid extreme closeups on short paths
+        scale = Math.min(scale, 2.0);
+        scale = Math.max(scale, 0.2);
+
+        // Center view
+        const tX = (this.canvas.width / 2) - (cx * scale);
+        const tY = (this.canvas.height / 2) - (cy * scale);
+
+        this.transform = d3.zoomIdentity.translate(tX, tY).scale(scale);
+        d3.select(this.canvas).transition().duration(750)
+            .call(this.zoom.transform, this.transform);
+    }
+
+    // --- Animation & Effects ---
+    panToNode(node) {
+        if (!node) return;
+
+        // Ensure floor is active (visibly) - though we draw all floors, this updates currentFloorId
+        this.currentFloorId = node.floorId;
+
+        // Pan to Node center
+        // Maintain current zoom level, or ensure minimum legibility
+        let targetScale = this.transform.k;
+        if (targetScale < 0.5) targetScale = 0.8; // Zoom in if too far out
+
+        const tX = (this.canvas.width / 2) - (node.x * targetScale);
+        const tY = (this.canvas.height / 2) - (node.y * targetScale);
+
+        this.transform = d3.zoomIdentity.translate(tX, tY).scale(targetScale);
+        d3.select(this.canvas).transition().duration(800).ease(d3.easeCubicOut)
+            .call(this.zoom.transform, this.transform);
+    }
+
+    highlightNode(node) {
+        // Start animation loop for highlight (Bounce)
+        this.activeHighlightNode = node;
+        this.highlightStartTime = Date.now();
+
+        if (!this.isHighlighting) {
+            this.isHighlighting = true;
+            this.animateHighlight();
+        }
+    }
+
+    animateHighlight() {
+        if (!this.activeHighlightNode) {
+            this.isHighlighting = false;
+            return;
+        }
+
+        const elapsed = Date.now() - this.highlightStartTime;
+        if (elapsed > 4000) { // Stop after 4 seconds (covers 3500ms sequence)
+            this.activeHighlightNode = null;
+            this.isHighlighting = false;
+            this.draw(); // Final clear
+            return;
+        }
+
+        this.draw();
+        requestAnimationFrame(() => this.animateHighlight());
+    }
+
+    // Updated Draw includes highlight
     draw() {
         if (!this.ctx) return;
         const ctx = this.ctx;
@@ -412,65 +507,90 @@ class MapEngine {
             if (img && img.complete) {
                 const yOffset = (this.floorOffsets && this.floorOffsets[f.id]) || 0;
                 const xCrop = (this.floorCropX && this.floorCropX[f.id]) || 0;
-
-                // Draw Sliced Image
-                // source: (xCrop, 0, 940, h) -> dest: (0, yOffset, 940, h)
-                // If width < 940, just draw normally? Our calculation ensured width > 940 for crop.
-                // If width < 940, cropX is 0. 
-
-                const drawWidth = Math.min(940, img.width); // If smaller than 940, use full width
-                // Wait, if img.width < 940, cropX is 0.
-
-                ctx.drawImage(img,
-                    xCrop, 0, drawWidth, img.height, // Source
-                    0, yOffset, drawWidth, img.height // Dest
-                );
-
-                // Draw Border around floor (Optional, for clarity)
+                const drawWidth = Math.min(940, img.width);
+                ctx.drawImage(img, xCrop, 0, drawWidth, img.height, 0, yOffset, drawWidth, img.height);
                 ctx.strokeStyle = '#e0e0e0';
                 ctx.lineWidth = 2;
                 ctx.strokeRect(0, yOffset, drawWidth, img.height);
-
-                // Restore Floor Label (World Space) next to image
-                ctx.fillStyle = 'rgba(26, 35, 126, 0.4)'; // Navy with low opacity
+                ctx.fillStyle = 'rgba(26, 35, 126, 0.4)';
                 ctx.font = 'bold 120px "Cinzel", sans-serif';
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'top';
-                // Position to the left of the image (e.g., x = -20)
                 ctx.fillText(f.name, -50, yOffset + 50);
             }
         });
 
         if (this.path && this.path.length > 0) {
             this.drawPath();
-
             // Draw Markers (Start/End)
             const startNode = this.getNode(this.path[0]);
             const endNode = this.getNode(this.path[this.path.length - 1]);
-
             this.drawMarker(startNode, 'START', AppConfig.STYLES.node.highlightColor);
             this.drawMarker(endNode, 'GOAL', AppConfig.STYLES.node.highlightColor);
-
         } else if (this.startNode) {
-            // Draw Start Marker even if no path
             this.drawMarker(this.startNode, 'START', AppConfig.STYLES.node.highlightColor);
         }
 
+        // Draw Highlight Effect (BOUNCING PIN)
+        if (this.activeHighlightNode && this.activeHighlightNode.floorId === this.currentFloorId) {
+            const n = this.activeHighlightNode;
+            const elapsed = Date.now() - this.highlightStartTime;
+
+            // Settings
+            const bounceDuration = 2500; // 2 full cycles (at 0.005 freq)
+            const waitDuration = 500;
+            const fadeDuration = 500;
+            const totalDuration = bounceDuration + waitDuration + fadeDuration;
+
+            if (elapsed > totalDuration) return;
+
+            // Opacity Calculation
+            let alpha = 1.0;
+            if (elapsed > bounceDuration + waitDuration) {
+                const fadeElapsed = elapsed - (bounceDuration + waitDuration);
+                alpha = 1.0 - (fadeElapsed / fadeDuration);
+                alpha = Math.max(0, alpha);
+            }
+
+            // Bounce Physics
+            let bounceHeight = 0;
+            if (elapsed < bounceDuration) {
+                // Slower frequency: 0.005 -> Approx 1.25s per bounce cycle
+                bounceHeight = Math.abs(Math.sin(elapsed * 0.005)) * 15;
+            }
+
+            // Draw Shadow
+            const shadowScale = 1 - (bounceHeight / 25);
+            ctx.save();
+            ctx.globalAlpha = alpha; // Apply Fade
+
+            ctx.translate(n.x, n.y);
+            ctx.scale(shadowScale, shadowScale);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 10, 5, 0, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fill();
+            ctx.restore();
+
+            // Draw Pin Offset
+            const bouncingNode = { ...n, y: n.y - bounceHeight };
+
+            ctx.save();
+            ctx.globalAlpha = alpha; // Apply Fade
+            this.drawMarker(bouncingNode, "HERE", '#ffca28');
+            ctx.restore();
+        }
+
         ctx.restore();
+        this.drawScreenUI();
+    }
 
-        // --- Screen Space UI ---
+    drawScreenUI() {
+        const ctx = this.ctx;
         // Draw Current Floor Label (Fixed Top-Left)
-        // Calculate which floor is at center of screen
-
-        // Center of Screen (Canvas)
         const cx = this.canvas.width / 2;
         const cy = this.canvas.height / 2;
-
-        // Convert to World Y
-        // screenY = worldY * k + y => worldY = (screenY - y) / k
         const worldCy = (cy - this.transform.y) / this.transform.k;
-
-        // Find Floor covering this Y
         let currentFloorName = "";
         const gap = AppConfig.FLOOR_GAP || 200;
 
@@ -478,40 +598,26 @@ class MapEngine {
             const yOffset = this.floorOffsets[f.id];
             const img = this.images[f.id];
             const h = (img && img.height) ? img.height : 1000;
-
-            // Allow some buffer for gap
             if (worldCy >= yOffset - gap / 2 && worldCy < yOffset + h + gap / 2) {
-                currentFloorName = f.name; // e.g., "1F"
+                currentFloorName = f.name;
                 break;
             }
         }
 
         if (currentFloorName) {
             ctx.save();
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'; // Semi-transparent card
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
             ctx.shadowColor = 'rgba(0,0,0,0.2)';
             ctx.shadowBlur = 10;
-            const cardW = 100;
-            const cardH = 60;
-            const padX = 20;
-            const padY = 20;
-
-            // Draw Card background? Or just clean Text?
-            // User asked for "Left Top", always visible.
-            // Let's make it stylish.
 
             ctx.font = 'bold 48px "Cinzel", sans-serif';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
-
-            // Stroke for readability
             ctx.strokeStyle = 'white';
             ctx.lineWidth = 4;
             ctx.strokeText(currentFloorName, 30, 30);
-
-            ctx.fillStyle = '#1a237e'; // Navy Blue
+            ctx.fillStyle = '#1a237e';
             ctx.fillText(currentFloorName, 30, 30);
-
             ctx.restore();
         }
     }
@@ -608,6 +714,28 @@ class MapEngine {
             ctx.lineDashOffset = -this.animationOffset / this.transform.k;
             ctx.stroke();
             ctx.setLineDash([]);
+
+            // 4. White Waypoint Dots (Intermediate points)
+            // Draw for all points in segment, excluding Global Start/End
+            const globalStartId = this.path[0];
+            const globalEndId = this.path[this.path.length - 1];
+
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = '#c62828'; // Red border matching theme or Navy?
+            // "White circles", maybe just white filled.
+            // Let's us navy border.
+            ctx.strokeStyle = '#1a237e';
+            ctx.lineWidth = 1;
+
+            seg.forEach(node => {
+                // Skip if it's the very first or very last node of the whole path
+                if (node.id === globalStartId || node.id === globalEndId) return;
+
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, 4, 0, Math.PI * 2); // Small white dot
+                ctx.fill();
+                ctx.stroke();
+            });
         });
 
         // Draw Bubbles at Transfer Points

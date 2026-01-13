@@ -9,13 +9,44 @@ class UIController {
 
         // Cache DOM
         this.floorTabs = document.getElementById('floor-tabs');
-        this.routeList = document.getElementById('route-list');
         this.loadingOverlay = document.getElementById('loading-overlay');
+
+        // Mobile UI Elements
+        this.sidebar = document.querySelector('.sidebar');
+        this.mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        this.sidebarCloseBtn = document.getElementById('sidebar-close-btn');
+        this.routeList = document.getElementById('route-list');
+        this.mobileOverlay = document.getElementById('mobile-route-overlay');
+        this.mobileRouteContent = document.getElementById('mobile-route-content');
+        this.overlayToggleBtn = document.getElementById('overlay-toggle-btn');
+
+        // Mobile Overlay Toggle
+        if (this.overlayToggleBtn && this.mobileOverlay) {
+            // Allow clicking header or button
+            const header = this.mobileOverlay.querySelector('.overlay-header');
+            if (header) {
+                header.addEventListener('click', () => {
+                    this.mobileOverlay.classList.toggle('collapsed');
+                });
+            }
+        }
 
         this.init();
     }
 
     async init() {
+        // Mobile Event Listeners
+        if (this.mobileMenuBtn) {
+            this.mobileMenuBtn.addEventListener('click', () => {
+                this.sidebar.classList.add('active');
+            });
+        }
+        if (this.sidebarCloseBtn) {
+            this.sidebarCloseBtn.addEventListener('click', () => {
+                this.sidebar.classList.remove('active');
+            });
+        }
+
         // No floor tabs needed for merged map
         // this.renderFloorTabs();
 
@@ -66,9 +97,14 @@ class UIController {
         }
 
         // Event Listeners for Controls
-        document.getElementById('zoom-in').addEventListener('click', () => this.engine.zoomIn());
-        document.getElementById('zoom-out').addEventListener('click', () => this.engine.zoomOut());
-        document.getElementById('fit-map').addEventListener('click', () => this.engine.fitToScreen());
+        const zoomIn = document.getElementById('zoom-in');
+        if (zoomIn) zoomIn.addEventListener('click', () => this.engine.zoomIn());
+
+        const zoomOut = document.getElementById('zoom-out');
+        if (zoomOut) zoomOut.addEventListener('click', () => this.engine.zoomOut());
+
+        const fitMap = document.getElementById('fit-map');
+        if (fitMap) fitMap.addEventListener('click', () => this.engine.fitToScreen());
     }
 
     renderFloorTabs() {
@@ -158,18 +194,64 @@ class UIController {
         const startVal = this.startSelect.value;
         const endVal = this.endSelect.value;
 
-        if (!startVal || !endVal) return;
+        if (!startVal || !endVal) {
+            // Hide mobile overlay if route is cleared
+            if (this.mobileOverlay) this.mobileOverlay.classList.add('hidden');
+            return;
+        }
 
         const path = this.engine.calculatePath(startVal, endVal);
 
-        // Auto-switch to start node's floor if different
+        // Auto-zoom to fit the entire path
         if (path && path.length > 0) {
-            const startNode = this.engine.getNode(path[0]);
-            if (startNode && startNode.floorId !== this.currentFloorId) {
-                this.switchFloor(startNode.floorId);
+            this.engine.fitToPath(path);
+
+            // ... (keep mobile logic)
+
+            // Mobile: Close Sidebar & Show Overlay
+            if (window.innerWidth <= 768 && this.sidebar) {
+                this.sidebar.classList.remove('active');
             }
+
+            // Update Mobile Overlay with EXACT content from Route List
+            this.updateRouteList(path || []); // Generate standard list first
+
+            if (this.mobileOverlay && this.mobileRouteContent) {
+                // Clone the generated list content to Mobile Overlay
+                this.mobileRouteContent.innerHTML = '';
+
+                if (this.routeList && this.routeList.children.length > 0) {
+                    const ul = document.createElement('ul');
+                    ul.className = 'route-list mobile-route-list';
+
+                    Array.from(this.routeList.children).forEach((li) => {
+                        const clone = li.cloneNode(true);
+                        // Re-attach click handler using stored Node ID
+                        const nodeId = li.dataset.nodeId;
+                        if (nodeId) {
+                            const node = this.engine.getNode(nodeId);
+                            if (node) {
+                                clone.onclick = () => {
+                                    this.engine.panToNode(node);
+                                    this.engine.highlightNode(node);
+                                    // Make sure overlay is collapsed so user can see map? 
+                                    // User said "show clear UI to re-open".
+                                    // Maybe just keep it open? Or let user decide.
+                                    // Current visual implies it stays open unless user collapses.
+                                };
+                            }
+                        }
+                        ul.appendChild(clone);
+                    });
+                    this.mobileRouteContent.appendChild(ul);
+                }
+
+                this.mobileOverlay.classList.remove('hidden');
+                this.mobileOverlay.classList.remove('collapsed'); // Auto-expand on new route
+            }
+        } else {
+            if (this.mobileOverlay) this.mobileOverlay.classList.add('hidden');
         }
-        this.updateRouteList(path || []);
     }
 
     updateRouteList(pathIds) {
@@ -191,8 +273,12 @@ class UIController {
             if (!node.name && !isStart && !isEnd && !isTransfer) return;
 
             const li = document.createElement('li');
+            li.dataset.nodeId = node.id; // Store exact node ID
             li.className = `route-step ${isStart ? 'start' : ''} ${isEnd ? 'end' : ''}`;
-            li.onclick = () => this.switchFloor(node.floorId);
+            li.onclick = () => {
+                this.engine.panToNode(node);
+                this.engine.highlightNode(node);
+            };
 
             let title = node.eventName || node.name;
             if (!title && isTransfer) title = "フロア移動";
@@ -260,6 +346,7 @@ class CustomSelect {
     }
 
     render() {
+        if (!this.optionsContainer) return;
         this.optionsContainer.innerHTML = '';
 
         // 1. Render Header (Sticky)
