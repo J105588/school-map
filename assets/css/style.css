@@ -1067,3 +1067,41 @@ input:checked+.slider:before {
         font-size: 24px;
     }
 }
+
+/* QR Button Customizaion */
+#scan-btn {
+    position: absolute;
+    bottom: 30px;
+    left: 30px;
+    /* Desktop: Bottom-Left */
+    background-color: #007bff;
+    /* Desktop: Blue */
+    color: white;
+    z-index: 50;
+    border: none;
+}
+
+#scan-btn:hover {
+    background-color: #0056b3;
+}
+
+@media (max-width: 768px) {
+    #scan-btn {
+        position: fixed;
+        /* Mobile: Fixed */
+        left: 20px;
+        /* Align with search button (left) */
+        right: auto;
+        bottom: 120px;
+        /* Above Search Button (bottom:50px + height:56px + gap) */
+        background-color: white;
+        /* Mobile: White */
+        color: #333;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+}
+
+/* Utility */
+.hidden {
+    display: none !important;
+}

@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Generator - School Map</title>
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+
+    <!-- Dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <!-- App Config -->
+    <script src="assets/js/config.js"></script>
+
+    <style>
+        body {
+            font-family: "Helvetica Neue", Arial, sans-serif;
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            background-color: #f4f7f6;
+            height: 95vh;
+            box-sizing: border-box;
+            color: #333;
+        }
+
+        /* Canvas Area (Visual Confirmation) */
+        #canvas-wrapper {
+            position: relative;
+            border: 2px solid #ccc;
+            overflow: hidden;
+            flex-grow: 1;
+            background: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 8px;
+            flex-direction: column;
+        }
+
+        #qr-preview {
+            width: 300px;
+            height: 300px;
+            border: 1px solid #ddd;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #fafafa;
+            margin-bottom: 20px;
+        }
+
+        /* Sidebar */
+        #sidebar {
+            width: 350px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            height: 100%;
+            min-width: 350px;
+            overflow-y: auto;
+        }
+
+        .panel {
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            border-radius: 8px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        h3 {
+            margin: 0 0 10px 0;
+            font-size: 15px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 5px;
+            color: #555;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px;
+            width: 100%;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        button:hover:not(:disabled) {
+            background: #0056b3;
+        }
+
+        .log-box {
+            font-family: monospace;
+            font-size: 11px;
+            height: 300px;
+            overflow-y: auto;
+            background: #333;
+            color: #0f0;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #eee;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 5px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #28a745;
+            width: 0%;
+            transition: width 0.1s;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="canvas-wrapper">
+        <h2 style="color:#555;">QR Code Generator</h2>
+        <div id="qr-preview">Preview Area</div>
+        <p style="color:#777; font-size:13px;">Processing items will appear here briefly...</p>
+    </div>
+
+    <div id="sidebar">
+        <div class="panel">
+            <h3>🖨️ QR一括生成</h3>
+            <p style="font-size:12px; color:#666; margin-bottom:15px;">
+                登録されている全ての「名前付き」地点のQRコードを生成し、ZIP形式でダウンロードします。
+            </p>
+
+            <div style="margin-bottom:15px;">
+                <label style="font-size:12px; font-weight:bold;">Status:</label>
+                <div class="progress-bar">
+                    <div id="progress" class="progress-fill"></div>
+                </div>
+                <span id="status-text" style="font-size:11px;">Ready</span>
+            </div>
+
+            <button onclick="generateAll()" id="genBtn">🚀 QRコード生成 & ZIP保存</button>
+        </div>
+
+        <div class="panel" style="flex-grow:1; display:flex; flex-direction:column;">
+            <h3>📋 処理ログ</h3>
+            <div id="console" class="log-box"></div>
+        </div>
+    </div>
+
+    <!-- Hidden container for QR generation -->
+    <div id="qr-target" style="display:none;"></div>
+
+    <script>
+        // Logger
+        function log(msg) {
+            const el = document.getElementById('console');
+            el.innerHTML += `> ${msg}\n`;
+            el.scrollTop = el.scrollHeight;
+        }
+
+        // Data Loader (Simplified version of MapEngine logic)
+        let allNodes = [];
+
+        async function loadData() {
+            log("Loading Map Data...");
+            const floors = AppConfig.FLOORS;
+
+            for (const floor of floors) {
+                try {
+                    const res = await fetch(floor.jsonPath);
+                    if (!res.ok) throw new Error(res.status);
+                    const data = await res.json();
+
+                    data.nodes.forEach(n => {
+                        // Tag with floor info
+                        n.floorId = floor.id;
+                        n.floorName = floor.name; // e.g. "1F"
+                        // Create Global ID
+                        n.fullId = `${floor.id}_${n.id}`;
+                        allNodes.push(n);
+                    });
+                    log(`Loaded Floor ${floor.id}: ${data.nodes.length} nodes`);
+                } catch (e) {
+                    log(`Error loading floor ${floor.id}: ${e.message}`);
+                }
+            }
+            log(`Total Loaded: ${allNodes.length} nodes`);
+
+            // Filter target nodes (Must have name)
+            allNodes = allNodes.filter(n => n.name && n.type !== 'junction');
+            log(`Target Nodes (Named): ${allNodes.length}`);
+
+            document.getElementById('status-text').innerText = `Ready (${allNodes.length} items found)`;
+        }
+
+        // QR Generator
+        async function generateAll() {
+            if (allNodes.length === 0) await loadData();
+            if (allNodes.length === 0) {
+                alert("有効な地点データが見つかりません。");
+                return;
+            }
+
+            const btn = document.getElementById('genBtn');
+            btn.disabled = true;
+            btn.innerText = "生成中...";
+
+            const zip = new JSZip();
+            const folder = zip.folder("qr_code");
+
+            const targetDiv = document.getElementById('qr-target');
+            // Base URL: replace current filename with map.html
+            const baseUrl = window.location.href.split('?')[0].replace(/qr\.html$/, 'map.html');
+
+            log(`Base URL: ${baseUrl}`);
+
+            let count = 0;
+            const total = allNodes.length;
+
+            for (const node of allNodes) {
+                // Update Progress
+                count++;
+                const pct = Math.floor((count / total) * 100);
+                document.getElementById('progress').style.width = `${pct}%`;
+                document.getElementById('status-text').innerText = `Processing ${count}/${total}: ${node.name}`;
+
+                // --- Generate QR ---
+                targetDiv.innerHTML = ''; // Clear previous
+
+                // Content format: map.html?current=[ID]
+                const qrUrl = `${baseUrl}?current=${node.fullId}`;
+
+                // Create QR object
+                // We use qrcode.js library
+                new QRCode(targetDiv, {
+                    text: qrUrl,
+                    width: 512,
+                    height: 512,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+
+                // Wait for Canvas rendering
+                // qrcode.js renders immediately to canvas or table? Usually canvas if supported.
+                // We grab the canvas or img data.
+                let dataUrl = null;
+                const canvas = targetDiv.querySelector('canvas');
+
+                if (canvas) {
+                    dataUrl = canvas.toDataURL("image/png");
+                    // Preview
+                    const preview = document.getElementById('qr-preview');
+                    preview.innerHTML = '';
+                    canvas.style.width = '200px';
+                    canvas.style.height = '200px';
+                    preview.appendChild(canvas.cloneNode(true));
+                } else {
+                    // Fallback forimg
+                    const img = targetDiv.querySelector('img');
+                    if (img) dataUrl = img.src;
+                }
+
+                if (dataUrl) {
+                    // Filename: [Floor]_[Name].png
+                    // Sanitize name for filename
+                    const safeName = node.name.replace(/[\/\\:*?"<>|]/g, '_');
+                    const fileName = `${node.floorId}F_${safeName}.png`;
+
+                    // Add to Zip (remove base64 header)
+                    const base64Data = dataUrl.split(',')[1];
+                    folder.file(fileName, base64Data, { base64: true });
+
+                    log(`Generated: ${fileName}`);
+                } else {
+                    log(`Failed to render QR for: ${node.name}`);
+                }
+
+                // Slight yield to allow UI update
+                await new Promise(r => setTimeout(r, 20));
+            }
+
+            log("All items processed. Compressing ZIP...");
+            document.getElementById('status-text').innerText = "Compressing ZIP...";
+
+            const content = await zip.generateAsync({ type: "blob" });
+            saveAs(content, "qr_codes.zip");
+
+            log("Done! Download started.");
+            document.getElementById('status-text').innerText = "Completed!";
+            btn.disabled = false;
+            btn.innerText = "再生成";
+        }
+
+        // Init
+        window.onload = loadData;
+    </script>
+</body>
+
+</html>

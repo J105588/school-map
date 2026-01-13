@@ -1,0 +1,47 @@
+/* CSS for QR Scan Button Position */
+
+/* Default (Desktop) */
+#scan-btn {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    /* Fixed to Bottom-Left */
+    background-color: #007bff;
+    /* Blue Background */
+    color: white;
+    /* White Icon */
+    z-index: 100;
+}
+
+#scan-btn:hover {
+    background-color: #0056b3;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+}
+
+/* Mobile Overrides */
+@media (max-width: 768px) {
+    #scan-btn {
+        position: fixed;
+        /* Use fixed for mobile safety vs viewport */
+        left: auto;
+        /* Reset left */
+        right: 20px;
+        /* Match Search Button alignment */
+        bottom: 110px;
+        /* Above Search Button (50px bottom + 56px height + gap) -> 120px? Search is bottom:50px */
+        /* Search button is bottom: 50px, height 56px. Top of search is 106px. Gap 15px -> Bottom: 121px */
+        bottom: 120px;
+
+        background-color: white;
+        /* White Background */
+        color: #333;
+        /* Dark Icon */
+
+        /* Match FAB style */
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+}

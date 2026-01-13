@@ -135,6 +135,39 @@ class UIController {
             // Mobile init
         }
 
+        // QR Scanner Logic
+        const scanBtn = document.getElementById('scan-btn');
+        if (scanBtn) {
+            scanBtn.addEventListener('click', () => this.startScanner());
+        }
+        const closeScanBtn = document.getElementById('close-qr-btn');
+        if (closeScanBtn) {
+            closeScanBtn.addEventListener('click', () => this.stopScanner());
+        }
+
+        // QR Help Logic
+        const helpBtn = document.getElementById('qr-help-btn');
+        const helpModal = document.getElementById('qr-help-modal');
+        const closeHelpBtn = document.getElementById('close-help-btn');
+
+        if (helpBtn && helpModal && closeHelpBtn) {
+            helpBtn.addEventListener('click', () => {
+                helpModal.classList.remove('hidden');
+                helpModal.style.display = 'flex'; // Force flex
+            });
+            closeHelpBtn.addEventListener('click', () => {
+                helpModal.classList.add('hidden');
+                helpModal.style.display = 'none';
+            });
+            // Close on background click
+            helpModal.addEventListener('click', (e) => {
+                if (e.target === helpModal) {
+                    helpModal.classList.add('hidden');
+                    helpModal.style.display = 'none';
+                }
+            });
+        }
+
         // Check for URL Params (Current Location)
         const params = new URLSearchParams(window.location.search);
         const currentId = params.get('current');
@@ -436,6 +469,91 @@ class UIController {
     showLoading(show) {
         if (this.loadingOverlay) {
             this.loadingOverlay.style.display = show ? 'flex' : 'none';
+        }
+    }
+
+    startScanner() {
+        const overlay = document.getElementById('qr-overlay');
+        overlay.classList.remove('hidden');
+        overlay.style.display = 'flex'; // Force flex for centering
+
+        if (!this.html5QrcodeScanner) {
+            this.html5QrcodeScanner = new Html5Qrcode("reader");
+        }
+
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+        // Use back camera
+        this.html5QrcodeScanner.start(
+            { facingMode: "environment" },
+            config,
+            (decodedText, decodedResult) => {
+                // Success
+                console.log(`Scan result: ${decodedText}`);
+                this.handleScanSuccess(decodedText);
+            },
+            (errorMessage) => {
+                // parse error, ignore
+            }
+        ).catch(err => {
+            console.error(err);
+            alert("カメラの起動に失敗しました");
+            this.stopScanner();
+        });
+    }
+
+    stopScanner() {
+        if (this.html5QrcodeScanner) {
+            this.html5QrcodeScanner.stop().then(() => {
+                // Stopped
+                this.html5QrcodeScanner.clear();
+            }).catch(err => {
+                console.warn(err);
+            });
+        }
+        const overlay = document.getElementById('qr-overlay');
+        overlay.classList.add('hidden');
+        overlay.style.display = 'none';
+    }
+
+    handleScanSuccess(url) {
+        this.stopScanner();
+
+        try {
+            // Extract 'current' param
+            // URL might be full "https://.../map.html?current=..." or just local
+            const dummyBase = "http://dummy.com";
+            // If url is relative, URL() constructor requires base. If absolute, base is ignored.
+            const urlObj = new URL(url, dummyBase);
+            const currentId = urlObj.searchParams.get('current');
+
+            if (currentId) {
+                // Update Location
+                this.engine.setCurrentLocation(currentId);
+
+                // Update Start Select if exists
+                if (this.startSelect) {
+                    const node = this.engine.getNode(currentId);
+                    if (node) {
+                        const title = node.eventName || node.name || "現在地";
+                        this.startSelect.select(currentId, title);
+                        this.engine.setStartMarker(currentId);
+
+                        // If we have an End point, recalculate route from this new start
+                        if (this.endSelect && this.endSelect.value) {
+                            this.calculateRoute();
+                        }
+                    }
+                }
+
+                // Notify user subtly? Or the map movement is enough.
+                // alert(`現在地を更新しました: ${currentId}`);
+            } else {
+                alert("QRコードに位置情報が含まれていません");
+            }
+        } catch (e) {
+            console.error("QR Parse Error", e);
+            alert("無効なQRコードです");
         }
     }
 }
