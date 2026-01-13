@@ -18,6 +18,9 @@ class MapEngine {
         this.globalNodes = [];
         this.globalEdges = [];
 
+        // Current Location State
+        this.currentLocationNode = null;
+
         // Viewport Transform (Zoom/Pan)
         this.transform = { k: 1, x: 0, y: 0 };
         this.currentFloorId = AppConfig.DEFAULT_FLOOR_ID || 1;
@@ -464,32 +467,39 @@ class MapEngine {
     }
 
     highlightNode(node) {
-        // Start animation loop for highlight (Bounce)
+        if (!node) return;
         this.activeHighlightNode = node;
         this.highlightStartTime = Date.now();
+        this.draw();
 
-        if (!this.isHighlighting) {
-            this.isHighlighting = true;
-            this.animateHighlight();
-        }
+        // Loop Effect (Auto-draw handles animation frame if we want continuous,
+        // but currently verify just calls draw() on events. 
+        // We'll trust the main loop or just trigger a re-draw sequence?)
+        // Actually draw() only runs on events. bounce needs animation loop.
+        if (this.animationId) cancelAnimationFrame(this.animationId);
+
+        const animate = () => {
+            if (Date.now() - this.highlightStartTime < 3000) {
+                this.draw();
+                this.animationId = requestAnimationFrame(animate);
+            } else {
+                this.activeHighlightNode = null;
+                this.draw();
+            }
+        };
+        animate();
     }
 
-    animateHighlight() {
-        if (!this.activeHighlightNode) {
-            this.isHighlighting = false;
-            return;
+    setCurrentLocation(nodeId) {
+        const node = this.getNode(nodeId);
+        if (node) {
+            this.currentLocationNode = node;
+            // Also set as Start default? Or just show it? 
+            // User requirement: "Display current location". Implicitly might want to start from there.
+            // For now just display. UI Controller can decide to set it as start.
+            this.currentFloorId = node.floorId;
+            this.draw();
         }
-
-        const elapsed = Date.now() - this.highlightStartTime;
-        if (elapsed > 4000) { // Stop after 4 seconds (covers 3500ms sequence)
-            this.activeHighlightNode = null;
-            this.isHighlighting = false;
-            this.draw(); // Final clear
-            return;
-        }
-
-        this.draw();
-        requestAnimationFrame(() => this.animateHighlight());
     }
 
     // Updated Draw includes highlight
@@ -538,6 +548,13 @@ class MapEngine {
             this.drawMarker(endNode, 'GOAL', AppConfig.STYLES.node.highlightColor);
         } else if (this.startNode) {
             this.drawMarker(this.startNode, 'START', AppConfig.STYLES.node.highlightColor);
+        }
+
+        // Draw Current Location (Always visible if set)
+        if (this.currentLocationNode) {
+            // Use a distinct color/label. maybe Green or Blue?
+            // "現在地" text.
+            this.drawMarker(this.currentLocationNode, '現在地', '#2e7d32'); // Green
         }
 
         // Draw Highlight Effect (BOUNCING PIN)

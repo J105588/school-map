@@ -26,6 +26,23 @@ class UIController {
         }
 
         this.init();
+
+        // Debounce State
+        this.lastStepClickTime = 0;
+    }
+
+    handleStepClick(node) {
+        if (!node) return;
+
+        const now = Date.now();
+        if (now - this.lastStepClickTime < 800) {
+            // throttle for 800ms
+            return;
+        }
+        this.lastStepClickTime = now;
+
+        this.engine.panToNode(node);
+        this.engine.highlightNode(node);
     }
 
     async init() {
@@ -116,6 +133,29 @@ class UIController {
         // Initial Layout Check
         if (window.innerWidth <= 768) {
             // Mobile init
+        }
+
+        // Check for URL Params (Current Location)
+        const params = new URLSearchParams(window.location.search);
+        const currentId = params.get('current');
+        if (currentId) {
+            // Delay slightly to ensure map is ready/drawn once? 
+            // loadAllData is awaited above, so safe.
+            this.engine.setCurrentLocation(currentId);
+
+            // Optional: Auto-set Start point to Current Location
+            if (this.startSelect) {
+                // We need to resolve the ID to a value in the select?
+                // The select values ARE the IDs.
+                this.startSelect.select(currentId, "現在地"); // "現在地" might not match the option Text. 
+                // Better to find the node name.
+                const node = this.engine.getNode(currentId);
+                if (node) {
+                    const title = node.eventName || node.name || "現在地";
+                    this.startSelect.select(currentId, title);
+                    this.engine.setStartMarker(currentId);
+                }
+            }
         }
     }
 
@@ -243,14 +283,15 @@ class UIController {
                         if (nodeId) {
                             const node = this.engine.getNode(nodeId);
                             if (node) {
-                                clone.onclick = () => {
-                                    this.engine.panToNode(node);
-                                    this.engine.highlightNode(node);
-                                    // Make sure overlay is collapsed so user can see map? 
-                                    // User said "show clear UI to re-open".
-                                    // Maybe just keep it open? Or let user decide.
-                                    // Current visual implies it stays open unless user collapses.
-                                };
+                                if (node) {
+                                    clone.onclick = () => {
+                                        this.handleStepClick(node);
+                                        // Make sure overlay is collapsed so user can see map? 
+                                        // User said "show clear UI to re-open".
+                                        // Maybe just keep it open? Or let user decide.
+                                        // Current visual implies it stays open unless user collapses.
+                                    };
+                                }
                             }
                         }
                         ul.appendChild(clone);
@@ -287,9 +328,9 @@ class UIController {
             const li = document.createElement('li');
             li.dataset.nodeId = node.id; // Store exact node ID
             li.className = `route-step ${isStart ? 'start' : ''} ${isEnd ? 'end' : ''}`;
+            li.className = `route-step ${isStart ? 'start' : ''} ${isEnd ? 'end' : ''}`;
             li.onclick = () => {
-                this.engine.panToNode(node);
-                this.engine.highlightNode(node);
+                this.handleStepClick(node);
             };
 
             let title = node.eventName || node.name;

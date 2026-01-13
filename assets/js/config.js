@@ -45,5 +45,17 @@ const AppConfig = {
             glowColor: 'rgba(197, 160, 89, 0.5)',
             glowBlur: 5
         }
-    }
+    },
+
+    // Logging
+    ENABLE_LOGS: false
 };
+
+// Log Suppression Logic
+if (AppConfig.ENABLE_LOGS === false) {
+    console.log = function () { };
+    // Optional: Suppress others if desired, but user specifically asked for "logs" usually implying INFO/LOG.
+    // Keeping warn/error is safer for debugging critical failures.
+    console.info = function () { };
+    console.debug = function () { };
+}
