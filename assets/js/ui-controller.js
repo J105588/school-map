@@ -20,15 +20,9 @@ class UIController {
         this.mobileRouteContent = document.getElementById('mobile-route-content');
         this.overlayToggleBtn = document.getElementById('overlay-toggle-btn');
 
-        // Mobile Overlay Toggle
+        // Mobile Overlay Toggle & Drag
         if (this.overlayToggleBtn && this.mobileOverlay) {
-            // Allow clicking header or button
-            const header = this.mobileOverlay.querySelector('.overlay-header');
-            if (header) {
-                header.addEventListener('click', () => {
-                    this.mobileOverlay.classList.toggle('collapsed');
-                });
-            }
+            this.initDraggableOverlay();
         }
 
         this.init();
@@ -103,8 +97,26 @@ class UIController {
         const zoomOut = document.getElementById('zoom-out');
         if (zoomOut) zoomOut.addEventListener('click', () => this.engine.zoomOut());
 
-        const fitMap = document.getElementById('fit-map');
-        if (fitMap) fitMap.addEventListener('click', () => this.engine.fitToScreen());
+        // Accessibility Toggle
+        const accessToggle = document.getElementById('accessibility-toggle');
+        if (accessToggle) {
+            accessToggle.addEventListener('change', (e) => {
+                this.engine.setAccessibilityMode(e.target.checked);
+                // Re-calculate if route is active
+                if (this.startSelect.value && this.endSelect.value) {
+                    this.calculateRoute();
+                }
+            });
+        }
+
+        // Fit Map Button
+        const fitMapBtn = document.getElementById('fit-map');
+        if (fitMapBtn) fitMapBtn.addEventListener('click', () => this.engine.fitToScreen());
+
+        // Initial Layout Check
+        if (window.innerWidth <= 768) {
+            // Mobile init
+        }
     }
 
     renderFloorTabs() {
@@ -302,6 +314,77 @@ class UIController {
             `;
             this.routeList.appendChild(li);
         });
+    }
+
+    initDraggableOverlay() {
+        const header = this.mobileOverlay.querySelector('.overlay-header');
+        if (!header) return;
+
+        let isDragging = false;
+        let startX, startY, initialLeft, initialTop;
+        let hasMoved = false;
+
+        const onStart = (e) => {
+            // Only left mouse or touch
+            if (e.type === 'mousedown' && e.button !== 0) return;
+
+            const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+            const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+
+            isDragging = true;
+            hasMoved = false;
+            startX = clientX;
+            startY = clientY;
+
+            const rect = this.mobileOverlay.getBoundingClientRect();
+            // We need to work with computed values if style is not set, but rect is safer
+            initialLeft = rect.left;
+            initialTop = rect.top;
+
+            // Disable transition during drag
+            this.mobileOverlay.style.transition = 'none';
+            this.mobileOverlay.style.right = 'auto'; // Clear right to allow left positioning
+
+            document.addEventListener(e.type === 'mousedown' ? 'mousemove' : 'touchmove', onMove, { passive: false });
+            document.addEventListener(e.type === 'mousedown' ? 'mouseup' : 'touchend', onEnd);
+        };
+
+        const onMove = (e) => {
+            if (!isDragging) return;
+            e.preventDefault(); // Prevent scrolling
+
+            const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+            const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+
+            const dx = clientX - startX;
+            const dy = clientY - startY;
+
+            if (Math.abs(dx) > 5 || Math.abs(dy) > 5) hasMoved = true;
+
+            this.mobileOverlay.style.left = `${initialLeft + dx}px`;
+            this.mobileOverlay.style.top = `${initialTop + dy}px`;
+        };
+
+        const onEnd = (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+
+            // Re-enable height transition
+            this.mobileOverlay.style.transition = 'max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('mouseup', onEnd);
+            document.removeEventListener('touchend', onEnd);
+
+            if (!hasMoved) {
+                // Treated as Click -> Toggle Collapse
+                this.mobileOverlay.classList.toggle('collapsed');
+            }
+        };
+
+        header.addEventListener('mousedown', onStart);
+        header.addEventListener('touchstart', onStart, { passive: false });
     }
 
     showLoading(show) {

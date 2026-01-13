@@ -20,8 +20,12 @@ class MapEngine {
 
         // Viewport Transform (Zoom/Pan)
         this.transform = { k: 1, x: 0, y: 0 };
+        this.currentFloorId = AppConfig.DEFAULT_FLOOR_ID || 1;
         this.isDragging = false;
         this.dragStart = { x: 0, y: 0 };
+
+        // Accessibility
+        this.accessibilityMode = false; // Default OFF (Avoid Elevators)
 
         // Animation
         this.path = [];
@@ -159,11 +163,15 @@ class MapEngine {
                         const f2 = AppConfig.FLOORS.find(f => f.id == n2.floorId);
                         const floorDist = (f1 && f2) ? Math.abs(f1.id - f2.id) : 1;
 
+                        let transferType = 'transfer';
+                        if (n1.type === 'elevator' && n2.type === 'elevator') transferType = 'elevator';
+                        else if (n1.type === 'stairs' && n2.type === 'stairs') transferType = 'stairs';
+
                         this.globalEdges.push({
                             from: n1.id,
                             to: n2.id,
-                            dist: floorDist * 150, // Reduced penalty (approx 150px) to encourage vertical movement if target is closer on another floor
-                            type: 'transfer'
+                            dist: floorDist * 150,
+                            type: transferType
                         });
                     }
                 }
@@ -176,8 +184,9 @@ class MapEngine {
         this.globalEdges.forEach(e => {
             if (!this.adj[e.from]) this.adj[e.from] = [];
             if (!this.adj[e.to]) this.adj[e.to] = [];
-            this.adj[e.from].push({ to: e.to, dist: e.dist });
-            this.adj[e.to].push({ to: e.from, dist: e.dist });
+            // Store type in adjacency list for Dijkstra
+            this.adj[e.from].push({ to: e.to, dist: e.dist, type: e.type });
+            this.adj[e.to].push({ to: e.from, dist: e.dist, type: e.type });
         });
         console.log(`Global Graph Finalized: ${this.globalNodes.length} nodes, ${this.globalEdges.length} edges`);
     }
@@ -1036,7 +1045,15 @@ class MapEngine {
 
             if (this.adj[minId]) {
                 for (const edge of this.adj[minId]) {
-                    const newDist = minDist + edge.dist;
+                    let weight = edge.dist;
+
+                    // ACCESSIBILITY LOGIC
+                    // If Accessibility Mode is OFF (default), avoid elevators
+                    if (!this.accessibilityMode && edge.type === 'elevator') {
+                        weight += 10000; // Penalize heavy
+                    }
+
+                    const newDist = minDist + weight;
                     if (newDist < (dists[edge.to] ?? Infinity)) {
                         dists[edge.to] = newDist;
                         prev[edge.to] = minId;
