@@ -328,6 +328,11 @@ class UIController {
             // Only left mouse or touch
             if (e.type === 'mousedown' && e.button !== 0) return;
 
+            // Prevent ghost mouse events after touch
+            if (e.type === 'touchstart') {
+                e.preventDefault();
+            }
+
             const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
             const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
 
