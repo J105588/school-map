@@ -252,15 +252,17 @@ class UIController {
                         }
                     }
                     return minPriority;
-                })()
+                })(),
+                // Sort Key: Priority to Organization, then Name. Ignore EventName.
+                sortKey: (n.organization || n.name || '').trim()
             };
         });
 
         // System Options
         const systemOptions = [
-            { value: "NEAREST_MALE", title: "最寄りの男子トイレ", org: "System Auto", category: "AUTO", type: 'toilet' },
-            { value: "NEAREST_FEMALE", title: "最寄りの女子トイレ", org: "System Auto", category: "AUTO", type: 'toilet' },
-            { value: "NEAREST_VENDING", title: "最寄りの自販機", org: "System Auto", category: "AUTO", type: 'vending' }
+            { value: "NEAREST_MALE", title: "最寄りの男子トイレ", org: "System Auto", category: "AUTO", type: 'toilet', sortKey: 'ZZ_AUTO' },
+            { value: "NEAREST_FEMALE", title: "最寄りの女子トイレ", org: "System Auto", category: "AUTO", type: 'toilet', sortKey: 'ZZ_AUTO' },
+            { value: "NEAREST_VENDING", title: "最寄りの自販機", org: "System Auto", category: "AUTO", type: 'vending', sortKey: 'ZZ_AUTO' }
         ];
 
         this.startSelect.setOptions(options);
@@ -770,12 +772,14 @@ class CustomSelect {
 
                 if (pA !== pB) return pA - pB;
 
-                // Fallback: Type > Name (Floor ignored for grouping)
-                const tA = typeOrder[a.type] || 99;
-                const tB = typeOrder[b.type] || 99;
-                if (tA !== tB) return tA - tB;
+                // Removed Type Priority for Default Mode as per user request
+                // "Sort everything by exhibition group (1-1 etc)"
+                // const tA = typeOrder[a.type] || 99;
+                // const tB = typeOrder[b.type] || 99;
+                // if (tA !== tB) return tA - tB;
 
-                return a.title.localeCompare(b.title, 'ja', { numeric: true });
+                // Sort by the stable 'sortKey' (Org or Name), ignoring the display title (Event Name)
+                return a.sortKey.localeCompare(b.sortKey, 'ja', { numeric: true });
             }
             else if (this.sortBy === 'floor') {
                 // 1. Floor

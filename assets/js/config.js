@@ -6,8 +6,7 @@ const AppConfig = {
         { id: 1, name: '1F', label: '1階', jsonPath: 'JSON/1.json', imagePath: 'images/floor1.png' },
         { id: 2, name: '2F', label: '2階', jsonPath: 'JSON/2.json', imagePath: 'images/floor2.png' },
         { id: 3, name: '3F', label: '3階', jsonPath: 'JSON/3.json', imagePath: 'images/floor3.png' },
-        { id: 4, name: '4F', label: '4階', jsonPath: 'JSON/4.json', imagePath: 'images/floor4.png' },
-        { id: 5, name: '5F', label: '5階', jsonPath: 'JSON/5.json', imagePath: 'images/floor5.png' }
+        { id: 4, name: '4F', label: '4階', jsonPath: 'JSON/4.json', imagePath: 'images/floor4.png' }
     ],
     // Merged Map Settings
     FLOOR_GAP: 200,
