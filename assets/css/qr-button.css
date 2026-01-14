@@ -31,7 +31,7 @@
         bottom: 110px;
         /* Above Search Button (50px bottom + 56px height + gap) -> 120px? Search is bottom:50px */
         /* Search button is bottom: 50px, height 56px. Top of search is 106px. Gap 15px -> Bottom: 121px */
-        bottom: 120px;
+        bottom: 140px;
 
         background-color: white;
         /* White Background */

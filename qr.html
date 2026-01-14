@@ -247,7 +247,8 @@
                 // --- Generate QR ---
                 targetDiv.innerHTML = ''; // Clear previous
 
-                // Content format: map.html?current=[ID]
+                // Content format: Full URL for compatibility with standard camera apps.
+                // e.g. https://domain.com/map.html?current=1_101
                 const qrUrl = `${baseUrl}?current=${node.fullId}`;
 
                 // Create QR object
@@ -258,7 +259,7 @@
                     height: 512,
                     colorDark: "#000000",
                     colorLight: "#ffffff",
-                    correctLevel: QRCode.CorrectLevel.H
+                    correctLevel: QRCode.CorrectLevel.M // Optimized: Level M offers good balance of density vs error correction
                 });
 
                 // Wait for Canvas rendering

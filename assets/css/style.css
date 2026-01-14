@@ -1041,13 +1041,13 @@ input:checked+.slider:before {
 
     /* Adjust Map controls */
     .map-controls {
-        bottom: 50px;
+        bottom: 70px;
         right: 20px;
     }
 
     /* Adjust FAB */
     .mobile-fab {
-        bottom: 50px;
+        bottom: 70px;
     }
 
     /* Opening Compass Adjustments */
@@ -1092,8 +1092,8 @@ input:checked+.slider:before {
         left: 20px;
         /* Align with search button (left) */
         right: auto;
-        bottom: 120px;
-        /* Above Search Button (bottom:50px + height:56px + gap) */
+        bottom: 140px;
+        /* Above Search Button (bottom:70px + height:56px + gap) */
         background-color: white;
         /* Mobile: White */
         color: #333;
@@ -1104,4 +1104,277 @@ input:checked+.slider:before {
 /* Utility */
 .hidden {
     display: none !important;
+}
+
+/* =========================================
+   QR Overlay & Scanner Styles
+   ========================================= */
+#qr-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.85);
+    z-index: 9999;
+    /* Toggled via JS (flex) */
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+
+#qr-overlay.hidden {
+    display: none !important;
+}
+
+.qr-container {
+    position: relative;
+    width: 90%;
+    max-width: 500px;
+    background: white;
+    padding: 20px;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.qr-header {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 15px;
+    width: 100%;
+    position: relative;
+}
+
+.qr-title {
+    margin: 0;
+    color: #333;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+#close-qr-btn {
+    position: absolute;
+    top: -5px;
+    right: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #555;
+    padding: 5px;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+
+#close-qr-btn:hover {
+    background: #f0f0f0;
+}
+
+#qr-help-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #aaa;
+    display: flex;
+    align-items: center;
+    padding: 5px;
+    transition: color 0.2s;
+}
+
+#qr-help-btn:hover {
+    color: var(--primary-color);
+}
+
+/* Scanner Area */
+#reader {
+    width: 100%;
+    /* min-height handled by aspect ratio, but good to have base */
+    min-height: 300px;
+    background: #000;
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* Visual Viewfinder Overlay */
+.scan-region-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 70%;
+    /* Matches JS 0.7 */
+    padding-top: 70%;
+    /* Aspect Ratio Square */
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* Corner Markers */
+.scan-region-overlay::before,
+.scan-region-overlay::after,
+.scan-region-inner::before,
+.scan-region-inner::after {
+    content: '';
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    border-color: rgba(255, 255, 255, 0.8);
+    border-style: solid;
+    border-width: 0;
+}
+
+/* Top Left */
+.scan-region-overlay::before {
+    top: 0;
+    left: 0;
+    border-top-width: 4px;
+    border-left-width: 4px;
+    border-radius: 4px 0 0 0;
+}
+
+/* Top Right */
+.scan-region-overlay::after {
+    top: 0;
+    right: 0;
+    border-top-width: 4px;
+    border-right-width: 4px;
+    border-radius: 0 4px 0 0;
+}
+
+.scan-region-inner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* Bottom Left */
+.scan-region-inner::before {
+    bottom: 0;
+    left: 0;
+    border-bottom-width: 4px;
+    border-left-width: 4px;
+    border-radius: 0 0 0 4px;
+}
+
+/* Bottom Right */
+.scan-region-inner::after {
+    bottom: 0;
+    right: 0;
+    border-bottom-width: 4px;
+    border-right-width: 4px;
+    border-radius: 0 0 4px 0;
+}
+
+/* Scanning Animation Line */
+.scan-line {
+    position: absolute;
+    top: 0;
+    left: 5%;
+    width: 90%;
+    height: 2px;
+    background: #FF3B30;
+    /* Red Laser */
+    box-shadow: 0 0 4px #FF3B30;
+    animation: scanMove 2s infinite linear;
+    opacity: 0.6;
+}
+
+@keyframes scanMove {
+    0% {
+        top: 10%;
+        opacity: 0;
+    }
+
+    10% {
+        opacity: 1;
+    }
+
+    90% {
+        opacity: 1;
+    }
+
+    100% {
+        top: 90%;
+        opacity: 0;
+    }
+}
+
+/* QR Help Modal */
+#qr-help-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 10001;
+    display: none;
+    justify-content: center;
+    align-items: center;
+}
+
+#qr-help-modal.hidden {
+    display: none !important;
+}
+
+.help-modal-content {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    max-width: 400px;
+    width: 85%;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    animation: fadeIn 0.3s ease-out;
+}
+
+.help-title {
+    margin-top: 0;
+    color: var(--text-main);
+    font-size: 18px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+    font-family: var(--font-heading);
+}
+
+.help-body {
+    font-size: 14px;
+    color: #555;
+    line-height: 1.6;
+    margin: 15px 0;
+}
+
+.help-close-btn {
+    width: 100%;
+    padding: 10px;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.help-close-btn:hover {
+    background: #3949ab;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }

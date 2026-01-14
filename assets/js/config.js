@@ -48,7 +48,7 @@ const AppConfig = {
     },
 
     // Logging
-    ENABLE_LOGS: false
+    ENABLE_LOGS: true
 };
 
 // Log Suppression Logic

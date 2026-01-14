@@ -169,54 +169,52 @@
     </div>
 
     <!-- QR Overlay -->
-    <div id="qr-overlay" class="hidden"
-        style="position:fixed; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.8); z-index:9999; justify-content:center; align-items:center;">
-        <div
-            style="position:relative; width:90%; max-width:500px; background:white; padding:20px; border-radius:12px; box-shadow:0 10px 25px rgba(0,0,0,0.5);">
-            <button id="close-qr-btn"
-                style="position:absolute; top:10px; right:10px; background:none; border:none; cursor:pointer; color:#333;">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                    <path
-                        d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-                </svg>
-            </button>
-            <div
-                style="display:flex; justify-content:center; align-items:center; gap:8px; margin-top:0; margin-bottom:10px;">
-                <h3 style="margin:0; color:#333;">QRコードをスキャン</h3>
-                <button id="qr-help-btn"
-                    style="background:none; border:none; cursor:pointer; color:#aaa; display:flex; align-items:center;"
-                    title="使い方">
+    <div id="qr-overlay" class="hidden">
+        <div class="qr-container">
+            <div class="qr-header">
+                <h3 class="qr-title">QRコードをスキャン</h3>
+                <button id="qr-help-btn" title="使い方">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                         <path
                             d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
                     </svg>
                 </button>
+                <button id="close-qr-btn" title="閉じる">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                        <path
+                            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                    </svg>
+                </button>
             </div>
-            <div id="reader" style="width:100%;"></div>
+
+            <div id="reader">
+                <!-- Manual Video/Canvas Elements for jsQR -->
+                <video id="qr-video" muted playsinline style="display:none;"></video>
+                <canvas id="qr-canvas" style="width:100%; height:100%; object-fit:cover;"></canvas>
+
+                <!-- Visual Frame Overlay (Absolute) -->
+                <div class="scan-region-overlay">
+                    <div class="scan-region-inner"></div>
+                    <div class="scan-line"></div>
+                </div>
+            </div>
         </div>
-        <!-- Simple Background Backdrop handled by flex parent styling if needed, but styling inline for simplicity check:
-             Wait, style attribute above has "bg:". Should be background. Fixing inline style.
-        -->
     </div>
 
     <!-- QR Help Modal -->
-    <div id="qr-help-modal" class="hidden"
-        style="position:fixed; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5); z-index:10001; display:flex; justify-content:center; align-items:center;">
-        <div
-            style="background:white; padding:25px; border-radius:12px; max-width:400px; width:85%; box-shadow:0 10px 25px rgba(0,0,0,0.3);">
-            <h4 style="margin-top:0; color:#333; font-size:18px; border-bottom:1px solid #eee; padding-bottom:10px;">
-                QRスキャンの使い方</h4>
-            <div style="font-size:14px; color:#555; line-height:1.6; margin:15px 0;">
+    <div id="qr-help-modal" class="hidden">
+        <div class="help-modal-content">
+            <h4 class="help-title">QRスキャンの使い方</h4>
+            <div class="help-body">
                 <p>校内の各地点に設置されているQRコードをこのカメラで読み取ると、地図上に<b>「現在地」</b>が表示されます。</p>
                 <p>ナビゲーション機能と併用することで、現在地から目的地までのルートをスムーズに確認できます。</p>
             </div>
-            <button id="close-help-btn"
-                style="width:100%; padding:10px; background:#007bff; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">閉じる</button>
+            <button id="close-help-btn" class="help-close-btn">閉じる</button>
         </div>
     </div>
 
     <!-- Scripts -->
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="assets/js/config.js"></script>
     <script src="assets/js/map-core.js"></script>

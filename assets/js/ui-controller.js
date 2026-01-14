@@ -472,88 +472,171 @@ class UIController {
         }
     }
 
-    startScanner() {
+    async startScanner() {
         const overlay = document.getElementById('qr-overlay');
         overlay.classList.remove('hidden');
-        overlay.style.display = 'flex'; // Force flex for centering
+        overlay.style.display = 'flex';
 
-        if (!this.html5QrcodeScanner) {
-            this.html5QrcodeScanner = new Html5Qrcode("reader");
+        this.video = document.getElementById("qr-video");
+        this.canvas = document.getElementById("qr-canvas");
+        this.canvasCtx = this.canvas.getContext("2d", { willReadFrequently: true });
+        this.isScanning = true;
+        this.isScanningLocked = false;
+
+        console.log("[QR] Starting manual camera stream...");
+
+        try {
+            // Request Camera
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "environment" }
+            });
+
+            this.video.srcObject = stream;
+            this.video.setAttribute("playsinline", true); // required to tell iOS safari we don't want fullscreen
+            await this.video.play();
+
+            console.log("[QR] Stream playing. Starting loop.");
+            requestAnimationFrame(this.tick.bind(this));
+
+        } catch (err) {
+            console.error("[QR] Camera Error:", err);
+            let msg = "カメラの起動に失敗しました。";
+            if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+                msg = "カメラのアクセス権限がありません。\nブラウザの設定を確認してください。";
+            }
+            alert(msg);
+            this.stopScanner();
+        }
+    }
+
+    tick() {
+        if (!this.isScanning) return;
+        if (!this.video || this.video.readyState !== this.video.HAVE_ENOUGH_DATA) {
+            // Wait for video
+            requestAnimationFrame(this.tick.bind(this));
+            return;
         }
 
-        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+        // Draw video (fill canvas)
+        this.canvas.height = this.video.videoHeight;
+        this.canvas.width = this.video.videoWidth;
+        this.canvasCtx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
 
-        // Use back camera
-        this.html5QrcodeScanner.start(
-            { facingMode: "environment" },
-            config,
-            (decodedText, decodedResult) => {
-                // Success
-                console.log(`Scan result: ${decodedText}`);
-                this.handleScanSuccess(decodedText);
-            },
-            (errorMessage) => {
-                // parse error, ignore
-            }
-        ).catch(err => {
-            console.error(err);
-            alert("カメラの起動に失敗しました");
-            this.stopScanner();
+        // Scan frame
+        // Optimization: Scan only the center region? 
+        // jsQR is fast enough for 720p usually. Let's scan full frame for robustness.
+        const imageData = this.canvasCtx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+
+        // jsQR(data, width, height, options)
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert",
         });
+
+        if (code && code.data) {
+            // Log immediately upon detection (for debugging)
+            console.log("[QR RAW DETECT]:", code.data);
+
+            if (!this.isScanningLocked) {
+                console.log("[QR Success] Found:", code.data);
+                this.isScanningLocked = true;
+
+                // Draw a box? (Optional visual feedback)
+                // this.drawBox(code.location);
+
+                if (navigator.vibrate) navigator.vibrate(200);
+                this.stopScanner();
+                this.handleScanSuccess(code.data);
+                return; // Stop loop
+            }
+        }
+
+        requestAnimationFrame(this.tick.bind(this));
     }
 
     stopScanner() {
-        if (this.html5QrcodeScanner) {
-            this.html5QrcodeScanner.stop().then(() => {
-                // Stopped
-                this.html5QrcodeScanner.clear();
-            }).catch(err => {
-                console.warn(err);
-            });
+        this.isScanning = false;
+        this.isScanningLocked = false;
+
+        // Stop stream tracks
+        if (this.video && this.video.srcObject) {
+            this.video.srcObject.getTracks().forEach(track => track.stop());
+            this.video.srcObject = null;
         }
+
+        // UI
         const overlay = document.getElementById('qr-overlay');
         overlay.classList.add('hidden');
         overlay.style.display = 'none';
+
+        console.log("[QR] Stopped.");
     }
 
     handleScanSuccess(url) {
-        this.stopScanner();
+        // UI is already closed by stopScanner() in onScanSuccess, 
+        // but ensuring it here doesn't hurt.
+        const overlay = document.getElementById('qr-overlay');
+        if (!overlay.classList.contains('hidden')) {
+            this.stopScanner();
+        }
 
         try {
-            // Extract 'current' param
-            // URL might be full "https://.../map.html?current=..." or just local
-            const dummyBase = "http://dummy.com";
-            // If url is relative, URL() constructor requires base. If absolute, base is ignored.
-            const urlObj = new URL(url, dummyBase);
-            const currentId = urlObj.searchParams.get('current');
+            let currentId = null;
+            console.log("[QR] Processing:", url);
+
+            // Parser 1: Standard URL param
+            try {
+                const dummyBase = "http://dummy.com";
+                const urlObj = new URL(url, dummyBase);
+                currentId = urlObj.searchParams.get('current');
+            } catch (e) { /* ignore */ }
+
+            // Parser 2: Raw ID (e.g. "1_101")
+            // Regex: Digit + Underscore + Digit
+            if (!currentId && /^\d+_\d+$/.test(url)) {
+                currentId = url;
+            }
+
+            // Parser 3: Simple "current=..." string check
+            if (!currentId && url.indexOf('current=') !== -1) {
+                try {
+                    currentId = url.split('current=')[1].split('&')[0];
+                } catch (e) { }
+            }
 
             if (currentId) {
+                console.log("[QR] Found ID:", currentId);
                 // Update Location
-                this.engine.setCurrentLocation(currentId);
+                // Check if node exists first
+                const node = this.engine.getNode(currentId);
+                if (node) {
+                    this.engine.setCurrentLocation(currentId);
 
-                // Update Start Select if exists
-                if (this.startSelect) {
-                    const node = this.engine.getNode(currentId);
-                    if (node) {
+                    // Update Start Select if exists
+                    if (this.startSelect) {
                         const title = node.eventName || node.name || "現在地";
                         this.startSelect.select(currentId, title);
                         this.engine.setStartMarker(currentId);
 
-                        // If we have an End point, recalculate route from this new start
+                        // If we have an End point, recalculate route
                         if (this.endSelect && this.endSelect.value) {
-                            this.calculateRoute();
+                            this.engine.calculatePath(currentId, this.endSelect.value);
+                            // Hide Mobile Overlay if showing route
+                            const mobileOverlay = document.querySelector('.mobile-overlay');
+                            if (mobileOverlay) mobileOverlay.classList.remove('hidden');
                         }
                     }
+                } else {
+                    console.warn("[QR] ID not found in map data:", currentId);
+                    alert("QRコードの場所が見つかりません (ID: " + currentId + ")");
                 }
-
-                // Notify user subtly? Or the map movement is enough.
-                // alert(`現在地を更新しました: ${currentId}`);
             } else {
-                alert("QRコードに位置情報が含まれていません");
+                console.warn("[QR] No ID found in content");
+                alert("無効なQRコードです（位置情報が含まれていません）");
             }
-        } catch (e) {
-            console.error("QR Parse Error", e);
-            alert("無効なQRコードです");
+
+        } catch (err) {
+            console.error("[QR] Parse Error:", err);
+            alert("QRコードの読み取りに失敗しました");
         }
     }
 }
