@@ -118,10 +118,10 @@ class UIController {
         if (zoomOut) zoomOut.addEventListener('click', () => this.engine.zoomOut());
 
         const rotateLeft = document.getElementById('rotate-left');
-        if (rotateLeft) rotateLeft.addEventListener('click', () => this.engine.rotateBy(30));
+        if (rotateLeft) rotateLeft.addEventListener('click', () => this.engine.rotateBy(-30));
 
         const rotateRight = document.getElementById('rotate-right');
-        if (rotateRight) rotateRight.addEventListener('click', () => this.engine.rotateBy(-30));
+        if (rotateRight) rotateRight.addEventListener('click', () => this.engine.rotateBy(30));
 
         // Settings Modal Logic
         const settingsBtn = document.getElementById('settings-btn');
