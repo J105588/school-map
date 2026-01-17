@@ -26,9 +26,11 @@ class MapEngine {
         this.currentFloorId = AppConfig.DEFAULT_FLOOR_ID || 1;
         this.isDragging = false;
         this.dragStart = { x: 0, y: 0 };
+        this.rotation = 0; // Rotation State
+        this.enableAutoRotation = true; // Default ON (User Request)
 
         // Accessibility
-        this.accessibilityMode = false; // Default OFF (Avoid Elevators)
+        this.accessibilityMode = false; // Default OFF
 
         // Animation
         this.path = [];
@@ -47,17 +49,121 @@ class MapEngine {
         // Manual listeners removed to avoid conflict with D3
 
         // Bind Zoom to Canvas
-        d3.select(this.canvas).call(this.zoom)
-            .on("dblclick.zoom", null); // Disable double click zoom if desired
+        // Bind Zoom to Canvas
+        // Disable D3's default Mouse/Touch actions for Pan (Keep Wheel/Pinch if possible)
+        // We will handle Pan manually to correct for Rotation.
+        d3.select(this.canvas)
+            .call(this.zoom)
+            .on("mousedown.zoom", null)   // Remove D3 Mouse Drag
+            .on("touchstart.zoom", null)  // Remove D3 Touch Drag
+            .on("pointerdown.zoom", null) // Remove D3 Pointer Drag (Critical for Win/Touch)
+            .on("dblclick.zoom", null);   // Disable D3 Double Click Zoom
+
 
         this.resize();
         window.addEventListener('resize', () => this.resize());
+
+        // --- INPUT HANDLING (Ported from scroll-test.html) ---
+        // Simple, standard listeners. No global capture.
+
+        // Mouse Events
+        this.canvas.addEventListener('mousedown', (e) => {
+            this.isDragging = true;
+            this.dragStart = { x: e.offsetX, y: e.offsetY };
+            this.canvas.style.cursor = 'grabbing';
+            // console.log("[Input] MouseDown");
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (this.isDragging) {
+                this.isDragging = false;
+                this.canvas.style.cursor = 'grab';
+                // console.log("[Input] MouseUp");
+            }
+        });
+
+        this.canvas.addEventListener('mousemove', (e) => {
+            if (!this.isDragging) return;
+            e.preventDefault();
+
+            const dx = e.offsetX - this.dragStart.x;
+            const dy = e.offsetY - this.dragStart.y;
+            this.dragStart = { x: e.offsetX, y: e.offsetY };
+
+            this.applyRotatedPan(dx, dy);
+        });
+
+        // Touch Events (Basic Support)
+        this.canvas.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                this.isDragging = true;
+                const rect = this.canvas.getBoundingClientRect();
+                this.dragStart = {
+                    x: e.touches[0].clientX - rect.left,
+                    y: e.touches[0].clientY - rect.top
+                };
+                // console.log("[Input] TouchStart");
+            }
+        }, { passive: false });
+
+        this.canvas.addEventListener('touchmove', (e) => {
+            if (!this.isDragging || e.touches.length !== 1) return;
+            e.preventDefault(); // Prevent scroll
+
+            const rect = this.canvas.getBoundingClientRect();
+            const tx = e.touches[0].clientX - rect.left;
+            const ty = e.touches[0].clientY - rect.top;
+
+            const dx = tx - this.dragStart.x;
+            const dy = ty - this.dragStart.y;
+            this.dragStart = { x: tx, y: ty };
+
+            this.applyRotatedPan(dx, dy);
+        }, { passive: false });
+
+        this.canvas.addEventListener('touchend', () => {
+            this.isDragging = false;
+        });
     }
 
-    // Removed manual event listeners (initEventListeners, handleMouseDown, etc.) because D3 handles them.
+    // Custom Drag Logic
 
+
+    applyRotatedPan(dx, dy) {
+        // Transform Order: Rotate(θ) -> Translate(tx, ty).
+        // To move visual by (dx, dy), we need world translation (dtx, dty) such that:
+        // R(θ) * (dtx, dty) = (dx, dy)
+        // => (dtx, dty) = R(-θ) * (dx, dy)
+        //
+        // R(-θ) formula with rad = θ:
+        // dtx = dx * cos(θ) + dy * sin(θ)
+        // dty = -dx * sin(θ) + dy * cos(θ)
+
+        // VERIFIED LOGIC (from scroll-test.html)
+        const rad = this.rotation * Math.PI / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+
+        const dtx = dx * cos + dy * sin;
+        const dty = -dx * sin + dy * cos;
+
+        // DEBUG LOG (Console)
+        // console.log(`[RotPan] Rot:${this.rotation.toFixed(1)} In(${dx.toFixed(1)},${dy.toFixed(1)}) -> Calc(${dtx.toFixed(1)},${dty.toFixed(1)})`);
+
+        // Update Transform
+        const newTransform = d3.zoomIdentity
+            .translate(this.transform.x + dtx, this.transform.y + dty)
+            .scale(this.transform.k);
+
+        this.transform = newTransform;
+        this.draw();
+
+        // Sync D3
+        this.canvas.__zoom = newTransform;
+    }
 
     resize() {
+        if (!this.container) return; // Guard
         const rect = this.container.getBoundingClientRect();
         this.canvas.width = rect.width;
         this.canvas.height = rect.height;
@@ -195,14 +301,115 @@ class MapEngine {
     }
 
     // --- Drawing ---
+
+    // Recalculate Floor Stacking based on active route
+    updateFloorLayout(pathNodes = []) {
+        // 1. Identify Start/End/Intermediate
+        let startFloor = null;
+        let endFloor = null;
+        let intermediates = new Set();
+
+        // Visual State defaults
+        this.floorVisuals = {}; // { floorId: { y, scale, opacity } }
+        AppConfig.FLOORS.forEach(f => {
+            this.floorVisuals[f.id] = { scale: 1.0, opacity: 1.0, y: 0 };
+        });
+
+        if (pathNodes.length > 0) {
+            const startNode = this.getNode(pathNodes[0]);
+            const endNode = this.getNode(pathNodes[pathNodes.length - 1]);
+
+            if (startNode && endNode && startNode.floorId !== endNode.floorId) {
+                startFloor = startNode.floorId;
+                endFloor = endNode.floorId;
+
+                const minF = Math.min(startFloor, endFloor);
+                const maxF = Math.max(startFloor, endFloor);
+
+                // Identify Intermediate Floors
+                AppConfig.FLOORS.forEach(f => {
+                    if (f.id > minF && f.id < maxF) {
+                        intermediates.add(f.id);
+                    }
+                });
+            }
+        }
+
+        // 2. Calculate Offsets
+        let currentY = 0;
+        const defaultGap = AppConfig.FLOOR_GAP || 200;
+
+        // Iterate sorted floors (Top to Bottom, ID Descending usually in config? No, config order matters)
+        // loadAllData used: const sortedFloors = [...floorsConfig].sort((a, b) => b.id - a.id);
+        // We must follow the SAME stack order.
+        const sortedFloors = [...this.floorsConfig].sort((a, b) => b.id - a.id);
+
+        sortedFloors.forEach(conf => {
+            const id = conf.id;
+            const img = this.images[id];
+            const baseHeight = (img && img.height) ? img.height : 1000;
+
+            // Determine Style
+            let scale = 1.0;
+            let opacity = 1.0;
+            let gap = defaultGap;
+
+            if (intermediates.has(id)) {
+                // Intermediate: Fade and Shrink
+                // User Request: "Make other 2 images closer" -> reduce gap and height effect
+                scale = 0.6; // More aggressive shrink
+                opacity = 0.3; // "Thin" / Faded
+                gap = gap * 0.1; // Virtually no gap to bring floors closer
+            }
+
+            // Save Visual State
+            this.floorVisuals[id] = {
+                scale: scale,
+                opacity: opacity,
+                y: currentY
+            };
+
+            // Calculate Effective Height for Stacking
+            // If scaled, we center it visually? Or separate?
+            // Simple approach: Advance Y by (Height * Scale) + Gap
+            // To align centers properly if scaled:
+            // Center of scaled image should be... distinct.
+            // Let's just stack them.
+            currentY += (baseHeight * scale) + gap;
+        });
+
+        this.totalHeight = currentY;
+
+        // 3. Update Node World Coordinates
+        this.globalNodes.forEach(node => {
+            if (this.floorVisuals[node.floorId]) {
+                const vis = this.floorVisuals[node.floorId];
+                // Scale relative to origin (0,0 of the floor image)
+                node.y = (node.localY * vis.scale) + vis.y;
+                if (node.baseX !== undefined) {
+                    node.x = node.baseX * vis.scale;
+                }
+            }
+        });
+    }
+
     async switchFloor(floorId) {
         if (!this.floorsData[floorId]) return;
+
+        // Reset layout to normal if switching (assuming path might be cleared or we just want to view this floor)
+        // Or should we maintain route view?
+        // Typically switching floor via tab implies manual inspection.
+        // Let's View Single Floor Mode?
+        // For now, allow mixed view.
 
         this.currentFloorId = floorId;
         this.img = this.images[floorId];
 
         // Wait for image if not fully loaded (loaded from cache mostly)
-        if (!this.img.complete) {
+        if (!this.img && this.images[floorId]) {
+            this.img = this.images[floorId];
+        }
+        if (this.img && !this.img.complete) {
             await new Promise(r => this.img.onload = r);
         }
 
@@ -325,8 +532,10 @@ class MapEngine {
                         id: newId,
                         originalId: node.id,
                         floorId: conf.id,
-                        x: node.x - xCrop, // Apply X-Crop Shift (World Space = Image Space - Crop)
-                        y: node.y + yOffset // Apply Y-Stack Shift
+                        x: node.x - xCrop, // Current X
+                        baseX: node.x - xCrop, // Base X (Scale 1.0)
+                        localY: node.y,     // Store Local Y (Image Space) for dynamic stacking
+                        y: node.y + yOffset // Initial World Y
                     });
                     this.globalNodes.push(this.idMap.get(newId));
                 });
@@ -358,6 +567,7 @@ class MapEngine {
 
         await Promise.all(jsonPromises);
         this.buildGlobalGraph();
+        this.updateFloorLayout([]); // Init default layout
         this.draw();
     }
 
@@ -438,12 +648,73 @@ class MapEngine {
         scale = Math.max(scale, 0.2);
 
         // Center view
+        // Center view
         const tX = (this.canvas.width / 2) - (cx * scale);
         const tY = (this.canvas.height / 2) - (cy * scale);
 
-        this.transform = d3.zoomIdentity.translate(tX, tY).scale(scale);
-        d3.select(this.canvas).transition().duration(750)
-            .call(this.zoom.transform, this.transform);
+        const targetTransform = d3.zoomIdentity.translate(tX, tY).scale(scale);
+
+        // --- Auto Rotation (Heading Up) ---
+        let targetRotation = this.rotation;
+
+        // Only calculate target rotation if Auto-Rotation is ENABLED
+        if (this.enableAutoRotation && pathNodes.length >= 2) {
+            const n1 = this.getNode(pathNodes[0]);
+            const n2 = this.getNode(pathNodes[1]);
+            if (n1 && n2) {
+                const dx = n2.x - n1.x;
+                const dy = n2.y - n1.y;
+                const rad = Math.atan2(dy, dx);
+                const deg = rad * (180 / Math.PI);
+                // Target: -90 (Up) + 15 degrees offset
+                targetRotation = -90 - deg + 15;
+            }
+        } else if (!this.enableAutoRotation) {
+            // Reset to 0 (North Up) if Auto-Rotation is OFF
+            targetRotation = 0;
+        }
+
+        // Apply BOTH transitions simultaneously to avoid cancelling
+        const selection = d3.select(this.canvas).transition().duration(1000).ease(d3.easeCubicOut);
+
+        // 1. Zoom/Pan Transition
+        selection.call(this.zoom.transform, targetTransform);
+
+        // 2. Rotation Transition (Shortest Path)
+        const startRotation = this.rotation;
+
+        // Calculate shortest path delta
+        let delta = (targetRotation - startRotation) % 360;
+        if (delta > 180) delta -= 360;
+        if (delta < -180) delta += 360;
+        const finalRotation = startRotation + delta;
+
+        selection.tween("rotate", () => {
+            const interpolate = d3.interpolate(startRotation, finalRotation);
+            return (t) => {
+                this.rotation = interpolate(t);
+                this.draw();
+            };
+        });
+    }
+
+    setRotation(angle, duration = 1000) {
+        const startAngle = this.rotation;
+
+        // Shortest path logic
+        let delta = (angle - startAngle) % 360;
+        if (delta > 180) delta -= 360;
+        if (delta < -180) delta += 360;
+        const targetAngle = startAngle + delta;
+
+        const interpolate = d3.interpolate(startAngle, targetAngle);
+        d3.select(this.canvas).transition().duration(duration).ease(d3.easeCubicOut)
+            .tween("rotate", () => {
+                return (t) => {
+                    this.rotation = interpolate(t);
+                    this.draw();
+                };
+            });
     }
 
     // --- Animation & Effects ---
@@ -516,26 +787,60 @@ class MapEngine {
         ctx.fillStyle = '#f5f5f7';
         ctx.fillRect(0, 0, width, height);
 
-        // Transform
+        // Transform Order Fix for "Screen-Aligned Dragging":
+        // CRITICAL: Rotate around FIXED screen center FIRST, then apply pan/zoom.
+        // This ensures panning doesn't affect the rotation pivot.
+
+        // 1. Apply Rotation around FIXED Screen Center
+        ctx.translate(width / 2, height / 2);
+        ctx.rotate(this.rotation * Math.PI / 180);
+        ctx.translate(-width / 2, -height / 2);
+
+        // 2. Apply Pan/Zoom (now works independently of rotation)
         ctx.translate(this.transform.x, this.transform.y);
         ctx.scale(this.transform.k, this.transform.k);
 
         // Draw Images (Background Maps)
         AppConfig.FLOORS.forEach(f => {
             const img = this.images[f.id];
+
+            // Get Dynamic Visual State
+            const vis = this.floorVisuals && this.floorVisuals[f.id] ? this.floorVisuals[f.id] : { y: 0, scale: 1.0, opacity: 1.0 };
+
             if (img && img.complete) {
-                const yOffset = (this.floorOffsets && this.floorOffsets[f.id]) || 0;
+                // Use Visual Y, not static offset
+                const yOffset = vis.y;
                 const xCrop = (this.floorCropX && this.floorCropX[f.id]) || 0;
-                const drawWidth = Math.min(940, img.width);
-                ctx.drawImage(img, xCrop, 0, drawWidth, img.height, 0, yOffset, drawWidth, img.height);
+
+                // Effective Draw Width/Height (Scaled)
+                const baseWidth = Math.min(940, img.width);
+                const drawWidth = baseWidth * vis.scale;
+                const drawHeight = img.height * vis.scale;
+
+                ctx.save();
+                ctx.globalAlpha = vis.opacity;
+
+                ctx.drawImage(img, xCrop, 0, baseWidth, img.height, 0, yOffset, drawWidth, drawHeight);
                 ctx.strokeStyle = '#e0e0e0';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(0, yOffset, drawWidth, img.height);
-                ctx.fillStyle = 'rgba(26, 35, 126, 0.4)';
+                ctx.lineWidth = 2 * vis.scale;
+                ctx.strokeRect(0, yOffset, drawWidth, drawHeight);
+
+                // Floor Label (Upright)
+                // Position: Top-Left (-50, +50) relative to image
+                // Logic: Move context to label position, un-rotate, draw text.
+                const labelX = -50;
+                const labelY = yOffset + 50;
+
+                ctx.translate(labelX, labelY);
+                ctx.rotate(-this.rotation * Math.PI / 180); // Counter-Rotate
+
+                ctx.fillStyle = `rgba(26, 35, 126, ${0.4 * vis.opacity})`; // Apply Fade 
                 ctx.font = 'bold 120px "Cinzel", sans-serif';
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'top';
-                ctx.fillText(f.name, -50, yOffset + 50);
+                ctx.fillText(f.name, 0, 0); // Draw at local (0,0)
+
+                ctx.restore(); // Restore Rotation/Alpha
             }
         });
 
@@ -598,12 +903,9 @@ class MapEngine {
             ctx.fill();
             ctx.restore();
 
-            // Draw Pin Offset
-            const bouncingNode = { ...n, y: n.y - bounceHeight };
-
             ctx.save();
             ctx.globalAlpha = alpha; // Apply Fade
-            this.drawMarker(bouncingNode, "HERE", '#ffca28');
+            this.drawMarker(n, "HERE", '#ffca28', bounceHeight);
             ctx.restore();
         }
 
@@ -667,9 +969,9 @@ class MapEngine {
     drawPath() {
         if (!this.path || this.path.length === 0) return;
 
-        console.log("DrawPath: Path len =", this.path.length);
+        // console.log("DrawPath: Path len =", this.path.length);
         const p0 = this.getNode(this.path[0]);
-        if (p0) console.log("Path[0] coords:", p0.x, p0.y, "Floor:", p0.floorId);
+        // if (p0) console.log("Path[0] coords:", p0.x, p0.y, "Floor:", p0.floorId);
 
         const style = AppConfig.STYLES.path;
         const ctx = this.ctx;
@@ -696,7 +998,7 @@ class MapEngine {
         }
         if (currentSegment.length > 0) segments.push(currentSegment);
 
-        console.log("DrawPath: Segments =", segments.length);
+        // console.log("DrawPath: Segments =", segments.length);
 
         // Draw Segments
         segments.forEach(seg => {
@@ -780,63 +1082,172 @@ class MapEngine {
                 }
 
                 let arrText = `${n1.floorId}階から`;
-                // Arrival name is less critical but maybe useful?
-                // if (n2.name && (n2.type === 'stairs' || n2.type === 'elevator')) {
-                //     arrText = `${n2.name} (${n1.floorId}階から)`;
-                // }
 
-                this.drawTransferBubble(n1, depText, true);
-                this.drawTransferBubble(n2, arrText, false);
+                // Determine "Path Direction" to avoid collision
+                // For n1 (Departure), the path on THIS floor comes from previous node
+                const prevNode = (i > 0) ? this.getNode(this.path[i - 1]) : null;
+                // For n2 (Arrival), the path on THAT floor goes to next node
+                const nextNode = (i + 2 < this.path.length) ? this.getNode(this.path[i + 2]) : null;
+
+                this.drawTransferBubble(n1, depText, true, prevNode);
+                this.drawTransferBubble(n2, arrText, false, nextNode);
             }
         }
     }
 
-    drawTransferBubble(node, text, isDeparture) {
+    drawTransferBubble(node, text, isDeparture, adjacentNode) {
         const ctx = this.ctx;
-        // Side placement (Right)
-        const x = node.x + 25;
-        const y = node.y;
 
-        ctx.font = "bold 13px 'Noto Sans JP', sans-serif";
-        const padding = 8;
-        const width = ctx.measureText(text).width + padding * 2;
+        // Calculate Size based on Text
+        ctx.font = 'bold 13px "M PLUS 1p", sans-serif';
+        const textMetrics = ctx.measureText(text || "");
+        const textWidth = textMetrics.width;
+        const padding = 16;
+        const width = text ? Math.max(30, textWidth + padding) : 24;
         const height = 26;
 
+        // 1. Determine Screen Placement (4 Directions)
+        let placement = 'right'; // default
+
+        if (adjacentNode) {
+            // Vector: Node -> Adjacent (The path line segment)
+            const dx = adjacentNode.x - node.x;
+            const dy = adjacentNode.y - node.y;
+            // Angle in World Radians
+            const worldAngle = Math.atan2(dy, dx);
+            // Angle in Screen Radians (Apply Rotation)
+            // Screen Rotation adds 'this.rotation' to coordinate system?
+            // If World is 0 (Right), and Rotation is -90 (Map Rotated Left), Screen shows it Up (-90).
+            // So ScreenAngle = WorldAngle + RotationRad.
+            const rotRad = this.rotation * Math.PI / 180;
+            const screenAngle = worldAngle + rotRad;
+
+            // Normalize to 0-2PI
+            let norm = screenAngle % (Math.PI * 2);
+            if (norm < 0) norm += Math.PI * 2;
+            const deg = norm * 180 / Math.PI;
+
+            // Choose placement to MAXIMIZE angle difference (Perpendicular is best, 180 is ok, 0 is bad)
+            // Actually we just want to avoid the quadrant the line is in.
+            // If line is 0 deg (Right), we want Top, Bottom, or Left. Left (180) is best?
+            // Or if line goes "Out", we want to place bubble away from it.
+            // Wait, adjacentNode is where the path *is*. We want bubble *away* from it.
+            // So if path is Right, Bubble should be Left? Yes.
+            // Or Top/Bottom? Perpendicular (90/270) avoids the line best visually if line is thick.
+            // But opposite (180) is safest from overlap.
+
+            // Let's pick the cardinal direction closest to (ScreenAngle + 180).
+            // i.e. Opposite to the path direction.
+
+            const opp = (deg + 180) % 360;
+
+            if (opp >= 315 || opp < 45) placement = 'right';
+            else if (opp >= 45 && opp < 135) placement = 'bottom'; // Screen Y Down is positive
+            else if (opp >= 135 && opp < 225) placement = 'left';
+            else placement = 'top';
+        }
+
         ctx.save();
-        ctx.translate(x, y);
+        ctx.translate(node.x, node.y);
+        ctx.rotate(-this.rotation * Math.PI / 180); // Align with Screen axes
+
+        // Offset & Tip Drawing
+        let tipX = 0, tipY = 0;
+        let boxX = 0, boxY = 0;
+        const tipSize = 6;
+        const boxDist = 25; // Distance from node center to box center/edge
+
+        // Configure based on placement
+        if (placement === 'right') {
+            ctx.translate(25, 0);
+            // Shape logic handled below
+        } else if (placement === 'left') {
+            // Actually, let's keep translate simple and draw relative
+            ctx.translate(-25, 0);
+        } else if (placement === 'top') {
+            ctx.translate(0, -25);
+        } else if (placement === 'bottom') {
+            ctx.translate(0, 25);
+        }
+
         const scale = 1 / this.transform.k;
         ctx.scale(scale, scale);
 
-        // Bubble shape (Right side, pointing Left)
+        // Draw Bubble Shape
         ctx.beginPath();
-        ctx.moveTo(0, 0); // Tip pointing Left (at node.x+25)
-        ctx.lineTo(6, -6);
-        ctx.lineTo(6, -height / 2);
-        ctx.lineTo(width + 6, -height / 2);
-        ctx.lineTo(width + 6, height / 2);
-        ctx.lineTo(6, height / 2);
-        ctx.lineTo(6, 6);
-        ctx.closePath();
 
+        if (placement === 'right') {
+            // Tip at Left (0,0 is now at x=25 relative to node)
+            // Wait, previous code: translate(25,0), moveTo(0,0). So tip was at (25,0) relative to node?
+            // No, (0,0) is current origin. relative to node it is (25,0).
+            // Tip points Left -> back to node. correct.
+            ctx.moveTo(0, 0);
+            ctx.lineTo(tipSize, -tipSize);
+            ctx.lineTo(tipSize, -height / 2);
+            ctx.lineTo(width + tipSize, -height / 2); // width is box width
+            ctx.lineTo(width + tipSize, height / 2);
+            ctx.lineTo(tipSize, height / 2);
+            ctx.lineTo(tipSize, tipSize);
+            // Text Center
+            boxX = tipSize + width / 2; boxY = 0;
+        } else if (placement === 'left') {
+            // Origin at (-25, 0). Tip points Right -> (0,0) relative to origin
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-tipSize, -tipSize);
+            ctx.lineTo(-tipSize, -height / 2);
+            ctx.lineTo(-width - tipSize, -height / 2);
+            ctx.lineTo(-width - tipSize, height / 2);
+            ctx.lineTo(-tipSize, height / 2);
+            ctx.lineTo(-tipSize, tipSize);
+            boxX = -tipSize - width / 2; boxY = 0;
+        } else if (placement === 'top') {
+            // Origin at (0, -25). Tip points Down -> (0,0)
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-tipSize, -tipSize);
+            ctx.lineTo(-width / 2, -tipSize);
+            ctx.lineTo(-width / 2, -tipSize - height);
+            ctx.lineTo(width / 2, -tipSize - height);
+            ctx.lineTo(width / 2, -tipSize);
+            ctx.lineTo(tipSize, -tipSize);
+            boxX = 0; boxY = -tipSize - height / 2;
+
+        } else if (placement === 'bottom') {
+            // Origin at (0, 25). Tip points Up -> (0,0)
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-tipSize, tipSize);
+            ctx.lineTo(-width / 2, tipSize);
+            ctx.lineTo(-width / 2, tipSize + height);
+            ctx.lineTo(width / 2, tipSize + height);
+            ctx.lineTo(width / 2, tipSize);
+            ctx.lineTo(tipSize, tipSize);
+            boxX = 0; boxY = tipSize + height / 2;
+        }
+
+        ctx.closePath();
         ctx.fillStyle = isDeparture ? '#c62828' : '#1565c0';
         ctx.fill();
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // Text
-        ctx.fillStyle = '#fff';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        // Center of the box part (starts at x=6, width=width) -> center = 6 + width/2
-        ctx.fillText(text, 6 + width / 2, 0);
+        // Draw Text inside bubble
+        if (text) {
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 13px "M PLUS 1p", sans-serif'; // Japanese friendly font
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            // boxX, boxY are center of the bubble box
+            ctx.fillText(text, boxX, boxY + 1);
+        }
 
         ctx.restore();
 
         // Highlight Ring (Always show on node)
         ctx.save();
         ctx.translate(node.x, node.y);
-        ctx.scale(scale, scale);
+        const ringScale = 1 / this.transform.k;
+        ctx.scale(ringScale, ringScale);
         ctx.beginPath();
         ctx.arc(0, 0, 8, 0, Math.PI * 2);
         ctx.strokeStyle = isDeparture ? '#c62828' : '#1565c0';
@@ -902,7 +1313,7 @@ class MapEngine {
         ctx.restore();
     }
 
-    drawMarker(node, label, color) {
+    drawMarker(node, label, color, screenOffsetY = 0) {
         if (!node) return;
         const ctx = this.ctx;
         const x = node.x;
@@ -913,6 +1324,18 @@ class MapEngine {
 
         ctx.save();
         ctx.translate(x, y);
+        // Counter-Rotate to keep marker upright
+        ctx.rotate(-this.rotation * Math.PI / 180);
+
+        // Apply Screen Offset (e.g. Bounce) AFTER rotation so it's always "Up" relative to screen
+        if (screenOffsetY !== 0) {
+            // Note: Canvas Y is down. To move "Up" on screen, we subtract Y.
+            // However, inside drawMarker, the pin is drawn at (0,0) and extends upwards to -32.
+            // If screenOffsetY is positive (height), we want to substrate implies moving up.
+            // Let's assume input is positive magnitude.
+            ctx.translate(0, -screenOffsetY);
+        }
+
         // Inverse scale to keep marker constant size on screen?
         const scale = 1 / this.transform.k;
         ctx.scale(scale, scale);
@@ -1065,9 +1488,24 @@ class MapEngine {
                     let weight = edge.dist;
 
                     // ACCESSIBILITY LOGIC
-                    // If Accessibility Mode is OFF (default), avoid elevators
-                    if (!this.accessibilityMode && edge.type === 'elevator') {
-                        weight += 10000; // Penalize heavy
+                    if (this.accessibilityMode) {
+                        // Priority: EV > Flat > Stairs
+                        // Blocked Edges
+                        if (edge.barrierFreeBlocked) continue; // Skip blocked edges
+
+                        if (edge.type === 'elevator') {
+                            // Prioritize Elevator (Reduce Cost significantly)
+                            weight *= 0.1;
+                        } else if (edge.type === 'stairs') {
+                            // Avoid Stairs (Increase Cost heavily)
+                            weight += 50000;
+                        }
+                    } else {
+                        // Normal Mode: Avoid Elevators slightly to prefer stairs/walking unless necessary? 
+                        // Current logic: Avoid elevator if not in accessibility mode.
+                        if (edge.type === 'elevator') {
+                            weight += 2000; // Penalize heavy to prefer stairs
+                        }
                     }
 
                     const newDist = minDist + weight;
@@ -1094,10 +1532,10 @@ class MapEngine {
 
         this.draw();
 
-        // Auto-fit to path
+        // Auto-fit to path (with Auto-Rotation)
         if (this.path.length > 0) {
-            const pathNodes = this.path.map(id => this.getNode(id)).filter(n => n);
-            this.fitBounds(pathNodes);
+            // Use fitToPath instead of fitBounds to ensure Rotation logic triggers!
+            this.fitToPath(this.path);
         }
 
         return this.path;
@@ -1133,16 +1571,25 @@ class MapEngine {
         let minY = Infinity, maxY = -Infinity;
 
         nodes.forEach(n => {
-            if (n.x < minX) minX = n.x;
-            if (n.x > maxX) maxX = n.x;
-            if (n.y < minY) minY = n.y;
-            if (n.y > maxY) maxY = n.y;
+            if (n && typeof n.x === 'number' && typeof n.y === 'number') {
+                if (n.x < minX) minX = n.x;
+                if (n.x > maxX) maxX = n.x;
+                if (n.y < minY) minY = n.y;
+                if (n.y > maxY) maxY = n.y;
+            }
         });
+
+        // Safety: If no valid nodes found
+        if (minX === Infinity || maxX === -Infinity) return;
 
         // Add Padding
         const padding = 100;
-        const targetWidth = maxX - minX + (padding * 2);
-        const targetHeight = maxY - minY + (padding * 2);
+        let targetWidth = maxX - minX + (padding * 2);
+        let targetHeight = maxY - minY + (padding * 2);
+
+        // Safety: Prevent Divide by Zero / Infinity
+        if (targetWidth <= 0) targetWidth = 500;
+        if (targetHeight <= 0) targetHeight = 500;
 
         const centerX = (minX + maxX) / 2;
         const centerY = (minY + maxY) / 2;
@@ -1153,14 +1600,21 @@ class MapEngine {
         const scaleY = this.canvas.height / targetHeight;
         let k = Math.min(scaleX, scaleY);
 
-        // Clamp scale
-        k = Math.min(Math.max(k, 0.2), 3); // Don't zoom in TOO much if path is short (e.g. 2 nodes), and don't zoom out too far
+        // Clamp scale robustly
+        if (!isFinite(k) || isNaN(k)) k = 1;
+        k = Math.min(Math.max(k, 0.2), 3);
 
         // Calculate Translation
         // center of canavs needs to be at centerX, centerY
         // x = (canvasWidth/2) - (centerX * k)
         const tX = (this.canvas.width / 2) - (centerX * k);
         const tY = (this.canvas.height / 2) - (centerY * k);
+
+        // Final Safety Check before applying
+        if (!isFinite(tX) || isNaN(tX) || !isFinite(tY) || isNaN(tY)) {
+            console.warn("fitBounds blocked invalid transform:", tX, tY, k);
+            return;
+        }
 
         // Animate Transition
         const transform = d3.zoomIdentity.translate(tX, tY).scale(k);

@@ -114,28 +114,62 @@ class UIController {
         const zoomOut = document.getElementById('zoom-out');
         if (zoomOut) zoomOut.addEventListener('click', () => this.engine.zoomOut());
 
-        // Accessibility Toggle
-        const accessToggle = document.getElementById('accessibility-toggle');
-        if (accessToggle) {
-            accessToggle.addEventListener('change', (e) => {
-                this.engine.setAccessibilityMode(e.target.checked);
-                // Re-calculate if route is active
+        // Settings Modal Logic
+        const settingsBtn = document.getElementById('settings-btn');
+        const settingsModal = document.getElementById('settings-modal');
+        const closeSettingsBtn = document.getElementById('close-settings-btn');
+        const toggleRotation = document.getElementById('toggle-rotation');
+        const toggleAccessibility = document.getElementById('toggle-accessibility');
+
+        if (settingsBtn && settingsModal && closeSettingsBtn) {
+            // Open Settings
+            settingsBtn.addEventListener('click', () => {
+                settingsModal.classList.remove('hidden');
+                // Sync State
+                if (toggleRotation) toggleRotation.checked = this.engine.enableAutoRotation;
+                if (toggleAccessibility) toggleAccessibility.checked = this.engine.accessibilityMode;
+            });
+
+            // Close Settings
+            closeSettingsBtn.addEventListener('click', () => {
+                settingsModal.classList.add('hidden');
+            });
+
+            // Close on background click
+            settingsModal.addEventListener('click', (e) => {
+                if (e.target === settingsModal) {
+                    settingsModal.classList.add('hidden');
+                }
+            });
+        }
+
+        // Toggle: Auto Rotation
+        if (toggleRotation) {
+            toggleRotation.addEventListener('change', (e) => {
+                this.engine.enableAutoRotation = e.target.checked;
+                // If turned OFF, maybe reset rotation to 0 immediately?
+                if (!e.target.checked) {
+                    this.engine.setRotation(0);
+                } else {
+                    // Recalculate if path exists to apply rotation?
+                    // Just let next navigation handle it, or force update?
+                    // For now, simple state change.
+                }
+            });
+        }
+
+        // Toggle: Accessibility
+        if (toggleAccessibility) {
+            toggleAccessibility.addEventListener('change', (e) => {
+                this.engine.accessibilityMode = e.target.checked;
+                // Re-calculate route immediately
                 if (this.startSelect.value && this.endSelect.value) {
                     this.calculateRoute();
                 }
             });
         }
 
-        // Fit Map Button
-        const fitMapBtn = document.getElementById('fit-map');
-        if (fitMapBtn) fitMapBtn.addEventListener('click', () => this.engine.fitToScreen());
-
-        // Initial Layout Check
-        if (window.innerWidth <= 768) {
-            // Mobile init
-        }
-
-        // QR Scanner Logic
+        // Scan Button (Map Controls)
         const scanBtn = document.getElementById('scan-btn');
         if (scanBtn) {
             scanBtn.addEventListener('click', () => this.startScanner());
@@ -767,7 +801,7 @@ class CustomSelect {
 
                 // Debug: Log first few comparisons
                 if (Math.random() < 0.01) { // Log ~1% to avoid spam
-                    console.log(`[Sort] Comparing: "${a.title}" (${pA}) vs "${b.title}" (${pB})`);
+                    // console.log(`[Sort] Comparing: "${a.title}" (${pA}) vs "${b.title}" (${pB})`);
                 }
 
                 if (pA !== pB) return pA - pB;

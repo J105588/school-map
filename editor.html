@@ -270,6 +270,20 @@
                 <small style="color:#dc3545; margin-top:5px;">※つながっている線も消えます</small>
             </div>
 
+            <!-- Edge Editor Form -->
+            <div id="edgeEditor" class="hidden"
+                style="background:#fff3cd; padding:10px; border-radius:4px; margin-bottom:10px; border:1px solid #ffeeba;">
+                <label style="font-size:12px; font-weight:bold; display:block; margin-bottom:5px;">選択中のルート(線)</label>
+
+                <label style="display:flex; align-items:center; gap:5px; margin-bottom:10px; cursor:pointer;">
+                    <input type="checkbox" id="edgeBlocked"> バリアフリー通行不可
+                </label>
+                <small style="color:#856404; display:block; margin-bottom:10px;">※車椅子や台車が通れない段差や狭い通路など</small>
+
+                <button onclick="updateEdge()">保存</button>
+                <button class="danger" onclick="deleteEdge()" style="margin-top:5px;">🗑️ この線を削除</button>
+            </div>
+
             <h3>登録データ一覧</h3>
             <div class="list-container" id="dataList"></div>
         </div>
@@ -293,6 +307,7 @@
         let mode = 'path'; // 'path' | 'connect' | 'room' | 'select'
         let activePath = [];
         let selectedNodeId = null;
+        let selectedEdgeIndex = null;
 
         let hoverPos = { x: 0, y: 0 };
         let snapTarget = null;
@@ -345,20 +360,31 @@
                 snapTarget = { type: 'node', id: nearestNode.id };
                 canvas.style.cursor = 'pointer';
             } else {
-                // ノードがない場合
-                if (mode === 'room') {
-                    const nearestEdge = findNearestEdgePoint(rawPos, SNAP_RADIUS);
-                    if (nearestEdge) {
-                        hoverPos = nearestEdge.point;
-                        snapTarget = { type: 'edge', ...nearestEdge };
+                // どのモードでもエッジ判定を行う (Selectモード用)
+                // if (mode === 'room') { // Old logic restricted this
+
+                const nearestEdge = findNearestEdgePoint(rawPos, SNAP_RADIUS);
+                if (nearestEdge) {
+                    hoverPos = nearestEdge.point;
+                    snapTarget = { type: 'edge', ...nearestEdge };
+
+                    if (mode === 'room') {
                         canvas.style.cursor = 'copy';
+                    } else if (mode === 'select') {
+                        canvas.style.cursor = 'pointer';
                     } else {
                         canvas.style.cursor = 'default';
                     }
-                } else if (mode === 'path') {
-                    canvas.style.cursor = 'crosshair';
                 } else {
                     canvas.style.cursor = 'default';
+                }
+
+                if (!nearestNode && !nearestEdge) {
+                    if (mode === 'path') {
+                        canvas.style.cursor = 'crosshair';
+                    } else {
+                        // ...
+                    }
                 }
             }
             draw();
@@ -391,10 +417,18 @@
             if (!snapTarget) {
                 if (mode === 'select') {
                     selectedNodeId = null;
+                    selectedEdgeIndex = null;
                     document.getElementById('nodeEditor').classList.add('hidden');
+                    document.getElementById('edgeEditor').classList.add('hidden');
                     updateList();
                     draw();
                 }
+            }
+
+            // Edge Click Handling (in Select Mode)
+            if (snapTarget && snapTarget.type === 'edge' && mode === 'select') {
+                selectEdge(snapTarget.edgeIndex);
+                return;
             }
 
             // 各モード固有処理（新規作成など）
@@ -613,7 +647,33 @@
 
             selectedNodeId = null;
             document.getElementById('nodeEditor').classList.add('hidden');
-            updateList();
+            draw();
+        }
+
+        function selectEdge(index) {
+            selectedEdgeIndex = index;
+            selectedNodeId = null;
+            document.getElementById('nodeEditor').classList.add('hidden');
+
+            const edge = edges[index];
+            document.getElementById('edgeBlocked').checked = !!edge.barrierFreeBlocked;
+
+            document.getElementById('edgeEditor').classList.remove('hidden');
+            draw();
+        }
+
+        function updateEdge() {
+            if (selectedEdgeIndex === null) return;
+            edges[selectedEdgeIndex].barrierFreeBlocked = document.getElementById('edgeBlocked').checked;
+            draw();
+        }
+
+        function deleteEdge() {
+            if (selectedEdgeIndex === null) return;
+            if (!confirm("この線を削除しますか？")) return;
+            edges.splice(selectedEdgeIndex, 1);
+            selectedEdgeIndex = null;
+            document.getElementById('edgeEditor').classList.add('hidden');
             draw();
         }
 
@@ -640,12 +700,28 @@
 
             // エッジ
             ctx.lineWidth = 3;
-            edges.forEach(e => {
+            // エッジ
+            ctx.lineWidth = 3;
+            edges.forEach((e, index) => {
                 const n1 = nodes.find(n => n.id === e.from);
                 const n2 = nodes.find(n => n.id === e.to);
                 if (n1 && n2) {
                     ctx.strokeStyle = '#007bff';
+                    ctx.setLineDash([]);
+
+                    // Selected Edge Highlight
+                    if (index === selectedEdgeIndex) {
+                        ctx.strokeStyle = '#ff0000';
+                        ctx.lineWidth = 5;
+                    }
+                    // Blocked Edge Style
+                    else if (e.barrierFreeBlocked) {
+                        ctx.strokeStyle = '#dc3545';
+                        ctx.setLineDash([5, 5]);
+                    }
+
                     ctx.beginPath(); ctx.moveTo(n1.x, n1.y); ctx.lineTo(n2.x, n2.y); ctx.stroke();
+                    ctx.setLineDash([]); // Reset
                 }
             });
 
