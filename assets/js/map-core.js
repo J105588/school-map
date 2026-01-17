@@ -93,53 +93,112 @@ class MapEngine {
             this.applyRotatedPan(dx, dy);
         });
 
-        // Touch Events (Basic Support)
+
+
+        // Touch Events (Expanded for Pinch Zoom & Rotate)
+        this.touchState = {
+            mode: 'none', // 'drag', 'pinch'
+            startDist: 0,
+            startAngle: 0,
+            startRotation: 0,
+            startScale: 1
+        };
+
         this.canvas.addEventListener('touchstart', (e) => {
             if (e.touches.length === 1) {
+                // Single Touch -> DRAG
                 this.isDragging = true;
+                this.touchState.mode = 'drag';
                 const rect = this.canvas.getBoundingClientRect();
                 this.dragStart = {
                     x: e.touches[0].clientX - rect.left,
                     y: e.touches[0].clientY - rect.top
                 };
-                // console.log("[Input] TouchStart");
+            } else if (e.touches.length === 2) {
+                // Two Touches -> PINCH (Zoom + Rotate)
+                this.isDragging = false; // Cancel drag
+                this.touchState.mode = 'pinch';
+                this.enableAutoRotation = false; // Disable auto-rotation on manual interaction
+
+                const t1 = e.touches[0];
+                const t2 = e.touches[1];
+                const dx = t2.clientX - t1.clientX;
+                const dy = t2.clientY - t1.clientY;
+
+                this.touchState.startDist = Math.hypot(dx, dy);
+                this.touchState.startAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+                this.touchState.startRotation = this.rotation;
+                this.touchState.startScale = this.transform.k;
             }
         }, { passive: false });
 
         this.canvas.addEventListener('touchmove', (e) => {
-            if (!this.isDragging || e.touches.length !== 1) return;
-            e.preventDefault(); // Prevent scroll
+            e.preventDefault(); // Always prevent default scroll/zoom
 
-            const rect = this.canvas.getBoundingClientRect();
-            const tx = e.touches[0].clientX - rect.left;
-            const ty = e.touches[0].clientY - rect.top;
+            if (this.touchState.mode === 'drag' && e.touches.length === 1) {
+                const rect = this.canvas.getBoundingClientRect();
+                const tx = e.touches[0].clientX - rect.left;
+                const ty = e.touches[0].clientY - rect.top;
 
-            const dx = tx - this.dragStart.x;
-            const dy = ty - this.dragStart.y;
-            this.dragStart = { x: tx, y: ty };
+                const dx = tx - this.dragStart.x;
+                const dy = ty - this.dragStart.y;
+                this.dragStart = { x: tx, y: ty };
 
-            this.applyRotatedPan(dx, dy);
+                this.applyRotatedPan(dx, dy);
+
+            } else if (this.touchState.mode === 'pinch' && e.touches.length === 2) {
+                const t1 = e.touches[0];
+                const t2 = e.touches[1];
+                const dx = t2.clientX - t1.clientX;
+                const dy = t2.clientY - t1.clientY;
+
+                // 1. Calculate New Distance & Scale
+                const currDist = Math.hypot(dx, dy);
+                if (this.touchState.startDist > 0) {
+                    const scaleFactor = currDist / this.touchState.startDist;
+                    const newScale = this.touchState.startScale * scaleFactor;
+
+                    // Apply Zoom (Manual D3 Scale Update)
+                    // We need to keep the "center" of the zoom stable? 
+                    // D3.zoom handles this beautifully. Replicating it perfectly is hard.
+                    // Ideally, we'd tell D3 to zoom. 
+                    this.zoom.scaleTo(d3.select(this.canvas), newScale);
+                }
+
+                // 2. Calculate New Angle & Rotation
+                const currAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+                const angleDiff = currAngle - this.touchState.startAngle;
+                this.setRotation(this.touchState.startRotation + angleDiff, 0); // 0 duration for instant update
+            }
         }, { passive: false });
 
-        this.canvas.addEventListener('touchend', () => {
-            this.isDragging = false;
+        this.canvas.addEventListener('touchend', (e) => {
+            if (e.touches.length === 0) {
+                this.isDragging = false;
+                this.touchState.mode = 'none';
+            } else if (e.touches.length === 1) {
+                // Switch back to drag? or just end pinch?
+                // Usually easier to just reset.
+                this.touchState.mode = 'drag';
+                const rect = this.canvas.getBoundingClientRect();
+                this.dragStart = {
+                    x: e.touches[0].clientX - rect.left,
+                    y: e.touches[0].clientY - rect.top
+                };
+            }
         });
     }
 
+    // Manual Rotation API
+    rotateBy(angle) {
+        this.enableAutoRotation = false; // Disable auto-rotation
+        const target = this.rotation + angle;
+        this.setRotation(target, 500); // 500ms smooth animation
+    }
+
     // Custom Drag Logic
-
-
     applyRotatedPan(dx, dy) {
-        // Transform Order: Rotate(θ) -> Translate(tx, ty).
-        // To move visual by (dx, dy), we need world translation (dtx, dty) such that:
-        // R(θ) * (dtx, dty) = (dx, dy)
-        // => (dtx, dty) = R(-θ) * (dx, dy)
-        //
-        // R(-θ) formula with rad = θ:
-        // dtx = dx * cos(θ) + dy * sin(θ)
-        // dty = -dx * sin(θ) + dy * cos(θ)
-
-        // VERIFIED LOGIC (from scroll-test.html)
+        // ... (Existing Logic)
         const rad = this.rotation * Math.PI / 180;
         const cos = Math.cos(rad);
         const sin = Math.sin(rad);
@@ -607,15 +666,46 @@ class MapEngine {
 
     // --- Transforms ---
     fitToScreen() {
-        // Fit 2F (Middle) default
-        this.switchFloor(AppConfig.DEFAULT_FLOOR_ID);
+        // 1. Calculate Target Floor Transform (Replicating switchFloor logic)
+        const floorId = AppConfig.DEFAULT_FLOOR_ID;
+        this.currentFloorId = floorId;
 
-        // Mobile Adjustment: Zoom in a bit more initially for visibility
-        if (window.innerWidth <= 768) {
-            setTimeout(() => {
-                d3.select(this.canvas).transition().duration(500).call(this.zoom.scaleBy, 1.5);
-            }, 800);
-        }
+        const yOffset = this.floorOffsets[floorId] || 0;
+        const img = this.images[floorId];
+        const height = (img && img.height) ? img.height : 1000;
+        const width = (img && img.width) ? img.width : 2000;
+
+        const centerX = width / 2;
+        const centerY = yOffset + height / 2;
+
+        const k = 0.5; // Default Zoom
+        const tX = (this.canvas.width / 2) - (centerX * k);
+        const tY = (this.canvas.height / 2) - (centerY * k);
+        const targetTransform = d3.zoomIdentity.translate(tX, tY).scale(k);
+
+        // 2. Prepare Transition (Unified)
+        const selection = d3.select(this.canvas).transition().duration(750).ease(d3.easeCubicOut);
+
+        // 3. Apply Zoom/Pan
+        selection.call(this.zoom.transform, targetTransform);
+
+        // 4. Apply Rotation Reset (tween)
+        const startRotation = this.rotation;
+        const targetRotation = 0;
+
+        // Shortest path logic
+        let delta = (targetRotation - startRotation) % 360;
+        if (delta > 180) delta -= 360;
+        if (delta < -180) delta += 360;
+        const finalRotation = startRotation + delta;
+
+        selection.tween("rotate", () => {
+            const interpolate = d3.interpolate(startRotation, finalRotation);
+            return (t) => {
+                this.rotation = interpolate(t);
+                this.draw();
+            };
+        });
     }
 
     fitToPath(pathNodes) {
@@ -1408,6 +1498,8 @@ class MapEngine {
     }
 
     calculatePath(startId, endId) {
+        // Re-enable Auto Rotation on new search/path
+        this.enableAutoRotation = true;
         console.log(`Calculating path from ${startId} to ${endId}`);
         this.path = [];
         this.startNode = null; // Clear manual start node

@@ -780,6 +780,13 @@ input:checked+.slider:before {
         z-index: 1;
     }
 
+    /* Hide Rotation Buttons on Mobile (Use Pinch instead) */
+    #rotate-left,
+    #rotate-right,
+    .control-separator {
+        display: none !important;
+    }
+
     /* Sidebar becomes a Full Screen Modal */
     .sidebar {
         position: fixed;

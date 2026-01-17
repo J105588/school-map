@@ -108,11 +108,20 @@ class UIController {
         }
 
         // Event Listeners for Controls
+        const fitMap = document.getElementById('fit-map');
+        if (fitMap) fitMap.addEventListener('click', () => this.engine.fitToScreen());
+
         const zoomIn = document.getElementById('zoom-in');
         if (zoomIn) zoomIn.addEventListener('click', () => this.engine.zoomIn());
 
         const zoomOut = document.getElementById('zoom-out');
         if (zoomOut) zoomOut.addEventListener('click', () => this.engine.zoomOut());
+
+        const rotateLeft = document.getElementById('rotate-left');
+        if (rotateLeft) rotateLeft.addEventListener('click', () => this.engine.rotateBy(30));
+
+        const rotateRight = document.getElementById('rotate-right');
+        if (rotateRight) rotateRight.addEventListener('click', () => this.engine.rotateBy(-30));
 
         // Settings Modal Logic
         const settingsBtn = document.getElementById('settings-btn');
