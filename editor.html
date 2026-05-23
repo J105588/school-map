@@ -4,467 +4,1567 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>校内Mapエディタ v8.3</title>
+    <title>I-Compass Map Editor v9.0</title>
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <link rel="stylesheet" href="assets/css/style.css">
     <style>
+        /* Editor specific layout & aesthetics overrides */
+        :root {
+            --editor-sidebar-width: 380px;
+            --danger-color: #dc3545;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --info-color: #17a2b8;
+            --bg-color: #f4f6f9;
+        }
+
         body {
-            font-family: "Helvetica Neue", Arial, sans-serif;
-            display: flex;
-            gap: 20px;
-            padding: 20px;
-            background-color: #f4f7f6;
-            height: 95vh;
-            box-sizing: border-box;
-            color: #333;
-        }
-
-        /* Canvas Area */
-        #canvas-wrapper {
-            position: relative;
-            border: 2px solid #ccc;
-            overflow: hidden;
-            flex-grow: 1;
-            background: white;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            border-radius: 8px;
-        }
-
-        canvas {
-            display: block;
-            cursor: crosshair;
-        }
-
-        /* Sidebar */
-        #sidebar {
-            width: 350px;
             display: flex;
             flex-direction: column;
-            gap: 15px;
-            height: 100%;
-            min-width: 350px;
-            overflow-y: auto;
+            background-color: var(--bg-color);
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            font-family: var(--font-body);
         }
 
-        .panel {
-            border: 1px solid #e0e0e0;
-            padding: 15px;
-            border-radius: 8px;
-            background: white;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        }
-
-        h3 {
-            margin: 0 0 10px 0;
-            font-size: 15px;
-            border-bottom: 2px solid #eee;
-            padding-bottom: 5px;
-            color: #555;
+        /* Header overrides */
+        .editor-header {
+            background: linear-gradient(135deg, #0b0f38 0%, #1e299a 50%, #3a1555 100%);
+            color: white;
+            padding: 12px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            border-bottom: 2px solid var(--secondary-color);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+            flex-shrink: 0;
         }
 
-        /* Forms & Buttons */
-        input,
-        select,
-        button,
-        textarea {
-            padding: 8px;
-            width: 100%;
-            box-sizing: border-box;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            margin-bottom: 8px;
-            font-size: 13px;
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
-        textarea {
-            resize: vertical;
-            font-family: monospace;
+        .header-title-group {
+            display: flex;
+            flex-direction: column;
         }
 
-        button {
-            background: #007bff;
-            color: white;
-            border: none;
+        .header-title {
+            font-family: var(--font-heading);
+            font-size: 20px;
             font-weight: bold;
+            letter-spacing: 1px;
+            margin: 0;
+            background: linear-gradient(135deg, #ffffff 40%, var(--secondary-color) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-subtitle {
+            font-size: 11px;
+            color: var(--secondary-color);
+            margin: 0;
+            letter-spacing: 0.5px;
+            font-weight: bold;
+        }
+
+        .floor-tabs-bar {
+            display: flex;
+            gap: 6px;
+        }
+
+        .floor-tab-editor {
+            padding: 6px 14px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: rgba(255, 255, 255, 0.85);
+            border-radius: 15px;
+            font-size: 13px;
+            font-weight: 500;
             cursor: pointer;
-            transition: 0.2s;
+            transition: all 0.2s;
+        }
+
+        .floor-tab-editor:hover {
+            background: rgba(255, 255, 255, 0.25);
+            color: white;
+        }
+
+        .floor-tab-editor.active {
+            background: var(--secondary-color);
+            color: var(--primary-color);
+            border-color: var(--secondary-color);
+            font-weight: bold;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .status-badge {
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .status-badge.modified {
+            border-color: var(--warning-color);
+            color: var(--warning-color);
+            background: rgba(255, 193, 7, 0.15);
+        }
+
+        .status-badge.saved {
+            border-color: var(--success-color);
+            color: var(--success-color);
+            background: rgba(40, 167, 69, 0.15);
+        }
+
+        /* Workspace Layout */
+        .workspace {
+            display: flex;
+            flex-grow: 1;
+            height: calc(100vh - 60px);
+            position: relative;
+        }
+
+        /* Canvas Panel */
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            background-color: #eef2f5;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #mapCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Toolbar floating on canvas */
+        .canvas-toolbar {
+            position: absolute;
+            left: 20px;
+            top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 8px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-color);
+            z-index: 5;
+        }
+
+        .tool-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 8px;
+            border: none;
+            background: transparent;
+            color: var(--text-main);
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .tool-btn:hover {
+            background: rgba(26, 35, 126, 0.08);
+            color: var(--primary-color);
+        }
+
+        .tool-btn.active {
+            background: var(--primary-color);
+            color: white !important;
+            box-shadow: 0 4px 10px rgba(26, 35, 126, 0.3);
+        }
+
+        .tool-btn::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            left: 56px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+            z-index: 100;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .tool-btn:hover::after {
+            opacity: 1;
+        }
+
+        .tool-divider {
+            height: 1px;
+            background: var(--border-color);
+            margin: 4px 0;
+        }
+
+        /* Canvas Status Info */
+        .canvas-status {
+            position: absolute;
+            left: 20px;
+            bottom: 20px;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            display: flex;
+            gap: 15px;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        /* Sidebar Panel */
+        .editor-sidebar {
+            width: var(--editor-sidebar-width);
+            background: white;
+            border-left: 1px solid var(--border-color);
+            box-shadow: -4px 0 15px rgba(0, 0, 0, 0.03);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            z-index: 6;
+            flex-shrink: 0;
+        }
+
+        .sidebar-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            background: #fafafa;
+        }
+
+        .sidebar-tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: bold;
+            color: var(--text-sub);
+            cursor: pointer;
+            transition: all 0.2s;
+            border-bottom: 2px solid transparent;
+        }
+
+        .sidebar-tab:hover {
+            color: var(--primary-color);
+            background: rgba(0, 0, 0, 0.02);
+        }
+
+        .sidebar-tab.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+            background: white;
+        }
+
+        .sidebar-content {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .sidebar-panel {
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: var(--shadow-sharp);
+        }
+
+        .sidebar-panel h3 {
+            margin: 0 0 12px 0;
+            font-size: 14px;
+            color: var(--primary-color);
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        /* Inspector panel style */
+        .inspector-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .form-row .form-field {
+            flex: 1;
+        }
+
+        .form-field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .form-field label {
+            font-size: 11px;
+            font-weight: bold;
+            color: var(--text-sub);
+        }
+
+        .form-field input,
+        .form-field select,
+        .form-field textarea {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+            width: 100%;
+        }
+
+        .form-field input:focus,
+        .form-field select:focus,
+        .form-field textarea:focus {
+            border-color: var(--primary-color);
+        }
+
+        /* Custom buttons styling */
+        .btn {
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 5px;
+            gap: 8px;
+            width: 100%;
+            box-sizing: border-box;
         }
 
-        button:hover {
-            background: #0056b3;
-            transform: translateY(-1px);
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
         }
 
-        button:active {
-            transform: translateY(0);
+        .btn-primary:hover {
+            background: #111a60;
         }
 
-        button.secondary {
-            background: #6c757d;
+        .btn-secondary {
+            background: #f1f3f5;
+            color: var(--text-main);
+            border-color: var(--border-color);
         }
 
-        button.secondary:hover {
-            background: #5a6268;
+        .btn-secondary:hover {
+            background: #e9ecef;
         }
 
-        button.danger {
-            background: #dc3545;
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
         }
 
-        button.danger:hover {
-            background: #c82333;
+        .btn-danger:hover {
+            background: #bd2130;
         }
 
-        button.mode-btn {
-            background: white;
-            color: #333;
-            border: 1px solid #ccc;
-            padding: 10px;
+        /* Facility list view */
+        .search-wrapper {
+            position: relative;
+            margin-bottom: 10px;
         }
 
-        button.mode-btn:hover {
-            background: #f8f9fa;
+        .search-input {
+            width: 100%;
+            padding: 8px 12px 8px 32px;
+            box-sizing: border-box;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
         }
 
-        button.mode-btn.active {
-            background: #e6f2ff;
-            color: #007bff;
-            border-color: #007bff;
-            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
+        .search-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-sub);
+            pointer-events: none;
+            font-size: 12px;
         }
 
-        /* List */
-        .list-container {
-            flex-grow: 1;
+        .data-list {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            max-height: 380px;
             overflow-y: auto;
-            border: 1px solid #eee;
-            height: 150px;
-            border-radius: 4px;
+            background: #fafafa;
         }
 
-        .list-item {
-            padding: 8px;
-            border-bottom: 1px solid #f0f0f0;
+        .data-list-item {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f1f3f5;
             font-size: 12px;
             cursor: pointer;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            transition: all 0.2s;
         }
 
-        .list-item:hover {
-            background: #f5faff;
+        .data-list-item:hover {
+            background: #f1f5f9;
         }
 
-        .list-item.selected {
-            background: #e6f2ff;
-            border-left: 4px solid #007bff;
+        .data-list-item.selected {
+            background: rgba(26, 35, 126, 0.05);
+            border-left: 3px solid var(--primary-color);
+        }
+
+        /* Modal Dialog overrides */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        .modal-overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            border-top: 4px solid var(--secondary-color);
+        }
+
+        .modal-header {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: var(--primary-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        .modal-body {
+            font-size: 13px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            color: var(--text-main);
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        /* Toast notifications styling */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 1100;
+            pointer-events: none;
+        }
+
+        .toast {
+            background: white;
+            border-left: 4px solid var(--primary-color);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            padding: 12px 18px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 280px;
+            animation: slideIn 0.3s ease-out;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+
+        .toast.success {
+            border-left-color: var(--success-color);
+        }
+
+        .toast.error {
+            border-left-color: var(--danger-color);
+        }
+
+        .toast.warning {
+            border-left-color: var(--warning-color);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
         }
 
         .hidden {
-            display: none;
-        }
-
-        small {
-            color: #666;
-            font-size: 11px;
-            display: block;
-            margin-bottom: 5px;
-            line-height: 1.4;
-        }
-
-        .tool-row {
-            display: flex;
-            gap: 5px;
-            margin-bottom: 5px;
-        }
-
-        .tool-row button {
-            margin-bottom: 0;
-        }
-
-        .type-badge {
-            padding: 2px 6px;
-            border-radius: 10px;
-            color: white;
-            font-size: 10px;
+            display: none !important;
         }
     </style>
 </head>
 
 <body>
 
-    <div id="canvas-wrapper" oncontextmenu="return false;">
-        <canvas id="mapCanvas"></canvas>
-    </div>
-
-    <div id="sidebar">
-        <!-- 1. ファイル操作 -->
-        <div class="panel">
-            <h3>📂 ファイル入出力</h3>
-            <small>1. 図面画像を読み込む</small>
-            <input type="file" id="imageLoader" accept="image/*">
-
-            <small style="margin-top:10px;">2. JSONデータの読込 (復元)</small>
-            <div style="display:flex; gap:5px;">
-                <input type="file" id="jsonLoader" accept=".json">
+    <!-- Header Panel -->
+    <header class="editor-header">
+        <div class="header-left">
+            <svg class="logo-icon" viewBox="0 0 24 24" width="28" height="28" style="flex-shrink:0;">
+                <circle cx="12" cy="12" r="10" stroke="var(--secondary-color)" stroke-width="1.5" fill="none"></circle>
+                <polygon points="12,3 15,12 12,12" fill="var(--accent-color)"></polygon>
+                <polygon points="12,3 9,12 12,12" fill="#ff5252"></polygon>
+                <polygon points="12,21 15,12 12,12" fill="var(--secondary-color)"></polygon>
+                <polygon points="12,21 9,12 12,12" fill="#e5c158"></polygon>
+                <circle cx="12" cy="12" r="1.5" fill="white"></circle>
+            </svg>
+            <div class="header-title-group">
+                <h1 class="header-title">I-Compass Map Editor</h1>
+                <span class="header-subtitle">校内マップ管理・編集システム</span>
             </div>
-            <textarea id="jsonInput" placeholder="またはJSONをここに貼り付け" style="height:40px;"></textarea>
-            <button class="secondary" onclick="importJSON()">JSONデータを反映</button>
         </div>
 
-        <!-- 2. 編集ツール -->
-        <div class="panel" style="flex-grow: 1; display: flex; flex-direction: column;">
-            <h3>🛠️ 編集モード</h3>
+        <!-- Floor Selector Tabs -->
+        <div class="floor-tabs-bar" id="floor-tabs-bar">
+            <!-- Dynamic Floor Tabs populates here -->
+        </div>
 
-            <div class="tool-row">
-                <button class="mode-btn active" id="btnPath" onclick="setMode('path')">🛣️ 廊下(線)</button>
-                <button class="mode-btn" id="btnConnect" onclick="setMode('connect')">🔗 つなぐ</button>
-                <button class="mode-btn" id="btnRoom" onclick="setMode('room')">📍 部屋(点)</button>
-                <!-- 選択モードを追加して明示的に消せるようにする -->
-                <button class="mode-btn" id="btnSelect" onclick="setMode('select')"
-                    style="flex-basis: 40px;">👆</button>
+        <div class="header-right">
+            <div class="status-badge saved" id="modified-status">
+                <span
+                    style="display:inline-block; width:8px; height:8px; border-radius:50%; background:currentColor;"></span>
+                <span id="status-text">保存済み</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Workspace Container -->
+    <div class="workspace">
+        <!-- Canvas Wrapper -->
+        <div id="canvas-container">
+            <canvas id="mapCanvas"></canvas>
+
+            <!-- Floating Tool Menu -->
+            <div class="canvas-toolbar">
+                <button class="tool-btn active" id="tool-select" onclick="setTool('select')"
+                    data-tooltip="選択/移動 (V) - ノードのドラッグ・選択">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path d="M7 2l12 11.2-5.8.9 3.5 6.1-1.7 1-3.5-6.1-4.5 4.5z" />
+                    </svg>
+                </button>
+                <button class="tool-btn" id="tool-path" onclick="setTool('path')" data-tooltip="廊下/線 (P) - パスを連続して接続描画">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 20L20 4" stroke-linecap="round" />
+                        <circle cx="4" cy="20" r="3" fill="white" />
+                        <circle cx="20" cy="4" r="3" fill="white" />
+                    </svg>
+                </button>
+                <button class="tool-btn" id="tool-room" onclick="setTool('room')"
+                    data-tooltip="教室/点 (R) - 部屋の作成 (線の上クリックで挿入)">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2" />
+                        <circle cx="12" cy="12" r="4" />
+                    </svg>
+                </button>
+                <button class="tool-btn" id="tool-connect" onclick="setTool('connect')"
+                    data-tooltip="つなぐ (C) - 2点を繋いで経路（エッジ）を作成">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round">
+                        <circle cx="6" cy="6" r="3" fill="white" />
+                        <circle cx="18" cy="18" r="3" fill="white" />
+                        <line x1="8" y1="8" x2="16" y2="16" />
+                        <path d="M12 7l4 4-4 4" fill="none" />
+                    </svg>
+                </button>
+                <button class="tool-btn" id="tool-pan" onclick="setTool('pan')" data-tooltip="手のひら (H) - 画面のスクロールドラッグ">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path
+                            d="M12 2a3 3 0 0 0-3 3v6.75l-1.25-.56a2 2 0 0 0-2.5 1l-.5 1.13a2.5 2.5 0 0 0 .5 3l4.75 4.3c.6.55 1.4 1.38 3 1.38h4.5a4.5 4.5 0 0 0 4.5-4.5V9a3 3 0 0 0-3-3h-1.5V5a3 3 0 0 0-3-3zm0 2a1 1 0 0 1 1 1v7h2V5a1 1 0 0 1 2 0v7h2V9a1 1 0 0 1 2 0v6.5a2.5 2.5 0 0 1-2.5 2.5h-4.5c-1.1 0-1.6-.6-2.1-1.1l-4.4-4a.5.5 0 0 1-.1-.6l.5-1.1c.1-.2.4-.4.6-.3l2.5 1.1V5a1 1 0 0 1 1-1z" />
+                    </svg>
+                </button>
+                <div class="tool-divider"></div>
+                <button class="tool-btn" onclick="fitMap()" data-tooltip="全体表示 (F)">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path d="M5 5h5v2H7v3H5V5zm9 0h5v5h-2V7h-3V5zm5 9h-2v3h-3v2h5v-5zm-14 0v5h5v-2H7v-3H5z" />
+                    </svg>
+                </button>
+                <button class="tool-btn" onclick="zoomIn()" data-tooltip="拡大 (+)">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                    </svg>
+                </button>
+                <button class="tool-btn" onclick="zoomOut()" data-tooltip="縮小 (-)">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path d="M19 13H5v-2h14v2z" />
+                    </svg>
+                </button>
             </div>
 
-            <div
-                style="background: #fff3cd; padding: 10px; border-radius: 4px; margin-bottom: 10px; border: 1px solid #ffeeba;">
-                <small id="guideText" style="color:#856404; margin:0;">
-                    <b>廊下モード:</b> クリックで点を追加。
-                </small>
-                <button id="undoBtn" class="secondary" style="margin-top:5px; display:none;"
-                    onclick="undoLastPoint()">↩️ 一つ戻る (描画中のみ)</button>
+            <!-- Canvas Stats Overlay -->
+            <div class="canvas-status">
+                <div id="status-coord">座標: X: 0, Y: 0</div>
+                <div id="status-zoom">ズーム: 100%</div>
+                <div id="status-snap">スナップ: なし</div>
+            </div>
+        </div>
+
+        <!-- Sidebar Inspector / Control Panel -->
+        <div class="editor-sidebar">
+            <div class="sidebar-tabs">
+                <div class="sidebar-tab active" id="tab-inspector-btn" onclick="switchSidebarTab('inspector')">属性編集
+                </div>
+                <div class="sidebar-tab" id="tab-list-btn" onclick="switchSidebarTab('list')">施設リスト</div>
+                <div class="sidebar-tab" id="tab-file-btn" onclick="switchSidebarTab('file')">保存・入出力</div>
             </div>
 
-            <!-- 編集フォーム -->
-            <div id="nodeEditor" class="hidden"
-                style="background:#f8f9fa; padding:10px; border-radius:4px; margin-bottom:10px; border:1px solid #dee2e6;">
-                <label style="font-size:12px; font-weight:bold; display:block; margin-bottom:5px;">選択中のポイント</label>
+            <div class="sidebar-content">
+                <!-- Inspector Tab -->
+                <div id="tab-inspector" class="tab-panel">
+                    <!-- Default State (No Selection) -->
+                    <div id="inspector-empty" style="text-align:center; padding:45px 10px; color:var(--text-sub);">
+                        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor"
+                            stroke-width="1.5" style="margin-bottom:12px; color:#ccc;">
+                            <circle cx="12" cy="12" r="10" />
+                            <path d="M12 16v-4M12 8h.01" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <p style="font-weight:500; font-size:14px; margin:0 0 6px 0;">要素が選択されていません</p>
+                        <p style="font-size:11px; margin:0; line-height:1.4;">
+                            マップ上の点（ノード）または線（エッジ）をクリックして情報を編集します。<br>キーボードの <code>Escape</code> キーで選択を解除できます。</p>
+                    </div>
 
-                <div id="roomFields">
-                    <input type="text" id="nodeEventName" placeholder="企画名 (例: お化け屋敷)">
-                    <input type="text" id="nodeName" placeholder="部屋名 (例: 1-1)">
-                    <select id="nodeType">
-                        <option value="junction">廊下・分岐点</option>
-                        <option value="room">教室/部屋</option>
-                        <option value="toilet">トイレ</option>
-                        <option value="stairs">階段</option>
-                        <option value="elevator">EV</option>
-                        <option value="entrance">出入口</option>
-                        <option value="vending">自動販売機</option>
-                        <option value="area">エリア</option>
-                        <option value="others">その他</option>
-                    </select>
-                    <button onclick="updateNode()">保存</button>
+                    <!-- Node Inspector Form -->
+                    <div id="inspector-node" class="hidden">
+                        <div class="sidebar-panel">
+                            <h3>📍 ポイントの属性編集</h3>
+                            <div class="inspector-group">
+                                <div class="form-row">
+                                    <div class="form-field" style="flex:2;">
+                                        <label>ノードID</label>
+                                        <input type="text" id="nodeId" readonly style="background:#f8f9fa;">
+                                    </div>
+                                    <div class="form-field" style="flex:3;">
+                                        <label>種別</label>
+                                        <select id="nodeType" onchange="saveSelectedNodeProperties()">
+                                            <option value="junction">廊下・分岐点</option>
+                                            <option value="room">教室/部屋</option>
+                                            <option value="toilet">トイレ</option>
+                                            <option value="stairs">階段</option>
+                                            <option value="elevator">EV</option>
+                                            <option value="entrance">出入口</option>
+                                            <option value="vending">自動販売機</option>
+                                            <option value="area">エリア</option>
+                                            <option value="others">その他</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-field">
+                                    <label>表示部屋名 (例: 1-1, 物理室)</label>
+                                    <input type="text" id="nodeName" placeholder="部屋名を入力"
+                                        oninput="saveSelectedNodeProperties()">
+                                </div>
+                                <div class="form-field">
+                                    <label>企画展示名 (例: お化け屋敷, 喫茶店)</label>
+                                    <input type="text" id="nodeEventName" placeholder="企画展示名を入力"
+                                        oninput="saveSelectedNodeProperties()">
+                                </div>
+                                <div class="form-field hidden" id="connectionIdGroup">
+                                    <label>接続ID (階段/EVの階連結用)</label>
+                                    <input type="text" id="nodeConnectionId" placeholder="例: stairs_south_1"
+                                        oninput="saveSelectedNodeProperties()">
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-field">
+                                        <label>座標 X</label>
+                                        <input type="number" id="nodeX" onchange="saveSelectedNodeProperties(true)">
+                                    </div>
+                                    <div class="form-field">
+                                        <label>座標 Y</label>
+                                        <input type="number" id="nodeY" onchange="saveSelectedNodeProperties(true)">
+                                    </div>
+                                </div>
+
+                                <div style="margin-top:10px;">
+                                    <button class="btn btn-danger" onclick="deleteSelectedNode()">🗑️ この点を削除</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Edge Inspector Form -->
+                    <div id="inspector-edge" class="hidden">
+                        <div class="sidebar-panel">
+                            <h3>経路（エッジ）の属性編集</h3>
+                            <div class="inspector-group">
+                                <div class="form-field">
+                                    <label>接続元ノード</label>
+                                    <input type="text" id="edgeFrom" readonly style="background:#f8f9fa;">
+                                </div>
+                                <div class="form-field">
+                                    <label>接続先ノード</label>
+                                    <input type="text" id="edgeTo" readonly style="background:#f8f9fa;">
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-field">
+                                        <label>実距離 (dist)</label>
+                                        <input type="text" id="edgeDist" readonly style="background:#f8f9fa;">
+                                    </div>
+                                </div>
+                                <div class="form-field"
+                                    style="flex-direction:row; align-items:center; gap:8px; margin: 8px 0;">
+                                    <input type="checkbox" id="edgeBlocked" onchange="saveSelectedEdgeProperties()"
+                                        style="width:auto; margin:0; cursor:pointer;">
+                                    <label for="edgeBlocked"
+                                        style="cursor:pointer; color:var(--text-main); font-size:13px; font-weight:normal;">♿
+                                        バリアフリー通行不可</label>
+                                </div>
+                                <p style="font-size:11px; color:var(--text-sub); margin:0 0 12px 0; line-height:1.4;">
+                                    ※段差や階段など、車椅子・台車が通行できない経路の場合は有効にします。
+                                </p>
+                                <button class="btn btn-danger" onclick="deleteSelectedEdge()">この線を削除</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <button class="danger" onclick="deleteNode()">🗑️ この点を削除</button>
-                <small style="color:#dc3545; margin-top:5px;">※つながっている線も消えます</small>
+                <!-- List Tab -->
+                <div id="tab-list" class="tab-panel hidden">
+                    <div class="sidebar-panel">
+                        <h3>登録施設一覧</h3>
+                        <div class="search-wrapper">
+                            <input type="text" class="search-input" id="list-search" placeholder="部屋名・企画名で検索..."
+                                oninput="updateList()">
+                        </div>
+                        <div class="form-field" style="margin-bottom:12px;">
+                            <select id="list-filter" onchange="updateList()" style="padding:6px; font-size:12px;">
+                                <option value="all">すべての施設 (廊下を除く)</option>
+                                <option value="room">部屋</option>
+                                <option value="toilet">トイレ</option>
+                                <option value="stairs">階段</option>
+                                <option value="elevator">EV</option>
+                                <option value="entrance">出入口</option>
+                                <option value="vending">自動販売機</option>
+                            </select>
+                        </div>
+                        <div class="data-list" id="dataList" style="max-height: 380px;">
+                            <!-- Dynamic facilities list -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- File Panel Tab -->
+                <div id="tab-file" class="tab-panel hidden">
+                    <div class="sidebar-panel">
+                        <h3>JSONファイルの読込 (復元)</h3>
+                        <p style="color:var(--text-sub); font-size:11px; margin:0 0 8px 0; line-height:1.4;">
+                            既存のJSONデータファイル（例: `2.json`）をロードして、続きからマップデータを編集します。
+                        </p>
+                        <input type="file" id="jsonLoader" accept=".json" style="margin-bottom:8px;">
+                        <textarea id="jsonInput" placeholder="またはJSONコードをここに貼り付け..."
+                            style="width:100%; height:80px; box-sizing:border-box; margin-bottom:8px; font-family:monospace; font-size:11px; resize:vertical;"></textarea>
+                        <button class="btn btn-secondary" onclick="importJSON()">JSONデータを反映</button>
+                    </div>
+
+                    <div class="sidebar-panel" style="margin-top:15px;">
+                        <h3>データの書き出しと保存</h3>
+                        <div style="font-size:12px; margin-bottom:12px; line-height:1.5; color:var(--text-main);">
+                            現在のフロア: <b id="current-floor-info">2F</b><br>
+                            点（ノード）数: <span id="stats-nodes">0</span> 個<br>
+                            線（エッジ）数: <span id="stats-edges">0</span> 本
+                        </div>
+                        <button class="btn btn-primary" onclick="exportJSONToClipboard()" style="margin-bottom:8px;">
+                            JSONデータをコピー</button>
+                        <button class="btn btn-secondary" onclick="downloadJSONFile()">JSONファイルをダウンロード</button>
+                        <textarea id="jsonOutput"
+                            style="width:100%; height:120px; font-family:monospace; font-size:11px; resize:vertical; background:#f8f9fa; margin-top:8px; box-sizing:border-box;"
+                            readonly></textarea>
+                    </div>
+
+                    <div class="sidebar-panel hidden" id="local-backup-panel" style="margin-top:15px; border-left: 4px solid var(--secondary-color);">
+                        <h3>一時保存データの復元</h3>
+                        <p style="color:var(--text-sub); font-size:11px; margin:0 0 8px 0; line-height:1.4;">
+                            ブラウザに自動保存された一時データ（下書き）があります。<br>
+                            <span id="local-backup-info" style="font-weight:bold; color:var(--primary-color);"></span>
+                        </p>
+                        <div style="display:flex; gap:8px;">
+                            <button class="btn btn-secondary" onclick="restoreFromLocalBackup()" style="flex:2; font-size:12px;">復元する</button>
+                            <button class="btn btn-danger" onclick="clearLocalBackup()" style="flex:1; padding:10px 8px; font-size:12px;">消去</button>
+                        </div>
+                    </div>
+                </div>
             </div>
-
-            <!-- Edge Editor Form -->
-            <div id="edgeEditor" class="hidden"
-                style="background:#fff3cd; padding:10px; border-radius:4px; margin-bottom:10px; border:1px solid #ffeeba;">
-                <label style="font-size:12px; font-weight:bold; display:block; margin-bottom:5px;">選択中のルート(線)</label>
-
-                <label style="display:flex; align-items:center; gap:5px; margin-bottom:10px; cursor:pointer;">
-                    <input type="checkbox" id="edgeBlocked"> バリアフリー通行不可
-                </label>
-                <small style="color:#856404; display:block; margin-bottom:10px;">※車椅子や台車が通れない段差や狭い通路など</small>
-
-                <button onclick="updateEdge()">保存</button>
-                <button class="danger" onclick="deleteEdge()" style="margin-top:5px;">🗑️ この線を削除</button>
-            </div>
-
-            <h3>登録データ一覧</h3>
-            <div class="list-container" id="dataList"></div>
-        </div>
-
-        <!-- 3. エクスポート -->
-        <div class="panel">
-            <h3>📤 保存</h3>
-            <button onclick="exportJSON()">JSONデータをコピー</button>
-            <textarea id="jsonOutput" style="height: 60px;" readonly></textarea>
         </div>
     </div>
 
+    <!-- CORS Info Modal -->
+    <div class="modal-overlay" id="cors-modal">
+        <div class="modal-content">
+            <div class="modal-header">ローカルファイル読み込みの制限について</div>
+            <div class="modal-body">
+                <p>現在、ブラウザでファイルを直接開いているため（URLが <code>file://...</code>）、セキュリティ上の制限（CORSポリシー）により、各階の JSON
+                    データや背景画像を自動で取得できません。</p>
+                <p><strong>解決方法:</strong></p>
+                <ol style="padding-left: 20px; margin: 10px 0;">
+                    <li>Python等でローカルWebサーバーを起動してアクセスする（推奨）:
+                        <pre
+                            style="background:#f4f4f4; padding:8px; border-radius:4px; font-size:11px; overflow-x:auto; margin:6px 0;">python -m http.server 8000</pre>
+                        起動後、<code>http://localhost:8000/editor.html</code> にアクセスします。
+                    </li>
+                    <li>右側の「保存・入出力」タブから、編集したい階のJSONファイルを個別に読み込み、背景画像も手動で読み込んで編集します。</li>
+                </ol>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="closeCORSModal()" style="width:auto;">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Loader Fallback Modal -->
+    <div class="modal-overlay" id="image-loader-modal">
+        <div class="modal-content">
+            <div class="modal-header">背景画像の読み込み</div>
+            <div class="modal-body">
+                <p>このフロア用の図面背景画像（例: <code>floor2.png</code>）をローカルから読み込んでください。</p>
+                <input type="file" id="imageLoader" accept="image/*" style="margin-top:10px;">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeImageLoaderModal()" style="width:auto;">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="assets/js/config.js"></script>
     <script>
+        // --- Constants & Variables ---
         const canvas = document.getElementById('mapCanvas');
         const ctx = canvas.getContext('2d');
+        const canvasWrapper = document.getElementById('canvas-container');
+
         let img = new Image();
 
+        // Use AppConfig if loaded, otherwise fallback
+        const floorsConfig = (typeof AppConfig !== 'undefined' && AppConfig.FLOORS) ? AppConfig.FLOORS : [
+            { id: 1, name: '1F', label: '1階', jsonPath: 'JSON/1.json', imagePath: 'images/floor1.png' },
+            { id: 2, name: '2F', label: '2階', jsonPath: 'JSON/2.json', imagePath: 'images/floor2.png' },
+            { id: 3, name: '3F', label: '3階', jsonPath: 'JSON/3.json', imagePath: 'images/floor3.png' },
+            { id: 4, name: '4F', label: '4階', jsonPath: 'JSON/4.json', imagePath: 'images/floor4.png' }
+        ];
+
+        const defaultFloorId = (typeof AppConfig !== 'undefined' && AppConfig.DEFAULT_FLOOR_ID) ? AppConfig.DEFAULT_FLOOR_ID : 2;
+        let currentFloorId = defaultFloorId;
+
+        // Data Storage for all Floors
+        let floorsData = {};
+        floorsConfig.forEach(floor => {
+            floorsData[floor.id] = {
+                id: floor.id,
+                name: floor.name,
+                label: floor.label,
+                jsonPath: floor.jsonPath,
+                imagePath: floor.imagePath,
+                nodes: [],
+                edges: [],
+                isLoaded: false,
+                isModified: false
+            };
+        });
+
+        // Currently loaded editor data
         let nodes = [];
         let edges = [];
 
-        let mode = 'path'; // 'path' | 'connect' | 'room' | 'select'
+        // Modes: 'select' | 'path' | 'room' | 'connect' | 'pan'
+        let activeTool = 'select';
         let activePath = [];
+        let connectStartId = null;
         let selectedNodeId = null;
         let selectedEdgeIndex = null;
 
-        let hoverPos = { x: 0, y: 0 };
-        let snapTarget = null;
-        const SNAP_RADIUS = 20;
+        // Zoom / Pan settings
+        let zoom = 1.0;
+        let panX = 0;
+        let panY = 0;
+        let isPanning = false;
+        let panStart = { x: 0, y: 0 };
+        let spacePressed = false;
 
-        // --- 初期化 ---
-        document.getElementById('imageLoader').addEventListener('change', e => {
-            const f = e.target.files[0];
-            if (!f) return;
-            const r = new FileReader();
-            r.onload = ev => { img.onload = () => { canvas.width = img.width; canvas.height = img.height; draw(); }; img.src = ev.target.result; };
-            r.readAsDataURL(f);
+        // Node Dragging State
+        let isDraggingNode = false;
+        let draggedNodeId = null;
+
+        // Hover & Snaps (World Coordinates)
+        let hoverPos = null;
+        let snapTarget = null; // { type: 'node', id } or { type: 'edge', edgeIndex, point }
+        const SNAP_RADIUS = 20; // screen pixels
+
+        // --- Init App ---
+        window.addEventListener('DOMContentLoaded', () => {
+            initFloorTabs();
+
+            // Resize Canvas to container sizes
+            canvas.width = canvasWrapper.clientWidth;
+            canvas.height = canvasWrapper.clientHeight;
+
+            // Load floor data
+            switchFloor(defaultFloorId);
+
+            // Event Listeners setup
+            setupCanvasEvents();
+            setupKeyboardEvents();
+            setupFileHandlers();
         });
 
-        document.getElementById('jsonLoader').addEventListener('change', e => {
-            const f = e.target.files[0];
-            if (!f) return;
-            const r = new FileReader();
-            r.onload = ev => { document.getElementById('jsonInput').value = ev.target.result; importJSON(); };
-            r.readAsText(f);
+        window.addEventListener('resize', () => {
+            canvas.width = canvasWrapper.clientWidth;
+            canvas.height = canvasWrapper.clientHeight;
+            draw();
         });
 
-        function importJSON() {
-            try {
-                const raw = document.getElementById('jsonInput').value;
-                if (!raw) return;
-                const data = JSON.parse(raw);
-                if (data.nodes && data.edges) {
-                    nodes = data.nodes;
-                    edges = data.edges;
-                    updateList();
-                    draw();
-                    alert("データを読み込みました");
-                }
-            } catch (e) {
-                alert("JSON形式エラー: " + e);
-            }
+        // --- Floor Tabs controller ---
+        function initFloorTabs() {
+            const tabsBar = document.getElementById('floor-tabs-bar');
+            tabsBar.innerHTML = '';
+            floorsConfig.forEach(floor => {
+                const btn = document.createElement('button');
+                btn.className = `floor-tab-editor ${floor.id === currentFloorId ? 'active' : ''}`;
+                btn.innerText = floor.label;
+                btn.dataset.id = floor.id;
+                btn.onclick = () => switchFloor(floor.id);
+                tabsBar.appendChild(btn);
+            });
         }
 
-        // --- マウス操作 ---
-        canvas.addEventListener('mousemove', e => {
-            const rawPos = getPos(e);
-            hoverPos = rawPos;
+        async function switchFloor(floorId) {
+            // Save current state back to floorsData cache
+            if (floorsData[currentFloorId]) {
+                floorsData[currentFloorId].nodes = JSON.parse(JSON.stringify(nodes));
+                floorsData[currentFloorId].edges = JSON.parse(JSON.stringify(edges));
+            }
+
+            currentFloorId = floorId;
+
+            // Toggle active style
+            document.querySelectorAll('.floor-tab-editor').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.id) === floorId);
+            });
+
+            // Update stats labels
+            document.getElementById('current-floor-info').innerText = floorsData[floorId].label;
+
+            // Reset selection state
+            deselectAll();
+            activePath = [];
+            connectStartId = null;
+
+            const floor = floorsData[floorId];
+
+            if (floor.isLoaded) {
+                nodes = floor.nodes;
+                edges = floor.edges;
+                loadImageAndFit(floor.imagePath);
+            } else {
+                showToast("データを読み込み中...");
+                try {
+                    const isLocal = window.location.protocol === 'file:';
+                    if (isLocal) {
+                        showCORSModal();
+                        throw new Error("Local file protocol restriction");
+                    }
+
+                    const res = await fetch(floor.jsonPath);
+                    if (!res.ok) throw new Error("JSON fetch failed");
+                    const data = await res.json();
+
+                    floor.nodes = data.nodes || [];
+                    floor.edges = data.edges || [];
+                    floor.isLoaded = true;
+
+                    nodes = floor.nodes;
+                    edges = floor.edges;
+
+                    loadImageAndFit(floor.imagePath);
+                    showToast(`${floor.label}のデータを読み込みました`, 'success');
+                } catch (e) {
+                    console.warn(e);
+                    // Initialize empty floor
+                    floor.nodes = [];
+                    floor.edges = [];
+                    floor.isLoaded = true;
+                    nodes = floor.nodes;
+                    edges = floor.edges;
+
+                    loadImageAndFit(floor.imagePath);
+                    showToast(`${floor.label}の自動取得に失敗したため、新規マップとして起動します。`, 'warning');
+                }
+            }
+            checkLocalBackupExists();
+        }
+
+        function loadImageAndFit(imagePath) {
+            img = new Image();
+            img.onload = () => {
+                fitMap();
+                updateList();
+                updateStats();
+                draw();
+            };
+            img.onerror = () => {
+                showToast("背景画像の読み込みに失敗しました。手動で画像ファイルを指定できます。", "error");
+                // Set fallback dimensions
+                img.width = 1200;
+                img.height = 800;
+                fitMap();
+                updateList();
+                updateStats();
+                draw();
+                showImageLoaderModal();
+            };
+            img.src = imagePath;
+        }
+
+        // --- Pan & Zoom fit mechanics ---
+        function fitMap() {
+            if (!img.width || !img.height) return;
+            const padding = 50;
+            const availW = canvasWrapper.clientWidth - padding;
+            const availH = canvasWrapper.clientHeight - padding;
+
+            const scaleX = availW / img.width;
+            const scaleY = availH / img.height;
+            zoom = Math.min(scaleX, scaleY, 1.5); // Don't fit beyond 150%
+
+            panX = (canvasWrapper.clientWidth - img.width * zoom) / 2;
+            panY = (canvasWrapper.clientHeight - img.height * zoom) / 2;
+
+            updateStatusZoom();
+        }
+
+        function zoomIn() {
+            adjustZoom(1.2);
+        }
+
+        function zoomOut() {
+            adjustZoom(1 / 1.2);
+        }
+
+        function adjustZoom(factor) {
+            const centerX = canvasWrapper.clientWidth / 2;
+            const centerY = canvasWrapper.clientHeight / 2;
+            const worldCenter = screenToWorld({ x: centerX, y: centerY });
+
+            zoom = Math.max(0.1, Math.min(zoom * factor, 15));
+            panX = centerX - worldCenter.x * zoom;
+            panY = centerY - worldCenter.y * zoom;
+
+            updateStatusZoom();
+            draw();
+        }
+
+        // --- Coordinate converters ---
+        function screenToWorld(pos) {
+            return {
+                x: (pos.x - panX) / zoom,
+                y: (pos.y - panY) / zoom
+            };
+        }
+
+        function worldToScreen(wx, wy) {
+            return {
+                x: wx * zoom + panX,
+                y: wy * zoom + panY
+            };
+        }
+
+        // --- Canvas Events Setup ---
+        function setupCanvasEvents() {
+            // Mouse Wheel Zoom
+            canvas.addEventListener('wheel', e => {
+                e.preventDefault();
+                const mousePos = getMousePos(e);
+                const worldPos = screenToWorld(mousePos);
+
+                const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+                zoom = Math.max(0.1, Math.min(zoom * factor, 15));
+
+                panX = mousePos.x - worldPos.x * zoom;
+                panY = mousePos.y - worldPos.y * zoom;
+
+                updateStatusZoom();
+                updateHoverAndSnap(mousePos, worldPos);
+                draw();
+            }, { passive: false });
+
+            // Mouse Down
+            canvas.addEventListener('mousedown', e => {
+                const mousePos = getMousePos(e);
+                const worldPos = screenToWorld(mousePos);
+
+                // Right click (button 2) or middle (1) or Space + Left click or Pan tool: Drag to scroll/pan
+                if (e.button === 2 || e.button === 1 || (e.button === 0 && (activeTool === 'pan' || spacePressed))) {
+                    isPanning = true;
+                    panStart = { x: e.clientX, y: e.clientY };
+                    canvas.style.cursor = 'grabbing';
+                    return;
+                }
+
+                if (e.button === 0) { // Left click
+                    // Check if node is clicked
+                    const snapRadiusWorld = SNAP_RADIUS / zoom;
+                    const nearestNode = findNearestNode(worldPos, snapRadiusWorld);
+
+                    if (nearestNode) {
+                        const nodeScreen = worldToScreen(nearestNode.x, nearestNode.y);
+                        const distScreen = Math.hypot(nodeScreen.x - mousePos.x, nodeScreen.y - mousePos.y);
+
+                        if (distScreen < SNAP_RADIUS) {
+                            selectNode(nearestNode.id);
+
+                            if (activeTool === 'select') {
+                                isDraggingNode = true;
+                                draggedNodeId = nearestNode.id;
+                                canvas.style.cursor = 'grabbing';
+                            } else if (activeTool === 'connect') {
+                                handleConnectNode(nearestNode.id);
+                            } else if (activeTool === 'path') {
+                                handlePathNode(nearestNode.id);
+                            } else if (activeTool === 'room') {
+                                nearestNode.type = 'room';
+                                if (!nearestNode.name || nearestNode.name === '') {
+                                    nearestNode.name = '新規部屋';
+                                }
+                                document.getElementById('nodeType').value = 'room';
+                                document.getElementById('nodeName').value = nearestNode.name;
+                                saveSelectedNodeProperties();
+                                showToast("ポイントを部屋に変更しました", "success");
+                            }
+                            return;
+                        }
+                    }
+
+                    // Check if edge is clicked in select mode
+                    if (activeTool === 'select') {
+                        const nearestEdge = findNearestEdgePoint(worldPos, snapRadiusWorld);
+                        if (nearestEdge) {
+                            const edgeScreenPoint = worldToScreen(nearestEdge.point.x, nearestEdge.point.y);
+                            const distScreen = Math.hypot(edgeScreenPoint.x - mousePos.x, edgeScreenPoint.y - mousePos.y);
+                            if (distScreen < SNAP_RADIUS) {
+                                selectEdge(nearestEdge.edgeIndex);
+                                return;
+                            }
+                        }
+                    }
+
+                    // Clicked empty space
+                    deselectAll();
+
+                    if (activeTool === 'path') {
+                        // Check if splitting an edge
+                        const nearestEdge = findNearestEdgePoint(worldPos, snapRadiusWorld);
+                        let nodeId;
+                        if (nearestEdge && (nearestEdge.distWorld * zoom < 10)) {
+                            nodeId = splitEdge(nearestEdge.edgeIndex, nearestEdge.point, 'junction');
+                        } else {
+                            nodeId = addNode(worldPos.x, worldPos.y, 'junction');
+                        }
+
+                        selectNode(nodeId);
+                        if (activePath.length > 0) {
+                            addEdge(activePath[activePath.length - 1], nodeId);
+                        }
+                        activePath.push(nodeId);
+                        draw();
+                    } else if (activeTool === 'room') {
+                        // Check if clicked on edge
+                        const nearestEdge = findNearestEdgePoint(worldPos, snapRadiusWorld);
+                        if (nearestEdge && (nearestEdge.distWorld * zoom < 12)) {
+                            const nodeId = splitEdge(nearestEdge.edgeIndex, nearestEdge.point, 'room', '新規部屋');
+                            selectNode(nodeId);
+                        } else {
+                            // Standalone placement is blocked
+                            showToast("部屋は既存の線（エッジ）または点（ノード）の上にしか配置できません。", "warning");
+                        }
+                        draw();
+                    }
+                }
+            });
+
+            // Mouse Move
+            canvas.addEventListener('mousemove', e => {
+                const mousePos = getMousePos(e);
+                const worldPos = screenToWorld(mousePos);
+
+                // Update Status Bar coords
+                document.getElementById('status-coord').innerText = `座標: X: ${Math.round(worldPos.x)}, Y: ${Math.round(worldPos.y)}`;
+
+                if (isPanning) {
+                    const dx = e.clientX - panStart.x;
+                    const dy = e.clientY - panStart.y;
+                    panX += dx;
+                    panY += dy;
+                    panStart = { x: e.clientX, y: e.clientY };
+                    draw();
+                    return;
+                }
+
+                if (isDraggingNode && draggedNodeId !== null) {
+                    const node = nodes.find(n => n.id === draggedNodeId);
+                    if (node) {
+                        node.x = Math.round(worldPos.x);
+                        node.y = Math.round(worldPos.y);
+
+                        // Sync inspector inputs in real time
+                        if (selectedNodeId === draggedNodeId) {
+                            document.getElementById('nodeX').value = node.x;
+                            document.getElementById('nodeY').value = node.y;
+                        }
+
+                        // Recalculate connected edges distances
+                        edges.forEach(edge => {
+                            if (edge.from === draggedNodeId || edge.to === draggedNodeId) {
+                                const n1 = nodes.find(n => n.id === edge.from);
+                                const n2 = nodes.find(n => n.id === edge.to);
+                                if (n1 && n2) {
+                                    edge.dist = Math.round(Math.hypot(n1.x - n2.x, n1.y - n2.y));
+                                }
+                            }
+                        });
+
+                        markAsModified();
+                        draw();
+                    }
+                    return;
+                }
+
+                updateHoverAndSnap(mousePos, worldPos);
+            });
+
+            // Mouse Up
+            canvas.addEventListener('mouseup', () => {
+                if (isPanning) {
+                    isPanning = false;
+                    canvas.style.cursor = getCursorForTool();
+                }
+                if (isDraggingNode) {
+                    isDraggingNode = false;
+                    draggedNodeId = null;
+                    canvas.style.cursor = getCursorForTool();
+                    updateList();
+                }
+            });
+
+            canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+            canvas.addEventListener('dblclick', () => {
+                if (activeTool === 'path') {
+                    activePath = [];
+                    draw();
+                    showToast("パスの連結描画を終了しました");
+                }
+            });
+        }
+
+        // --- Snapping engine and hover detector ---
+        function updateHoverAndSnap(mousePos, worldPos) {
+            const snapRadiusWorld = SNAP_RADIUS / zoom;
+
+            // Find closest Node
+            let nearestNode = null;
+            let minNodeDistScreen = SNAP_RADIUS;
+            nodes.forEach(n => {
+                const nodeScreen = worldToScreen(n.x, n.y);
+                const distScreen = Math.hypot(nodeScreen.x - mousePos.x, nodeScreen.y - mousePos.y);
+                if (distScreen < minNodeDistScreen) {
+                    minNodeDistScreen = distScreen;
+                    nearestNode = n;
+                }
+            });
+
+            // Find closest Edge Point
+            let nearestEdge = null;
+            let minEdgeDistScreen = SNAP_RADIUS;
+            edges.forEach((edge, index) => {
+                const n1 = nodes.find(n => n.id === edge.from);
+                const n2 = nodes.find(n => n.id === edge.to);
+                if (!n1 || !n2) return;
+
+                const A = worldPos.x - n1.x; const B = worldPos.y - n1.y;
+                const C = n2.x - n1.x; const D = n2.y - n1.y;
+                const dot = A * C + B * D; const lenSq = C * C + D * D;
+                let param = -1; if (lenSq !== 0) param = dot / lenSq;
+
+                let xx, yy;
+                if (param < 0) { xx = n1.x; yy = n1.y; }
+                else if (param > 1) { xx = n2.x; yy = n2.y; }
+                else { xx = n1.x + param * C; yy = n1.y + param * D; }
+
+                const distWorld = Math.hypot(worldPos.x - xx, worldPos.y - yy);
+                const distScreen = distWorld * zoom;
+
+                if (distScreen < minEdgeDistScreen) {
+                    minEdgeDistScreen = distScreen;
+                    nearestEdge = { edgeIndex: index, point: { x: xx, y: yy }, distWorld };
+                }
+            });
+
+            // Calculate results
+            hoverPos = worldPos;
             snapTarget = null;
 
-            // どのモードでも既存ノードへの吸着・ハイライトは有効にする
-            const nearestNode = findNearestNode(rawPos, SNAP_RADIUS);
-            if (nearestNode) {
-                hoverPos = { x: nearestNode.x, y: nearestNode.y };
-                snapTarget = { type: 'node', id: nearestNode.id };
-                canvas.style.cursor = 'pointer';
-            } else {
-                // どのモードでもエッジ判定を行う (Selectモード用)
-                // if (mode === 'room') { // Old logic restricted this
-
-                const nearestEdge = findNearestEdgePoint(rawPos, SNAP_RADIUS);
-                if (nearestEdge) {
+            if (activeTool === 'room') {
+                // In room mode: prioritize edge snapping so points can be inserted directly on edges
+                if (nearestEdge && minEdgeDistScreen < 12) {
                     hoverPos = nearestEdge.point;
                     snapTarget = { type: 'edge', ...nearestEdge };
-
-                    if (mode === 'room') {
-                        canvas.style.cursor = 'copy';
-                    } else if (mode === 'select') {
-                        canvas.style.cursor = 'pointer';
-                    } else {
-                        canvas.style.cursor = 'default';
-                    }
+                    canvas.style.cursor = 'copy';
+                } else {
+                    canvas.style.cursor = 'crosshair';
+                }
+            } else if (activeTool === 'path') {
+                // In path mode: snap to node if close, else snap to edge to split, else place freely
+                if (nearestNode && minNodeDistScreen < SNAP_RADIUS) {
+                    hoverPos = { x: nearestNode.x, y: nearestNode.y };
+                    snapTarget = { type: 'node', id: nearestNode.id };
+                    canvas.style.cursor = 'pointer';
+                } else if (nearestEdge && minEdgeDistScreen < 10) {
+                    hoverPos = nearestEdge.point;
+                    snapTarget = { type: 'edge', ...nearestEdge };
+                    canvas.style.cursor = 'copy';
+                } else {
+                    canvas.style.cursor = 'crosshair';
+                }
+            } else if (activeTool === 'connect') {
+                // In connect mode: can only snap to nodes
+                if (nearestNode && minNodeDistScreen < SNAP_RADIUS) {
+                    hoverPos = { x: nearestNode.x, y: nearestNode.y };
+                    snapTarget = { type: 'node', id: nearestNode.id };
+                    canvas.style.cursor = 'pointer';
+                } else {
+                    canvas.style.cursor = 'not-allowed';
+                }
+            } else if (activeTool === 'select') {
+                // In select mode: highlight nodes or edges
+                if (nearestNode && minNodeDistScreen < SNAP_RADIUS) {
+                    hoverPos = { x: nearestNode.x, y: nearestNode.y };
+                    snapTarget = { type: 'node', id: nearestNode.id };
+                    canvas.style.cursor = 'pointer';
+                } else if (nearestEdge && minEdgeDistScreen < 10) {
+                    hoverPos = nearestEdge.point;
+                    snapTarget = { type: 'edge', ...nearestEdge };
+                    canvas.style.cursor = 'pointer';
                 } else {
                     canvas.style.cursor = 'default';
                 }
-
-                if (!nearestNode && !nearestEdge) {
-                    if (mode === 'path') {
-                        canvas.style.cursor = 'crosshair';
-                    } else {
-                        // ...
-                    }
-                }
+            } else if (activeTool === 'pan') {
+                canvas.style.cursor = 'grab';
             }
+
+            updateSnapStatus();
             draw();
-        });
+        }
 
-        canvas.addEventListener('mousedown', e => {
-            if (e.button === 2) {
-                if (mode === 'path' && activePath.length > 0) undoLastPoint();
-                return;
-            }
+        function getMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: (e.clientX - rect.left) * (canvas.width / rect.width),
+                y: (e.clientY - rect.top) * (canvas.height / rect.height)
+            };
+        }
 
-            // 共通: 既存ノードをクリックしたら選択状態にする（どのモードでも編集可能にするため）
-            if (snapTarget && snapTarget.type === 'node') {
-                // Connectモードの始点選択は別途処理が必要だが、
-                // 基本的にはクリックで選択状態にしてOK
-                selectNode(snapTarget.id);
-
-                if (mode === 'connect') {
-                    handleConnectClick();
-                    return; // 選択だけして抜ける
-                }
-                if (mode === 'path') {
-                    handlePathClick(); // 選択しつつ、パスも引く
+        // --- Keyboard shortcuts ---
+        function setupKeyboardEvents() {
+            window.addEventListener('keydown', e => {
+                // Intercept Ctrl+S globally (works even in inputs)
+                if ((e.key === 's' || e.key === 'S') && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    saveToLocalStorageAndFile();
                     return;
                 }
-                return;
-            }
 
-            // 何もないところをクリックしたら選択解除
-            if (!snapTarget) {
-                if (mode === 'select') {
-                    selectedNodeId = null;
-                    selectedEdgeIndex = null;
-                    document.getElementById('nodeEditor').classList.add('hidden');
-                    document.getElementById('edgeEditor').classList.add('hidden');
-                    updateList();
+                if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT') {
+                    return; // Ignore other shortcuts when typing in inputs
+                }
+
+                const key = e.key.toLowerCase();
+                if (key === 'v') setTool('select');
+                else if (key === 'p') setTool('path');
+                else if (key === 'r') setTool('room');
+                else if (key === 'c') setTool('connect');
+                else if (key === 'h') setTool('pan');
+                else if (key === 'f') fitMap();
+                else if (key === '+' || key === '=') zoomIn();
+                else if (key === '-') zoomOut();
+                else if (e.key === 'Escape') {
+                    deselectAll();
+                    activePath = [];
+                    connectStartId = null;
                     draw();
+                } else if (e.code === 'Space') {
+                    spacePressed = true;
+                    canvas.style.cursor = 'grab';
+                } else if ((key === 'z') && (e.ctrlKey || e.metaKey)) {
+                    if (activeTool === 'path' && activePath.length > 0) {
+                        e.preventDefault();
+                        undoLastPoint();
+                    }
+                }
+            });
+
+            window.addEventListener('keyup', e => {
+                if (e.code === 'Space') {
+                    spacePressed = false;
+                    canvas.style.cursor = getCursorForTool();
+                }
+            });
+        }
+
+        // --- Node / Edge manipulations ---
+        function addNode(x, y, type, name = '') {
+            const id = Date.now() + Math.round(Math.random() * 1000);
+            nodes.push({
+                id,
+                x: Math.round(x),
+                y: Math.round(y),
+                type,
+                name,
+                eventName: ''
+            });
+
+            markAsModified();
+            updateList();
+            updateStats();
+            return id;
+        }
+
+        function splitEdge(edgeIndex, point, type, name = '') {
+            const oldEdge = edges[edgeIndex];
+            edges.splice(edgeIndex, 1);
+
+            const newNodeId = addNode(point.x, point.y, type, name);
+            addEdge(oldEdge.from, newNodeId);
+            addEdge(newNodeId, oldEdge.to);
+
+            markAsModified();
+            updateList();
+            updateStats();
+            return newNodeId;
+        }
+
+        function addEdge(from, to) {
+            if (from === to) return;
+            if (edges.some(e => (e.from === from && e.to === to) || (e.from === to && e.to === from))) return;
+
+            const n1 = nodes.find(n => n.id === from);
+            const n2 = nodes.find(n => n.id === to);
+            if (!n1 || !n2) return;
+
+            const dist = Math.round(Math.hypot(n1.x - n2.x, n1.y - n2.y));
+            edges.push({ from, to, dist, barrierFreeBlocked: false });
+
+            markAsModified();
+            updateStats();
+        }
+
+        function handleConnectNode(nodeId) {
+            if (connectStartId === null) {
+                connectStartId = nodeId;
+            } else {
+                if (connectStartId !== nodeId) {
+                    addEdge(connectStartId, nodeId);
+                    connectStartId = null;
+                } else {
+                    connectStartId = null;
                 }
             }
-
-            // Edge Click Handling (in Select Mode)
-            if (snapTarget && snapTarget.type === 'edge' && mode === 'select') {
-                selectEdge(snapTarget.edgeIndex);
-                return;
-            }
-
-            // 各モード固有処理（新規作成など）
-            if (mode === 'path') {
-                handlePathClick();
-            }
-            else if (mode === 'room') {
-                handleRoomClick();
-            }
             draw();
-        });
+        }
 
-        canvas.addEventListener('contextmenu', e => e.preventDefault());
-        canvas.addEventListener('dblclick', e => {
-            if (mode === 'path') finishPath();
-        });
-
-        // --- モード別ロジック ---
-
-        function handlePathClick() {
-            let nodeId;
-            if (snapTarget && snapTarget.type === 'node') {
-                nodeId = snapTarget.id;
-            } else {
-                nodeId = addNode(hoverPos.x, hoverPos.y, 'junction');
-            }
-
-            // 直前の選択を解除して、今作った点を選択
+        function handlePathNode(nodeId) {
             selectNode(nodeId);
-
             if (activePath.length > 0) {
                 const prevId = activePath[activePath.length - 1];
                 if (prevId !== nodeId) addEdge(prevId, nodeId);
             }
             activePath.push(nodeId);
-            document.getElementById('undoBtn').style.display = 'inline-block';
+            draw();
         }
 
         function undoLastPoint() {
@@ -478,76 +1578,726 @@
                 );
             }
 
-            const isConnected = edges.some(e => e.from === currentId || e.to === currentId);
-            if (!isConnected) {
+            // Remove node if it is corridor junction and has no other connections
+            const hasConnections = edges.some(e => e.from === currentId || e.to === currentId);
+            if (!hasConnections) {
                 const n = nodes.find(n => n.id === currentId);
                 if (n && n.type === 'junction') {
                     nodes = nodes.filter(n => n.id !== currentId);
                     if (selectedNodeId === currentId) {
                         selectedNodeId = null;
-                        document.getElementById('nodeEditor').classList.add('hidden');
+                        document.getElementById('inspector-node').classList.add('hidden');
+                        document.getElementById('inspector-empty').classList.remove('hidden');
                     }
                 }
             }
-            draw();
-            if (activePath.length === 0) document.getElementById('undoBtn').style.display = 'none';
-        }
 
-        function finishPath() {
-            activePath = [];
-            document.getElementById('undoBtn').style.display = 'none';
+            markAsModified();
+            updateList();
+            updateStats();
             draw();
         }
 
-        let connectStartId = null;
-        function handleConnectClick() {
-            if (!snapTarget || snapTarget.type !== 'node') return;
-            const clickedId = snapTarget.id;
-            if (connectStartId === null) {
-                connectStartId = clickedId;
-            } else {
-                if (connectStartId !== clickedId) {
-                    addEdge(connectStartId, clickedId);
-                    connectStartId = null;
+        // --- Toolbar controller ---
+        function setTool(tool) {
+            activeTool = tool;
+
+            if (tool !== 'path') {
+                activePath = [];
+            }
+            connectStartId = null;
+
+            document.querySelectorAll('.tool-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.id === `tool-${tool}`);
+            });
+
+            canvas.style.cursor = getCursorForTool();
+            draw();
+        }
+
+        function getCursorForTool() {
+            switch (activeTool) {
+                case 'pan': return 'grab';
+                case 'room':
+                case 'path': return 'crosshair';
+                case 'connect': return 'pointer';
+                default: return 'default';
+            }
+        }
+
+        // --- Sidebar Panels Inspector handlers ---
+        function selectNode(id) {
+            selectedNodeId = id;
+            selectedEdgeIndex = null;
+
+            document.getElementById('inspector-empty').classList.add('hidden');
+            document.getElementById('inspector-edge').classList.add('hidden');
+            document.getElementById('inspector-node').classList.remove('hidden');
+
+            const n = nodes.find(node => node.id === id);
+            if (n) {
+                document.getElementById('nodeId').value = n.id;
+                document.getElementById('nodeType').value = n.type;
+                document.getElementById('nodeName').value = n.name || '';
+                document.getElementById('nodeEventName').value = n.eventName || '';
+                document.getElementById('nodeX').value = n.x;
+                document.getElementById('nodeY').value = n.y;
+
+                const connGroup = document.getElementById('connectionIdGroup');
+                if (n.type === 'stairs' || n.type === 'elevator') {
+                    connGroup.classList.remove('hidden');
+                    document.getElementById('nodeConnectionId').value = n.connectionId || '';
                 } else {
-                    connectStartId = null;
+                    connGroup.classList.add('hidden');
                 }
             }
+
+            switchSidebarTab('inspector');
+            updateList();
+            draw();
         }
 
-        function handleRoomClick() {
-            if (!snapTarget) return;
-            if (snapTarget.type === 'edge') {
-                const newNodeId = splitEdgeAndAddNode(snapTarget.edgeIndex, snapTarget.point);
-                selectNode(newNodeId);
+        function selectEdge(index) {
+            selectedEdgeIndex = index;
+            selectedNodeId = null;
+
+            document.getElementById('inspector-empty').classList.add('hidden');
+            document.getElementById('inspector-node').classList.add('hidden');
+            document.getElementById('inspector-edge').classList.remove('hidden');
+
+            const edge = edges[index];
+            if (edge) {
+                const n1 = nodes.find(n => n.id === edge.from) || { name: '不明' };
+                const n2 = nodes.find(n => n.id === edge.to) || { name: '不明' };
+
+                document.getElementById('edgeFrom').value = `${n1.name || '廊下/分岐点'} (${edge.from})`;
+                document.getElementById('edgeTo').value = `${n2.name || '廊下/分岐点'} (${edge.to})`;
+                document.getElementById('edgeDist').value = edge.dist;
+                document.getElementById('edgeBlocked').checked = !!edge.barrierFreeBlocked;
+            }
+
+            switchSidebarTab('inspector');
+            draw();
+        }
+
+        function deselectAll() {
+            selectedNodeId = null;
+            selectedEdgeIndex = null;
+
+            document.getElementById('inspector-node').classList.add('hidden');
+            document.getElementById('inspector-edge').classList.add('hidden');
+            document.getElementById('inspector-empty').classList.remove('hidden');
+
+            updateList();
+            draw();
+        }
+
+        function saveSelectedNodeProperties(recalcCoords = false) {
+            if (selectedNodeId === null) return;
+            const n = nodes.find(node => node.id === selectedNodeId);
+            if (!n) return;
+
+            n.type = document.getElementById('nodeType').value;
+            n.name = document.getElementById('nodeName').value.trim();
+            n.eventName = document.getElementById('nodeEventName').value.trim();
+
+            const connGroup = document.getElementById('connectionIdGroup');
+            if (n.type === 'stairs' || n.type === 'elevator') {
+                connGroup.classList.remove('hidden');
+                n.connectionId = document.getElementById('nodeConnectionId').value.trim();
+            } else {
+                connGroup.classList.add('hidden');
+                delete n.connectionId;
+            }
+
+            if (recalcCoords) {
+                n.x = Math.round(Number(document.getElementById('nodeX').value));
+                n.y = Math.round(Number(document.getElementById('nodeY').value));
+
+                // recalculate dists for connected edges
+                edges.forEach(edge => {
+                    if (edge.from === selectedNodeId || edge.to === selectedNodeId) {
+                        const n1 = nodes.find(node => node.id === edge.from);
+                        const n2 = nodes.find(node => node.id === edge.to);
+                        if (n1 && n2) {
+                            edge.dist = Math.round(Math.hypot(n1.x - n2.x, n1.y - n2.y));
+                        }
+                    }
+                });
+            }
+
+            markAsModified();
+            updateListDelayed();
+            draw();
+        }
+
+        function saveSelectedEdgeProperties() {
+            if (selectedEdgeIndex === null) return;
+            const edge = edges[selectedEdgeIndex];
+            if (!edge) return;
+
+            edge.barrierFreeBlocked = document.getElementById('edgeBlocked').checked;
+
+            markAsModified();
+            draw();
+        }
+
+        function deleteSelectedNode() {
+            if (selectedNodeId === null) return;
+            const n = nodes.find(node => node.id === selectedNodeId);
+            const label = n.name || n.id;
+
+            if (!confirm(`ノード「${label}」を削除しますか？\n（前後の点同士は自動的に再接続されます）`)) return;
+
+            // Find neighbors
+            const neighbors = [];
+            edges.forEach(edge => {
+                if (edge.from === selectedNodeId) neighbors.push(edge.to);
+                else if (edge.to === selectedNodeId) neighbors.push(edge.from);
+            });
+
+            // Re-connect neighbors to keep the path lines unbroken
+            for (let i = 0; i < neighbors.length; i++) {
+                for (let j = i + 1; j < neighbors.length; j++) {
+                    addEdge(neighbors[i], neighbors[j]);
+                }
+            }
+
+            // Remove node and its directly connected edges
+            nodes = nodes.filter(node => node.id !== selectedNodeId);
+            edges = edges.filter(edge => edge.from !== selectedNodeId && edge.to !== selectedNodeId);
+            activePath = activePath.filter(id => id !== selectedNodeId);
+
+            deselectAll();
+            markAsModified();
+            updateList();
+            updateStats();
+            draw();
+            showToast("ノードを削除し、前後の経路を繋ぎ直しました", "info");
+        }
+
+        function deleteSelectedEdge() {
+            if (selectedEdgeIndex === null) return;
+
+            if (!confirm("選択中の経路を削除しますか？")) return;
+
+            edges.splice(selectedEdgeIndex, 1);
+            deselectAll();
+            markAsModified();
+            updateStats();
+            draw();
+            showToast("経路を削除しました", "info");
+        }
+
+        // --- Sidebar facilities list searchable view ---
+        function updateList() {
+            const list = document.getElementById('dataList');
+            list.innerHTML = '';
+
+            const query = document.getElementById('list-search').value.toLowerCase();
+            const filterType = document.getElementById('list-filter').value;
+
+            const filteredNodes = nodes.filter(n => {
+                if (n.type === 'junction') return false;
+
+                if (filterType !== 'all' && n.type !== filterType) return false;
+
+                if (query) {
+                    const name = (n.name || '').toLowerCase().includes(query);
+                    const event = (n.eventName || '').toLowerCase().includes(query);
+                    const type = translateType(n.type).toLowerCase().includes(query);
+                    return name || event || type;
+                }
+                return true;
+            });
+
+            filteredNodes.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'));
+
+            if (filteredNodes.length === 0) {
+                list.innerHTML = '<div style="padding:15px; text-align:center; font-size:12px; color:var(--text-sub);">登録施設がありません</div>';
+                return;
+            }
+
+            filteredNodes.forEach(n => {
+                const item = document.createElement('div');
+                item.className = `data-list-item ${n.id === selectedNodeId ? 'selected' : ''}`;
+
+                const color = getColorForType(n.type);
+                const typeText = translateType(n.type);
+
+                item.innerHTML = `
+                    <div style="display:flex; flex-direction:column; gap:2px; overflow:hidden;">
+                        <b style="font-size:13px; color:var(--text-main);">${n.name || '(無名ポイント)'}</b>
+                        ${n.eventName ? `<span style="font-size:11px; color:var(--secondary-color); font-weight:500;">${n.eventName}</span>` : ''}
+                    </div>
+                    <span style="font-size:10px; padding:2px 6px; border-radius:10px; color:white; background:${color}; white-space:nowrap; flex-shrink:0;">${typeText}</span>
+                `;
+
+                item.onclick = () => {
+                    selectNode(n.id);
+                    focusOnNode(n);
+                };
+
+                list.appendChild(item);
+            });
+        }
+
+        let listTimeout = null;
+        function updateListDelayed() {
+            if (listTimeout) clearTimeout(listTimeout);
+            listTimeout = setTimeout(updateList, 300);
+        }
+
+        function focusOnNode(n) {
+            if (zoom < 1.0) zoom = 1.2;
+
+            const cx = canvasWrapper.clientWidth / 2;
+            const cy = canvasWrapper.clientHeight / 2;
+
+            panX = cx - n.x * zoom;
+            panY = cy - n.y * zoom;
+
+            draw();
+        }
+
+        // --- Sidebar Tabs Switcher ---
+        function switchSidebarTab(tabId) {
+            document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.add('hidden'));
+            document.querySelectorAll('.sidebar-tab').forEach(tab => tab.classList.remove('active'));
+
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            document.getElementById(`tab-${tabId}-btn`).classList.add('active');
+        }
+
+        // --- Statistics & Unsaved status helpers ---
+        function markAsModified() {
+            if (floorsData[currentFloorId]) {
+                floorsData[currentFloorId].isModified = true;
+            }
+            updateStatusIndicator();
+            saveToLocalBackup();
+        }
+
+        function updateStatusIndicator() {
+            let modified = false;
+            for (let id in floorsData) {
+                if (floorsData[id].isModified) {
+                    modified = true;
+                    break;
+                }
+            }
+
+            const badge = document.getElementById('modified-status');
+            const text = document.getElementById('status-text');
+
+            if (modified) {
+                badge.className = 'status-badge modified';
+                text.innerText = '未保存の変更あり';
+            } else {
+                badge.className = 'status-badge saved';
+                text.innerText = '保存済み';
             }
         }
 
-        // --- データ操作 ---
-
-        function addNode(x, y, type, name = '') {
-            const id = Date.now() + Math.random();
-            nodes.push({ id, x, y, type, name });
-            return id;
+        function updateStats() {
+            document.getElementById('stats-nodes').innerText = nodes.length;
+            document.getElementById('stats-edges').innerText = edges.length;
         }
 
-        function addEdge(from, to) {
-            if (edges.some(e => (e.from === from && e.to === to) || (e.from === to && e.to === from))) return;
-            const n1 = nodes.find(n => n.id === from);
-            const n2 = nodes.find(n => n.id === to);
-            if (!n1 || !n2) return;
-            const dist = Math.hypot(n1.x - n2.x, n1.y - n2.y);
-            edges.push({ from, to, dist });
+        function updateStatusZoom() {
+            document.getElementById('status-zoom').innerText = `ズーム: ${Math.round(zoom * 100)}%`;
         }
 
-        function splitEdgeAndAddNode(edgeIndex, point) {
-            const oldEdge = edges[edgeIndex];
-            edges.splice(edgeIndex, 1);
-            const newNodeId = addNode(point.x, point.y, 'room', '新規ポイント');
-            addEdge(oldEdge.from, newNodeId);
-            addEdge(newNodeId, oldEdge.to);
-            updateList();
-            return newNodeId;
+        function updateSnapStatus() {
+            const snapSpan = document.getElementById('status-snap');
+            if (snapTarget) {
+                if (snapTarget.type === 'node') {
+                    const node = nodes.find(n => n.id === snapTarget.id);
+                    snapSpan.innerText = `スナップ: 点(${node.name || '廊下'})`;
+                } else if (snapTarget.type === 'edge') {
+                    snapSpan.innerText = `スナップ: 線(分割挿入可能)`;
+                }
+            } else {
+                snapSpan.innerText = 'スナップ: なし';
+            }
+        }
+
+        // --- Drawing Canvas engine ---
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.translate(panX, panY);
+            ctx.scale(zoom, zoom);
+
+            // 1. Draw Image
+            if (img.complete && img.src) {
+                ctx.drawImage(img, 0, 0);
+            } else {
+                ctx.fillStyle = '#fafafa';
+                ctx.fillRect(0, 0, img.width || 1200, img.height || 800);
+                ctx.strokeStyle = '#ddd';
+                ctx.strokeRect(0, 0, img.width || 1200, img.height || 800);
+                ctx.fillStyle = '#999';
+                ctx.font = '20px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('図面画像が読み込まれていません', (img.width || 1200) / 2, (img.height || 800) / 2);
+            }
+
+            // Draw guides grid
+            drawGrid();
+
+            // 2. Draw Edges
+            edges.forEach((edge, index) => {
+                const n1 = nodes.find(n => n.id === edge.from);
+                const n2 = nodes.find(n => n.id === edge.to);
+                if (n1 && n2) {
+                    const isSelected = (index === selectedEdgeIndex);
+
+                    // Width settings (world coordinates)
+                    const casingWidth = isSelected ? 16 : 10;
+                    const coreWidth = isSelected ? 6 : 4;
+
+                    // Minimum screen width limits
+                    const minCasingScreen = isSelected ? 12 : 8;
+                    const minCoreScreen = isSelected ? 5 : 3;
+
+                    // Draw white background line first for high contrast outline
+                    ctx.beginPath();
+                    ctx.moveTo(n1.x, n1.y);
+                    ctx.lineTo(n2.x, n2.y);
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = Math.max(casingWidth, minCasingScreen / zoom);
+                    ctx.stroke();
+
+                    // Draw the main colored line
+                    ctx.beginPath();
+                    ctx.moveTo(n1.x, n1.y);
+                    ctx.lineTo(n2.x, n2.y);
+                    ctx.lineWidth = Math.max(coreWidth, minCoreScreen / zoom);
+
+                    if (isSelected) {
+                        ctx.strokeStyle = '#ff1744'; // Vibrant Neon Red
+                    } else if (edge.barrierFreeBlocked) {
+                        ctx.strokeStyle = '#ff3d00'; // Vibrant Orange-Red
+                        ctx.setLineDash([8, 8]);
+                    } else {
+                        ctx.strokeStyle = '#2979ff'; // Vibrant royal blue for high contrast
+                    }
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            });
+
+            // 3. Draw Path preview connector
+            if (activeTool === 'path' && activePath.length > 0 && hoverPos) {
+                const last = nodes.find(n => n.id === activePath[activePath.length - 1]);
+                if (last) {
+                    // Casing
+                    ctx.beginPath();
+                    ctx.moveTo(last.x, last.y);
+                    ctx.lineTo(hoverPos.x, hoverPos.y);
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = Math.max(10, 8 / zoom);
+                    ctx.stroke();
+
+                    // Core dashed line
+                    ctx.beginPath();
+                    ctx.moveTo(last.x, last.y);
+                    ctx.lineTo(hoverPos.x, hoverPos.y);
+                    ctx.strokeStyle = '#00e5ff'; // Bright cyan
+                    ctx.lineWidth = Math.max(4, 3 / zoom);
+                    ctx.setLineDash([6, 6]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+
+            // 4. Draw Connect tool preview line
+            if (activeTool === 'connect' && connectStartId !== null && hoverPos) {
+                const start = nodes.find(n => n.id === connectStartId);
+                if (start) {
+                    // Casing
+                    ctx.beginPath();
+                    ctx.moveTo(start.x, start.y);
+                    ctx.lineTo(hoverPos.x, hoverPos.y);
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = Math.max(10, 8 / zoom);
+                    ctx.stroke();
+
+                    // Core dashed line
+                    ctx.beginPath();
+                    ctx.moveTo(start.x, start.y);
+                    ctx.lineTo(hoverPos.x, hoverPos.y);
+                    ctx.strokeStyle = '#ffea00'; // Neon yellow
+                    ctx.lineWidth = Math.max(4, 3 / zoom);
+                    ctx.setLineDash([6, 6]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+
+            // 5. Draw Nodes
+            nodes.forEach(n => {
+                const isSelected = n.id === selectedNodeId;
+                const isStartNode = n.id === connectStartId;
+                const isJunc = n.type === 'junction';
+
+                ctx.beginPath();
+                const baseR = isJunc ? 4 : 7;
+                const r = baseR / Math.sqrt(zoom); // Responsive radius
+
+                ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+
+                if (isJunc) {
+                    ctx.fillStyle = isStartNode ? 'var(--warning-color)' : '#ffffff';
+                    ctx.strokeStyle = 'var(--primary-color)';
+                    ctx.lineWidth = 1.5 / Math.sqrt(zoom);
+                } else {
+                    ctx.fillStyle = getColorForType(n.type);
+                    ctx.strokeStyle = (isSelected || isStartNode) ? '#000000' : '#ffffff';
+                    ctx.lineWidth = 2 / Math.sqrt(zoom);
+                }
+
+                if (isSelected) {
+                    ctx.strokeStyle = 'var(--danger-color)';
+                    ctx.lineWidth = 3 / Math.sqrt(zoom);
+                }
+
+                ctx.fill();
+                ctx.stroke();
+
+                // Text labels for rooms
+                if (!isJunc) {
+                    const labelSz = Math.max(10, 12 / Math.sqrt(zoom));
+                    ctx.font = `bold ${labelSz}px sans-serif`;
+                    ctx.fillStyle = '#000000';
+                    ctx.textAlign = 'center';
+
+                    const text = n.eventName ? `${n.eventName} (${n.name})` : n.name;
+                    const metrics = ctx.measureText(text);
+                    const labelW = metrics.width;
+                    const labelH = labelSz;
+
+                    // Text background rectangle for legibility
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+                    ctx.fillRect(n.x - labelW / 2 - 4, n.y - r - labelH - 3, labelW + 8, labelH + 4);
+
+                    ctx.fillStyle = '#000000';
+                    ctx.fillText(text, n.x, n.y - r - 3);
+                }
+            });
+
+            ctx.restore();
+
+            // 6. Draw Screen Overlay snap indicator
+            if (snapTarget && hoverPos) {
+                const screenPos = worldToScreen(hoverPos.x, hoverPos.y);
+                ctx.beginPath();
+                ctx.arc(screenPos.x, screenPos.y, 12, 0, Math.PI * 2);
+                ctx.strokeStyle = activeTool === 'connect' ? 'var(--warning-color)' : (activeTool === 'select' ? 'var(--danger-color)' : 'var(--success-color)');
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        }
+
+        function drawGrid() {
+            if (zoom < 0.4) return;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.04)';
+            ctx.lineWidth = 0.5 / zoom;
+
+            const grid = 50;
+            const w = img.width || 1200;
+            const h = img.height || 800;
+
+            ctx.beginPath();
+            for (let x = 0; x <= w; x += grid) {
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, h);
+            }
+            for (let y = 0; y <= h; y += grid) {
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+            }
+            ctx.stroke();
+        }
+
+        // --- File JSON imports & exports logic ---
+        function setupFileHandlers() {
+            // JSON File Loader
+            document.getElementById('jsonLoader').addEventListener('change', e => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    document.getElementById('jsonInput').value = ev.target.result;
+                    importJSON();
+                };
+                reader.readAsText(file);
+            });
+
+            // Map Background Image Loader (fallback upload)
+            document.getElementById('imageLoader').addEventListener('change', e => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    img = new Image();
+                    img.onload = () => {
+                        fitMap();
+                        draw();
+                        showToast("背景画像を読み込みました", "success");
+                        closeImageLoaderModal();
+                    };
+                    img.src = ev.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function importJSON() {
+            const raw = document.getElementById('jsonInput').value.trim();
+            if (!raw) return;
+
+            try {
+                const data = JSON.parse(raw);
+                if (data.nodes && data.edges) {
+                    nodes = data.nodes;
+                    edges = data.edges;
+
+                    // Recalculate edge distances in case they were missing or corrupted
+                    edges.forEach(edge => {
+                        const n1 = nodes.find(n => n.id === edge.from);
+                        const n2 = nodes.find(n => n.id === edge.to);
+                        if (n1 && n2) {
+                            edge.dist = Math.round(Math.hypot(n1.x - n2.x, n1.y - n2.y));
+                        }
+                    });
+
+                    // Update memory cache for current floor
+                    if (floorsData[currentFloorId]) {
+                        floorsData[currentFloorId].nodes = nodes;
+                        floorsData[currentFloorId].edges = edges;
+                        floorsData[currentFloorId].isLoaded = true;
+                        floorsData[currentFloorId].isModified = true;
+                    }
+
+                    deselectAll();
+                    updateList();
+                    updateStats();
+                    updateStatusIndicator();
+                    draw();
+                    showToast("データをインポートしました", "success");
+                } else {
+                    showToast("JSONデータに必要な 'nodes' または 'edges' フィールドがありません", "error");
+                }
+            } catch (err) {
+                showToast("JSON解析エラー: " + err.message, "error");
+            }
+        }
+
+        function exportJSONToClipboard() {
+            const json = getFormattedJSON();
+            document.getElementById('jsonOutput').value = json;
+
+            navigator.clipboard.writeText(json)
+                .then(() => showToast("JSONデータをクリップボードにコピーしました", "success"))
+                .catch(err => {
+                    console.warn(err);
+                    showToast("コピーに失敗しました。表示ボックスから手動でコピーしてください", "error");
+                });
+        }
+
+        function downloadJSONFile() {
+            const json = getFormattedJSON();
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${currentFloorId}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            // Save state as unmodified
+            if (floorsData[currentFloorId]) {
+                floorsData[currentFloorId].isModified = false;
+            }
+            updateStatusIndicator();
+
+            showToast(`${currentFloorId}.json ファイルをダウンロードしました。JSON/ フォルダ内のファイルと差し替えてください。`, "success");
+        }
+
+        function getFormattedJSON() {
+            const cleanNodes = nodes.map(n => {
+                const nodeCopy = {
+                    id: n.id,
+                    x: n.x,
+                    y: n.y,
+                    type: n.type,
+                    name: n.name
+                };
+                if (n.eventName) nodeCopy.eventName = n.eventName;
+                if (n.connectionId) nodeCopy.connectionId = n.connectionId;
+                // Preserve any other custom property in nodes
+                for (let k in n) {
+                    if (!(k in nodeCopy)) {
+                        nodeCopy[k] = n[k];
+                    }
+                }
+                return nodeCopy;
+            });
+
+            const cleanEdges = edges.map(e => {
+                const edgeCopy = {
+                    from: e.from,
+                    to: e.to,
+                    dist: e.dist
+                };
+                if (e.barrierFreeBlocked) edgeCopy.barrierFreeBlocked = true;
+                // Preserve any other custom property in edges
+                for (let k in e) {
+                    if (!(k in edgeCopy)) {
+                        edgeCopy[k] = e[k];
+                    }
+                }
+                return edgeCopy;
+            });
+
+            return JSON.stringify({ nodes: cleanNodes, edges: cleanEdges }, null, 2);
+        }
+
+        // --- Helpers & Type translators ---
+        function translateType(t) {
+            const m = {
+                'room': '部屋',
+                'toilet': 'トイレ',
+                'stairs': '階段',
+                'elevator': 'EV',
+                'entrance': '入口',
+                'vending': '自販機',
+                'area': 'エリア',
+                'others': 'その他'
+            };
+            return m[t] || t;
+        }
+
+        function getColorForType(t) {
+            const m = {
+                'room': '#4CAF50',
+                'toilet': '#E91E63',
+                'stairs': '#9C27B0',
+                'elevator': '#607D8B',
+                'entrance': '#FF9800',
+                'vending': '#3F51B5',
+                'area': '#795548',
+                'others': '#9E9E9E'
+            };
+            return m[t] || '#333333';
         }
 
         function findNearestNode(pos, range) {
@@ -567,270 +2317,117 @@
                 const n1 = nodes.find(n => n.id === edge.from);
                 const n2 = nodes.find(n => n.id === edge.to);
                 if (!n1 || !n2) return;
+
                 const A = pos.x - n1.x; const B = pos.y - n1.y;
                 const C = n2.x - n1.x; const D = n2.y - n1.y;
                 const dot = A * C + B * D; const lenSq = C * C + D * D;
                 let param = -1; if (lenSq !== 0) param = dot / lenSq;
+
                 let xx, yy;
                 if (param < 0) { xx = n1.x; yy = n1.y; }
                 else if (param > 1) { xx = n2.x; yy = n2.y; }
                 else { xx = n1.x + param * C; yy = n1.y + param * D; }
+
                 const d = Math.hypot(pos.x - xx, pos.y - yy);
-                if (d < minD) { minD = d; result = { edgeIndex: index, point: { x: xx, y: yy } }; }
+                if (d < minD) { minD = d; result = { edgeIndex: index, point: { x: xx, y: yy }, distWorld: d }; }
             });
             return result;
         }
 
-        // --- UI制御 ---
-
-        function setMode(m) {
-            mode = m;
-            activePath = [];
-            connectStartId = null;
-
-            // ボタン更新
-            ['btnPath', 'btnConnect', 'btnRoom', 'btnSelect'].forEach(id => {
-                document.getElementById(id).className = 'mode-btn';
-            });
-            const activeBtn = m === 'path' ? 'btnPath' : m === 'connect' ? 'btnConnect' : m === 'room' ? 'btnRoom' : 'btnSelect';
-            document.getElementById(activeBtn).classList.add('active');
-
-            const guides = {
-                path: "<b>廊下モード:</b> クリックで点を追加。既存の点もクリックで選択・編集可能。",
-                connect: "<b>つなぐモード:</b> 2つの点を順にクリックして接続。",
-                room: "<b>部屋モード:</b> 線の上をクリックして部屋を追加。",
-                select: "<b>選択モード:</b> 点をクリックして選択・削除します。"
-            };
-            document.getElementById('guideText').innerHTML = guides[m];
-            document.getElementById('undoBtn').style.display = 'none';
-            draw();
+        // --- Dialog Modal Controllers ---
+        function showCORSModal() {
+            document.getElementById('cors-modal').classList.add('open');
         }
 
-        function selectNode(id) {
-            selectedNodeId = id;
-            const n = nodes.find(x => x.id === id);
-            if (!n) return;
-
-            document.getElementById('nodeName').value = n.name || '';
-            document.getElementById('nodeEventName').value = n.eventName || '';
-            document.getElementById('nodeType').value = n.type;
-
-            // 部屋以外の場合は名前入力欄を隠すなどしても良いが、
-            // 利便性のためすべて表示しておく
-            document.getElementById('roomFields').style.display = 'block';
-
-            document.getElementById('nodeEditor').classList.remove('hidden');
-            updateList();
-            draw();
+        function closeCORSModal() {
+            document.getElementById('cors-modal').classList.remove('open');
         }
 
-        function updateNode() {
-            if (!selectedNodeId) return;
-            const n = nodes.find(x => x.id === selectedNodeId);
-            n.name = document.getElementById('nodeName').value;
-            n.eventName = document.getElementById('nodeEventName').value;
-            n.type = document.getElementById('nodeType').value;
-            updateList();
-            draw();
+        function showImageLoaderModal() {
+            document.getElementById('image-loader-modal').classList.add('open');
         }
 
-        function deleteNode() {
-            if (!selectedNodeId) return;
-            if (!confirm("この点と、接続されている線を削除しますか？")) return;
-
-            // 削除実行
-            nodes = nodes.filter(n => n.id !== selectedNodeId);
-            edges = edges.filter(e => e.from !== selectedNodeId && e.to !== selectedNodeId);
-
-            // パス描画中の場合、パスからも除去
-            activePath = activePath.filter(id => id !== selectedNodeId);
-
-            selectedNodeId = null;
-            document.getElementById('nodeEditor').classList.add('hidden');
-            draw();
+        // This allows them to close but warns they need to manually select a background to see the layout
+        function closeImageLoaderModal() {
+            document.getElementById('image-loader-modal').classList.remove('open');
         }
 
-        function selectEdge(index) {
-            selectedEdgeIndex = index;
-            selectedNodeId = null;
-            document.getElementById('nodeEditor').classList.add('hidden');
-
-            const edge = edges[index];
-            document.getElementById('edgeBlocked').checked = !!edge.barrierFreeBlocked;
-
-            document.getElementById('edgeEditor').classList.remove('hidden');
-            draw();
+        // --- Local Storage Backup Utilities ---
+        function saveToLocalBackup() {
+            const draft = getFormattedJSON();
+            // Prefix draft keys to prevent conflicts or accidental autoloads
+            localStorage.setItem(`icompass_editor_draft_floor_${currentFloorId}`, draft);
+            localStorage.setItem(`icompass_editor_draft_time_${currentFloorId}`, new Date().toLocaleString());
+            checkLocalBackupExists();
         }
 
-        function updateEdge() {
-            if (selectedEdgeIndex === null) return;
-            edges[selectedEdgeIndex].barrierFreeBlocked = document.getElementById('edgeBlocked').checked;
-            draw();
+        function saveToLocalStorageAndFile() {
+            saveToLocalBackup();
+            if (floorsData[currentFloorId]) {
+                floorsData[currentFloorId].isModified = false;
+            }
+            updateStatusIndicator();
+            downloadJSONFile();
         }
 
-        function deleteEdge() {
-            if (selectedEdgeIndex === null) return;
-            if (!confirm("この線を削除しますか？")) return;
-            edges.splice(selectedEdgeIndex, 1);
-            selectedEdgeIndex = null;
-            document.getElementById('edgeEditor').classList.add('hidden');
-            draw();
-        }
-
-        function updateList() {
-            const l = document.getElementById('dataList');
-            l.innerHTML = '';
-            // リストには部屋などの施設のみ表示（廊下の点は多すぎるため除外）
-            nodes.filter(n => n.type !== 'junction').forEach(n => {
-                const div = document.createElement('div');
-                div.className = `list-item ${n.id === selectedNodeId ? 'selected' : ''}`;
-                div.innerHTML = `
-                <div><b>${n.name || '(名称未設定)'}</b></div>
-                <span class="type-badge" style="background:${getColor(n.type)}">${translateType(n.type)}</span>
-            `;
-                div.onclick = () => selectNode(n.id);
-                l.appendChild(div);
-            });
-        }
-
-        // --- 描画 ---
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            if (img.src) ctx.drawImage(img, 0, 0);
-
-            // エッジ
-            ctx.lineWidth = 3;
-            // エッジ
-            ctx.lineWidth = 3;
-            edges.forEach((e, index) => {
-                const n1 = nodes.find(n => n.id === e.from);
-                const n2 = nodes.find(n => n.id === e.to);
-                if (n1 && n2) {
-                    ctx.strokeStyle = '#007bff';
-                    ctx.setLineDash([]);
-
-                    // Selected Edge Highlight
-                    if (index === selectedEdgeIndex) {
-                        ctx.strokeStyle = '#ff0000';
-                        ctx.lineWidth = 5;
-                    }
-                    // Blocked Edge Style
-                    else if (e.barrierFreeBlocked) {
-                        ctx.strokeStyle = '#dc3545';
-                        ctx.setLineDash([5, 5]);
-                    }
-
-                    ctx.beginPath(); ctx.moveTo(n1.x, n1.y); ctx.lineTo(n2.x, n2.y); ctx.stroke();
-                    ctx.setLineDash([]); // Reset
-                }
-            });
-
-            // パス
-            if (activePath.length > 0) {
-                ctx.strokeStyle = 'rgba(0, 123, 255, 0.6)';
-                ctx.setLineDash([5, 5]);
-                ctx.beginPath();
-                const start = nodes.find(n => n.id === activePath[0]);
-                if (start) ctx.moveTo(start.x, start.y);
-                for (let i = 1; i < activePath.length; i++) {
-                    const p = nodes.find(n => n.id === activePath[i]);
-                    if (p) ctx.lineTo(p.x, p.y);
-                }
-                if (hoverPos) ctx.lineTo(hoverPos.x, hoverPos.y);
-                ctx.stroke();
-                ctx.setLineDash([]);
+        function restoreFromLocalBackup() {
+            const key = `icompass_editor_draft_floor_${currentFloorId}`;
+            const raw = localStorage.getItem(key);
+            if (!raw) {
+                showToast("一時保存データが見つかりません", "warning");
+                return;
             }
 
-            // Connect
-            if (mode === 'connect' && connectStartId) {
-                const s = nodes.find(n => n.id === connectStartId);
-                if (s && hoverPos) {
-                    ctx.strokeStyle = '#ffc107';
-                    ctx.lineWidth = 2;
-                    ctx.setLineDash([3, 3]);
-                    ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(hoverPos.x, hoverPos.y); ctx.stroke();
-                    ctx.setLineDash([]);
-                }
-            }
+            const time = localStorage.getItem(`icompass_editor_draft_time_${currentFloorId}`) || "日時不明";
+            if (!confirm(`一時保存データ（保存日時: ${time}）から現在のマップを復元しますか？\n（現在の編集データは上書きされます）`)) return;
 
-            // ノード
-            nodes.forEach(n => {
-                const isSel = n.id === selectedNodeId;
-                const isStart = n.id === connectStartId;
-                const isJunc = n.type === 'junction';
+            document.getElementById('jsonInput').value = raw;
+            importJSON();
+            showToast("一時保存データから復元しました", "success");
+        }
 
-                ctx.beginPath();
-                const radius = isJunc ? 4 : 7;
-                ctx.arc(n.x, n.y, radius, 0, Math.PI * 2);
+        function clearLocalBackup() {
+            if (!confirm("一時保存されているバックアップデータを完全に削除しますか？")) return;
+            localStorage.removeItem(`icompass_editor_draft_floor_${currentFloorId}`);
+            localStorage.removeItem(`icompass_editor_draft_time_${currentFloorId}`);
+            checkLocalBackupExists();
+            showToast("一時保存データを削除しました", "info");
+        }
 
-                if (isJunc) {
-                    ctx.fillStyle = isStart ? '#ffc107' : '#fff';
-                    ctx.strokeStyle = '#007bff';
-                } else {
-                    ctx.fillStyle = getColor(n.type);
-                    ctx.strokeStyle = (isSel || isStart) ? 'black' : 'white';
-                }
-                // 選択時は赤枠で目立たせる
-                if (isSel) {
-                    ctx.strokeStyle = '#dc3545'; // Red
-                    ctx.lineWidth = 3;
-                } else {
-                    ctx.lineWidth = (isStart) ? 2 : 1;
-                }
+        function checkLocalBackupExists() {
+            const key = `icompass_editor_draft_floor_${currentFloorId}`;
+            const raw = localStorage.getItem(key);
+            const panel = document.getElementById('local-backup-panel');
+            const infoText = document.getElementById('local-backup-info');
 
-                ctx.fill();
-                ctx.stroke();
-                ctx.lineWidth = 3; // reset
-
-                if (!isJunc) {
-                    ctx.fillStyle = 'black'; ctx.textAlign = 'center';
-
-                    if (n.eventName) {
-                        // 企画名がある場合: 企画名を太字、部屋名をその下に小さく表示
-                        ctx.font = 'bold 13px sans-serif';
-                        ctx.fillText(n.eventName, n.x, n.y - 20);
-
-                        ctx.font = '10px sans-serif';
-                        ctx.fillText(n.name, n.x, n.y - 8);
-                    } else {
-                        // 通常
-                        ctx.font = 'bold 11px sans-serif';
-                        ctx.fillText(n.name, n.x, n.y - 12);
-                    }
-                }
-            });
-
-            // ガイド
-            if (hoverPos) {
-                if (snapTarget) {
-                    ctx.beginPath(); ctx.arc(hoverPos.x, hoverPos.y, 12, 0, Math.PI * 2);
-                    ctx.strokeStyle = mode === 'connect' ? '#ffc107' : (mode === 'select' ? '#dc3545' : '#28a745');
-                    ctx.lineWidth = 2; ctx.stroke();
-                }
+            if (raw && panel && infoText) {
+                panel.classList.remove('hidden');
+                const time = localStorage.getItem(`icompass_editor_draft_time_${currentFloorId}`) || "日時不明";
+                infoText.innerText = `一時保存あり (${time})`;
+            } else if (panel) {
+                panel.classList.add('hidden');
             }
         }
 
-        function getColor(t) {
-            const m = {
-                'room': '#4CAF50', 'toilet': '#E91E63', 'stairs': '#9C27B0', 'elevator': '#607D8B',
-                'entrance': '#FF9800', 'vending': '#3F51B5', 'area': '#795548', 'others': '#9E9E9E'
-            };
-            return m[t] || '#333';
-        }
+        // --- Toast notifications manager ---
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
 
-        function translateType(t) {
-            const m = { 'room': '部屋', 'toilet': 'トイレ', 'stairs': '階段', 'elevator': 'EV', 'entrance': '入口', 'vending': '自販機', 'area': 'エリア', 'others': 'その他' };
-            return m[t] || t;
-        }
+            let icon = '';
+            if (type === 'success') icon = '';
+            else if (type === 'error') icon = '';
+            else if (type === 'warning') icon = '';
 
-        function getPos(e) {
-            const r = canvas.getBoundingClientRect();
-            return { x: (e.clientX - r.left) * (canvas.width / r.width), y: (e.clientY - r.top) * (canvas.height / r.height) };
-        }
+            toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+            container.appendChild(toast);
 
-        window.exportJSON = () => {
-            const data = { nodes, edges };
-            document.getElementById('jsonOutput').value = JSON.stringify(data, null, 2);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-10px)';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
         }
     </script>
 </body>
