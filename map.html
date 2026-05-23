@@ -41,7 +41,18 @@
         <div class="sidebar">
             <div class="sidebar-header">
                 <div class="header-row">
-                    <h1 class="logo-text">I-Compass</h1>
+                    <div class="logo-container">
+                        <svg class="logo-icon" viewBox="0 0 24 24" width="28" height="28">
+                            <circle cx="12" cy="12" r="10" stroke="var(--secondary-color)" stroke-width="1.5"
+                                fill="none"></circle>
+                            <polygon points="12,3 15,12 12,12" fill="var(--accent-color)"></polygon>
+                            <polygon points="12,3 9,12 12,12" fill="#ff5252"></polygon>
+                            <polygon points="12,21 15,12 12,12" fill="var(--secondary-color)"></polygon>
+                            <polygon points="12,21 9,12 12,12" fill="#e5c158"></polygon>
+                            <circle cx="12" cy="12" r="1.5" fill="white"></circle>
+                        </svg>
+                        <h1 class="logo-text">I-Compass</h1>
+                    </div>
                     <button id="sidebar-close-btn" class="icon-btn mobile-only">
                         <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
                             <path
@@ -201,6 +212,13 @@
                             <span class="slider round"></span>
                         </label>
                     </div>
+
+                    <div class="setting-item"
+                        style="border-bottom: none; margin-bottom: 0; padding-bottom: 0; padding-top: 10px;">
+                        <button id="start-tutorial-btn" class="tutorial-trigger-btn">
+                            使い方チュートリアルを開始
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -285,6 +303,7 @@
     <script src="assets/js/config.js"></script>
     <script src="assets/js/map-core.js"></script>
     <script src="assets/js/ui-controller.js"></script>
+    <script src="assets/js/tutorial.js"></script>
 
 
     <script>
