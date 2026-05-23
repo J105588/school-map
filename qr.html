@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Code Generator - School Map</title>
+    <title>QR Code Generator - I-Compass</title>
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 
     <!-- Dependencies -->
@@ -16,154 +16,894 @@
     <script src="assets/js/config.js"></script>
 
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:wght@400;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+
+        :root {
+            --primary-color: #1a237e;      /* Deep Navy */
+            --secondary-color: #c5a059;    /* Brass/Gold */
+            --accent-color: #c62828;       /* Compass Needle Red */
+            --bg-color: #f5f5f7;           /* Off-white Map Paper */
+            --panel-bg: #ffffff;
+            --text-main: #2c3e50;
+            --text-sub: #7f8c8d;
+            --border-color: #e0e0e0;
+            --shadow-soft: 0 8px 30px rgba(26, 35, 126, 0.08);
+            --shadow-sharp: 0 2px 5px rgba(0, 0, 0, 0.05);
+            --font-heading: 'Cinzel', 'Noto Serif JP', serif;
+            --font-body: 'Lato', 'Noto Sans JP', sans-serif;
+        }
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
         body {
-            font-family: "Helvetica Neue", Arial, sans-serif;
-            display: flex;
-            gap: 20px;
+            font-family: var(--font-body);
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
             padding: 20px;
-            background-color: #f4f7f6;
-            height: 95vh;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
             box-sizing: border-box;
-            color: #333;
-        }
-
-        /* Canvas Area (Visual Confirmation) */
-        #canvas-wrapper {
-            position: relative;
-            border: 2px solid #ccc;
             overflow: hidden;
-            flex-grow: 1;
-            background: white;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            border-radius: 8px;
-            flex-direction: column;
         }
 
-        #qr-preview {
-            width: 300px;
-            height: 300px;
-            border: 1px solid #ddd;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: #fafafa;
-            margin-bottom: 20px;
-        }
-
-        /* Sidebar */
-        #sidebar {
-            width: 350px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            height: 100%;
-            min-width: 350px;
-            overflow-y: auto;
-        }
-
-        .panel {
-            border: 1px solid #e0e0e0;
-            padding: 15px;
-            border-radius: 8px;
-            background: white;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        }
-
-        h3 {
-            margin: 0 0 10px 0;
-            font-size: 15px;
-            border-bottom: 2px solid #eee;
-            padding-bottom: 5px;
-            color: #555;
-        }
-
-        button {
-            background: #007bff;
+        /* Header Styling */
+        .dashboard-header {
+            background: linear-gradient(135deg, #0b0f38 0%, #1e299a 50%, #3a1555 100%);
+            border-bottom: 3px solid var(--secondary-color);
             color: white;
-            border: none;
-            padding: 10px;
-            width: 100%;
-            font-weight: bold;
-            cursor: pointer;
-            border-radius: 4px;
-            margin-bottom: 10px;
+            padding: 15px 30px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-soft);
+            flex-shrink: 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .dashboard-header::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle, transparent 20%, rgba(0, 0, 0, 0.3) 100%);
+            pointer-events: none;
+        }
+
+        .header-container {
             display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            flex-shrink: 0;
+        }
+
+        .dashboard-header:hover .logo-icon {
+            transform: rotate(360deg);
+        }
+
+        .title-group {
+            display: flex;
+            align-items: center;
+        }
+
+        .logo-text {
+            font-family: var(--font-heading);
+            font-size: 24px;
+            margin: 0;
+            letter-spacing: 2px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffffff 40%, var(--secondary-color) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-divider {
+            width: 1px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.3);
+            margin: 0 15px;
+        }
+
+        .dashboard-title {
+            font-family: var(--font-heading);
+            font-size: 16px;
+            color: var(--secondary-color);
+            font-weight: 500;
+            letter-spacing: 1px;
+            margin: 0;
+            text-transform: uppercase;
+        }
+
+        .header-stats {
+            display: flex;
+            align-items: center;
+        }
+
+        .stat-badge {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.9);
+            letter-spacing: 0.5px;
+        }
+
+        .stat-badge span {
+            color: var(--secondary-color);
+            font-size: 14px;
+            margin-left: 3px;
+        }
+
+        /* Layout Grid */
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 20px;
+            flex-grow: 1;
+            height: calc(100vh - 120px);
+            min-height: 0;
+        }
+
+        .dashboard-col {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-height: 0;
+        }
+
+        .col-preview {
+            flex-shrink: 0;
+        }
+
+        .col-directory {
+            flex-grow: 1;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--panel-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-soft);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .preview-card {
+            flex-grow: 1;
+        }
+
+        .bulk-card {
+            flex-shrink: 0;
+        }
+
+        .directory-card {
+            flex-grow: 1;
+            height: 100%;
+        }
+
+        .card-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border-color);
+            background: #fafafa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--primary-color);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .card-title::before {
+            content: '';
+            display: block;
+            width: 4px;
+            height: 14px;
+            background: var(--secondary-color);
+            border-radius: 2px;
+        }
+
+        .card-body {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .card-description {
+            font-size: 12px;
+            color: var(--text-sub);
+            margin: 0 0 15px 0;
+            line-height: 1.6;
+        }
+
+        /* Tab Buttons Header */
+        .card-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            background: #fafafa;
+            flex-shrink: 0;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            background: none;
+            font-family: var(--font-body);
+            font-weight: 700;
+            color: var(--text-sub);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+            font-size: 13px;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab-btn:hover {
+            color: var(--primary-color);
+            background: rgba(26, 35, 126, 0.02);
+        }
+
+        .tab-btn.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+            background: white;
+        }
+
+        .tab-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .tab-content.hidden {
+            display: none;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-family: var(--font-body);
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            width: 100%;
+            box-sizing: border-box;
+            box-shadow: var(--shadow-sharp);
         }
 
-        button:disabled {
-            background: #ccc;
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: #0f175a;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(26, 35, 126, 0.2);
+        }
+
+        .btn-secondary {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #b28c46;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(197, 160, 89, 0.25);
+        }
+
+        .btn:disabled {
+            background-color: #ccc;
+            color: #777;
             cursor: not-allowed;
+            box-shadow: none;
         }
 
-        button:hover:not(:disabled) {
-            background: #0056b3;
+        .btn-icon {
+            flex-shrink: 0;
         }
 
-        .log-box {
+        .spinning {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* QR Preview Styling */
+        .qr-preview-wrapper {
+            background: var(--bg-color);
+            border: 1px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-shrink: 0;
+        }
+
+        #qr-preview-container {
+            width: 200px;
+            height: 200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: white;
+            border-radius: 4px;
+            box-shadow: var(--shadow-sharp);
+            overflow: hidden;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        #qr-preview-container canvas,
+        #qr-preview-container img {
+            width: 100% !important;
+            height: 100% !important;
+            max-width: 200px;
+            max-height: 200px;
+            display: block;
+            object-fit: contain;
+        }
+
+        .preview-placeholder {
+            color: var(--text-sub);
+            font-size: 12px;
+            text-align: center;
+            padding: 10px;
+        }
+
+        /* Node Info Table */
+        .node-info-table {
+            margin-bottom: 20px;
+            flex-grow: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+        }
+
+        .info-row.vertical-row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: var(--text-sub);
+            font-weight: 500;
+        }
+
+        .info-value {
+            color: var(--text-main);
+            font-weight: 700;
+        }
+
+        .code-font {
+            font-family: monospace;
+            font-size: 12px;
+            background: #f1f3f5;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .url-input-group {
+            display: flex;
+            width: 100%;
+            gap: 6px;
+            box-sizing: border-box;
+        }
+
+        .url-input-group input {
+            flex-grow: 1;
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: #f8f9fa;
             font-family: monospace;
             font-size: 11px;
-            height: 300px;
-            overflow-y: auto;
-            background: #333;
-            color: #0f0;
-            padding: 10px;
-            border-radius: 4px;
-            white-space: pre-wrap;
+            outline: none;
+            color: var(--text-sub);
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .icon-btn-text {
+            background: white;
+            border: 1px solid var(--primary-color);
+            color: var(--primary-color);
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .icon-btn-text:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        /* Progress Bar Section */
+        .progress-section {
+            margin-bottom: 20px;
+        }
+
+        .progress-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+            font-size: 12px;
+        }
+
+        .progress-status {
+            font-weight: 500;
+            color: var(--text-main);
+        }
+
+        .progress-percent {
+            font-weight: 700;
+            color: var(--primary-color);
         }
 
         .progress-bar {
-            width: 100%;
-            height: 6px;
-            background: #eee;
-            border-radius: 3px;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
             overflow: hidden;
-            margin-bottom: 5px;
         }
 
         .progress-fill {
             height: 100%;
-            background: #28a745;
+            background: linear-gradient(90deg, var(--secondary-color) 0%, #2e7d32 100%);
             width: 0%;
-            transition: width 0.1s;
+            transition: width 0.15s ease;
+        }
+
+        /* Filter Controls */
+        .filter-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            background: #fafafa;
+            flex-shrink: 0;
+        }
+
+        .search-box {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 12px 10px 36px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-family: var(--font-body);
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+        }
+
+        .search-input:focus {
+            border-color: var(--primary-color);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            color: var(--text-sub);
+            pointer-events: none;
+        }
+
+        .floor-filters {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .floor-filters::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .filter-pill {
+            padding: 6px 12px;
+            background: #e9ecef;
+            border: none;
+            border-radius: 20px;
+            font-family: var(--font-body);
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            color: var(--text-main);
+        }
+
+        .filter-pill:hover {
+            background: #dee2e6;
+        }
+
+        .filter-pill.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        /* Node List Directory */
+        .node-list-wrapper {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 20px;
+            min-height: 0;
+        }
+
+        .node-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .node-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 15px;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-sharp);
+        }
+
+        .node-item:hover {
+            transform: translateX(4px);
+            border-color: var(--secondary-color);
+            background: rgba(197, 160, 89, 0.04);
+        }
+
+        .node-item.active {
+            border-color: var(--primary-color);
+            background: rgba(26, 35, 126, 0.02);
+            box-shadow: inset 4px 0 0 var(--primary-color);
+        }
+
+        .node-item-main {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .floor-badge {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 12px;
+            white-space: nowrap;
+            color: white;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        .badge-1f { background-color: #1a237e; }
+        .badge-2f { background-color: #6a1b9a; }
+        .badge-3f { background-color: #2e7d32; }
+        .badge-4f { background-color: #00838f; }
+
+        .node-item-name {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .node-item-meta {
+            font-size: 11px;
+            color: var(--text-sub);
+            margin-top: 2px;
+        }
+
+        /* Log Tab Console Styling */
+        .console-wrapper {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            background: #181b28;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sharp);
+        }
+
+        .console-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 15px;
+            background: #0f111a;
+            border-bottom: 1px solid #23283b;
+        }
+
+        .console-title {
+            color: var(--secondary-color);
+            font-family: monospace;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .console-clear-btn {
+            background: none;
+            border: none;
+            color: #5d668c;
+            cursor: pointer;
+            font-family: var(--font-body);
+            font-size: 10px;
+            font-weight: 700;
+            transition: color 0.2s ease;
+            padding: 0;
+        }
+
+        .console-clear-btn:hover {
+            color: #fff;
+        }
+
+        .log-box {
+            flex-grow: 1;
+            font-family: 'Consolas', 'Courier New', Courier, monospace;
+            font-size: 11px;
+            line-height: 1.5;
+            overflow-y: auto;
+            background: #181b28;
+            color: #a5b0c7;
+            padding: 15px;
+            white-space: pre-wrap;
+            margin: 0;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 900px) {
+            body {
+                height: auto;
+                overflow: auto;
+            }
+            .dashboard-container {
+                grid-template-columns: 1fr;
+                height: auto;
+                overflow: visible;
+            }
+            .node-list-wrapper {
+                max-height: 400px;
+            }
+            .log-box {
+                height: 300px;
+            }
         }
     </style>
 </head>
 
 <body>
 
-    <div id="canvas-wrapper">
-        <h2 style="color:#555;">QR Code Generator</h2>
-        <div id="qr-preview">Preview Area</div>
-        <p style="color:#777; font-size:13px;">Processing items will appear here briefly...</p>
-    </div>
-
-    <div id="sidebar">
-        <div class="panel">
-            <h3>🖨️ QR一括生成</h3>
-            <p style="font-size:12px; color:#666; margin-bottom:15px;">
-                登録されている全ての「名前付き」地点のQRコードを生成し、ZIP形式でダウンロードします。
-            </p>
-
-            <div style="margin-bottom:15px;">
-                <label style="font-size:12px; font-weight:bold;">Status:</label>
-                <div class="progress-bar">
-                    <div id="progress" class="progress-fill"></div>
+    <header class="dashboard-header">
+        <div class="header-container">
+            <div class="logo-area">
+                <svg class="logo-icon" viewBox="0 0 24 24" width="32" height="32">
+                    <circle cx="12" cy="12" r="10" stroke="var(--secondary-color)" stroke-width="1.5" fill="none"></circle>
+                    <polygon points="12,3 15,12 12,12" fill="var(--accent-color)"></polygon>
+                    <polygon points="12,3 9,12 12,12" fill="#ff5252"></polygon>
+                    <polygon points="12,21 15,12 12,12" fill="var(--secondary-color)"></polygon>
+                    <polygon points="12,21 9,12 12,12" fill="#e5c158"></polygon>
+                    <circle cx="12" cy="12" r="1.5" fill="white"></circle>
+                </svg>
+                <div class="title-group">
+                    <h1 class="logo-text">I-Compass</h1>
+                    <span class="header-divider"></span>
+                    <h2 class="dashboard-title">QR Code Dashboard</h2>
                 </div>
-                <span id="status-text" style="font-size:11px;">Ready</span>
+            </div>
+            <div class="header-stats">
+                <span class="stat-badge">対象地点数: <span id="header-total-nodes">0</span></span>
+            </div>
+        </div>
+    </header>
+
+    <div class="dashboard-container">
+        <!-- Left Column: Controls & Preview -->
+        <div class="dashboard-col col-preview">
+            <!-- QR Code Preview Card -->
+            <div class="card preview-card">
+                <div class="card-header">
+                    <h3 class="card-title">QRコードプレビュー</h3>
+                </div>
+                <div class="card-body">
+                    <div class="qr-preview-wrapper">
+                        <div id="qr-preview-container">
+                            <div class="preview-placeholder">地点を選択してください</div>
+                        </div>
+                    </div>
+                    
+                    <div class="node-info-table">
+                        <div class="info-row">
+                            <span class="info-label">地点名</span>
+                            <span class="info-value" id="node-name">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">階層</span>
+                            <span class="info-value" id="node-floor">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">ID</span>
+                            <span class="info-value code-font" id="node-id">-</span>
+                        </div>
+                        <div class="info-row vertical-row">
+                            <span class="info-label">QRリンクURL</span>
+                            <div class="url-input-group">
+                                <input type="text" id="node-url" readonly value="">
+                                <button onclick="copyUrl()" class="icon-btn-text" id="copy-btn">コピー</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button onclick="downloadSingle()" id="download-single-btn" class="btn btn-primary" disabled>
+                        <svg class="btn-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                            <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+                        </svg>
+                        現在のQRを保存
+                    </button>
+                </div>
             </div>
 
-            <button onclick="generateAll()" id="genBtn">🚀 QRコード生成 & ZIP保存</button>
+            <!-- Bulk Export Card -->
+            <div class="card bulk-card">
+                <div class="card-header">
+                    <h3 class="card-title">一括エクスポート</h3>
+                </div>
+                <div class="card-body">
+                    <p class="card-description">
+                        システム内のすべての名前付き地点のQRコードを一括生成し、ZIPアーカイブで保存します。
+                    </p>
+                    
+                    <div class="progress-section">
+                        <div class="progress-meta">
+                            <span class="progress-status" id="status-text">データ読み込み中...</span>
+                            <span class="progress-percent" id="progress-percent">0%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div id="progress" class="progress-fill"></div>
+                        </div>
+                    </div>
+                    
+                    <button onclick="generateAll()" id="genBtn" class="btn btn-secondary">
+                        <svg class="btn-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                            <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-3h4v3h3.5L12 17.5zM5.12 5l.82-1h12.06l.82 1H5.12z"/>
+                        </svg>
+                        一括生成とZIP保存
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <div class="panel" style="flex-grow:1; display:flex; flex-direction:column;">
-            <h3>📋 処理ログ</h3>
-            <div id="console" class="log-box"></div>
+        <!-- Right Column: Interactive Directory & Logs -->
+        <div class="dashboard-col col-directory">
+            <div class="card directory-card">
+                <div class="card-tabs">
+                    <button onclick="switchTab('nodes')" id="tab-nodes" class="tab-btn active">
+                        地点ディレクトリ
+                    </button>
+                    <button onclick="switchTab('logs')" id="tab-logs" class="tab-btn">
+                        システムログ
+                    </button>
+                </div>
+                
+                <div class="card-body tab-content" id="content-nodes">
+                    <!-- Search and Filter Controls -->
+                    <div class="filter-controls">
+                        <div class="search-box">
+                            <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                            <input type="text" id="search-input" class="search-input" placeholder="地点名で検索..." oninput="filterNodes()">
+                        </div>
+                        
+                        <div class="floor-filters" id="floor-filter-container">
+                            <button class="filter-pill active" id="pill-all" onclick="filterFloor('all')">すべて</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Node List Container -->
+                    <div class="node-list-wrapper">
+                        <div class="node-list" id="node-list-container">
+                            <!-- Node elements will be populated here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-body tab-content hidden" id="content-logs">
+                    <div class="console-wrapper">
+                        <div class="console-header">
+                            <span class="console-title">コンソール出力</span>
+                            <button onclick="clearLogs()" class="console-clear-btn">ログをクリア</button>
+                        </div>
+                        <div id="console" class="log-box"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -171,49 +911,309 @@
     <div id="qr-target" style="display:none;"></div>
 
     <script>
-        // Logger
-        function log(msg) {
+        // Logger without emojis
+        function log(msg, type = 'info') {
             const el = document.getElementById('console');
-            el.innerHTML += `> ${msg}\n`;
+            const now = new Date();
+            const timeStr = now.toTimeString().split(' ')[0];
+            
+            let color = '#a5b0c7';
+            if (type === 'success') color = '#4caf50';
+            else if (type === 'error') color = '#f44336';
+            else if (type === 'warning') color = '#ffeb3b';
+            
+            const line = document.createElement('div');
+            line.style.marginBottom = '4px';
+            line.innerHTML = `<span style="color: #5d668c;">[${timeStr}]</span> <span style="color: ${color};">> ${msg}</span>`;
+            el.appendChild(line);
             el.scrollTop = el.scrollHeight;
         }
 
-        // Data Loader (Simplified version of MapEngine logic)
-        let allNodes = [];
+        function clearLogs() {
+            document.getElementById('console').innerHTML = '';
+            log("ログをクリアしました", 'info');
+        }
 
+        // Data Store
+        let allNodes = [];
+        let filteredNodes = [];
+        let selectedNode = null;
+        let activeFloorFilter = 'all';
+        let searchQuery = '';
+
+        // Load map data
         async function loadData() {
-            log("Loading Map Data...");
+            log("マップデータのロードを開始します...", 'info');
             const floors = AppConfig.FLOORS;
+            allNodes = [];
 
             for (const floor of floors) {
                 try {
                     const res = await fetch(floor.jsonPath);
-                    if (!res.ok) throw new Error(res.status);
+                    if (!res.ok) throw new Error(`HTTPステータス: ${res.status}`);
                     const data = await res.json();
 
                     data.nodes.forEach(n => {
-                        // Tag with floor info
                         n.floorId = floor.id;
-                        n.floorName = floor.name; // e.g. "1F"
-                        // Create Global ID
+                        n.floorName = floor.name;
                         n.fullId = `${floor.id}_${n.id}`;
                         allNodes.push(n);
                     });
-                    log(`Loaded Floor ${floor.id}: ${data.nodes.length} nodes`);
+                    log(`フロア ${floor.name} をロードしました: ${data.nodes.length} 地点`, 'info');
                 } catch (e) {
-                    log(`Error loading floor ${floor.id}: ${e.message}`);
+                    log(`フロア ${floor.name} のロード中にエラーが発生しました: ${e.message}`, 'error');
                 }
             }
-            log(`Total Loaded: ${allNodes.length} nodes`);
-
-            // Filter target nodes (Must have name)
+            
+            // Filter target nodes (Must have name and not be junction)
             allNodes = allNodes.filter(n => n.name && n.type !== 'junction');
-            log(`Target Nodes (Named): ${allNodes.length}`);
-
-            document.getElementById('status-text').innerText = `Ready (${allNodes.length} items found)`;
+            log(`全フロアのロードが完了しました。対象地点数: ${allNodes.length}`, 'success');
+            
+            // Update total badge in header
+            document.getElementById('header-total-nodes').innerText = allNodes.length;
+            document.getElementById('status-text').innerText = `準備完了 (${allNodes.length} 地点)`;
+            
+            // Initialize floor filter pills
+            populateFloorFilters();
+            
+            // Reset filtered list
+            filteredNodes = [...allNodes];
+            renderNodeList();
+            
+            // Auto-select first node if available
+            if (allNodes.length > 0) {
+                selectNode(allNodes[0]);
+            }
         }
 
-        // QR Generator
+        // Initialize dynamic floor filter pills
+        function populateFloorFilters() {
+            const container = document.getElementById('floor-filter-container');
+            container.innerHTML = `<button class="filter-pill active" id="pill-all" onclick="filterFloor('all')">すべて</button>`;
+            
+            AppConfig.FLOORS.forEach(floor => {
+                const btn = document.createElement('button');
+                btn.className = 'filter-pill';
+                btn.id = `pill-${floor.id}`;
+                btn.innerText = floor.name;
+                btn.onclick = () => filterFloor(floor.id);
+                container.appendChild(btn);
+            });
+        }
+
+        // Floor filter switch handler
+        function filterFloor(floorId) {
+            activeFloorFilter = floorId;
+            
+            const pills = document.querySelectorAll('.filter-pill');
+            pills.forEach(p => p.classList.remove('active'));
+            
+            if (floorId === 'all') {
+                document.getElementById('pill-all').classList.add('active');
+            } else {
+                const activePill = document.getElementById(`pill-${floorId}`);
+                if (activePill) activePill.classList.add('active');
+            }
+            
+            applyFilter();
+        }
+
+        // Search text change handler
+        function filterNodes() {
+            searchQuery = document.getElementById('search-input').value.toLowerCase().trim();
+            applyFilter();
+        }
+
+        // Apply filters (Floor + Search text)
+        function applyFilter() {
+            filteredNodes = allNodes.filter(node => {
+                const matchesFloor = (activeFloorFilter === 'all') || (node.floorId === activeFloorFilter);
+                const matchesSearch = node.name.toLowerCase().includes(searchQuery) || node.fullId.toLowerCase().includes(searchQuery);
+                return matchesFloor && matchesSearch;
+            });
+            
+            renderNodeList();
+        }
+
+        // Render Directory List
+        function renderNodeList() {
+            const container = document.getElementById('node-list-container');
+            container.innerHTML = '';
+            
+            if (filteredNodes.length === 0) {
+                const emptyMsg = document.createElement('div');
+                emptyMsg.className = 'preview-placeholder';
+                emptyMsg.style.padding = '30px';
+                emptyMsg.innerText = '該当する地点が見つかりません';
+                container.appendChild(emptyMsg);
+                return;
+            }
+            
+            filteredNodes.forEach(node => {
+                const item = document.createElement('div');
+                item.className = 'node-item';
+                if (selectedNode && selectedNode.fullId === node.fullId) {
+                    item.classList.add('active');
+                }
+                
+                item.onclick = () => {
+                    const items = document.querySelectorAll('.node-item');
+                    items.forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                    
+                    selectNode(node);
+                };
+                
+                const badgeClass = `badge-${node.floorName.toLowerCase()}`;
+                
+                item.innerHTML = `
+                    <div class="node-item-main">
+                        <span class="floor-badge ${badgeClass}">${node.floorName}</span>
+                        <div style="display: flex; flex-direction: column;">
+                            <span class="node-item-name">${node.name}</span>
+                            <span class="node-item-meta">ID: ${node.fullId}</span>
+                        </div>
+                    </div>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--text-sub)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                `;
+                
+                container.appendChild(item);
+            });
+        }
+
+        // Interactive QR Code Selection
+        function selectNode(node) {
+            selectedNode = node;
+            
+            // Update selected indicator in list
+            const nodeItems = document.querySelectorAll('.node-item');
+            nodeItems.forEach((item, idx) => {
+                const itemNode = filteredNodes[idx];
+                if (itemNode && itemNode.fullId === node.fullId) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+            
+            // Update node details UI
+            document.getElementById('node-name').innerText = node.name;
+            document.getElementById('node-floor').innerText = `${node.floorName} (${node.floorId}階)`;
+            document.getElementById('node-id').innerText = node.fullId;
+            
+            const baseUrl = window.location.href.split('?')[0].replace(/qr\.html$/, 'map.html');
+            const qrUrl = `${baseUrl}?current=${node.fullId}`;
+            document.getElementById('node-url').value = qrUrl;
+            
+            // Render QR Code in Preview Area
+            const previewContainer = document.getElementById('qr-preview-container');
+            previewContainer.innerHTML = '';
+            
+            new QRCode(previewContainer, {
+                text: qrUrl,
+                width: 512,
+                height: 512,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.M
+            });
+            
+            document.getElementById('download-single-btn').disabled = false;
+        }
+
+        // Copy URL to Clipboard
+        function copyUrl() {
+            const copyText = document.getElementById("node-url");
+            copyText.select();
+            copyText.setSelectionRange(0, 99999);
+            
+            navigator.clipboard.writeText(copyText.value)
+                .then(() => {
+                    const btn = document.getElementById('copy-btn');
+                    btn.innerText = 'コピー済';
+                    btn.style.backgroundColor = 'var(--primary-color)';
+                    btn.style.color = 'white';
+                    setTimeout(() => {
+                        btn.innerText = 'コピー';
+                        btn.style.backgroundColor = 'white';
+                        btn.style.color = 'var(--primary-color)';
+                    }, 2000);
+                    log(`リンクURLをコピーしました: ${selectedNode.name}`, 'success');
+                })
+                .catch(err => {
+                    log(`クリップボードへのコピーに失敗しました: ${err}`, 'error');
+                });
+        }
+
+        // Download Single QR Code (PNG)
+        function downloadSingle() {
+            if (!selectedNode) return;
+            
+            const previewContainer = document.getElementById('qr-preview-container');
+            const canvas = previewContainer.querySelector('canvas');
+            let dataUrl = null;
+            
+            if (canvas) {
+                dataUrl = canvas.toDataURL("image/png");
+            } else {
+                const img = previewContainer.querySelector('img');
+                if (img) dataUrl = img.src;
+            }
+            
+            if (dataUrl) {
+                const safeName = selectedNode.name.replace(/[\/\\:*?"<>|]/g, '_');
+                const fileName = `${selectedNode.floorId}F_${safeName}.png`;
+                
+                try {
+                    // Try parsing DataURL into Blob for FileSaver
+                    const parts = dataUrl.split(',');
+                    const byteString = atob(parts[1]);
+                    const mimeString = parts[0].split(':')[1].split(';')[0];
+                    const ab = new ArrayBuffer(byteString.length);
+                    const ia = new Uint8Array(ab);
+                    for (let i = 0; i < byteString.length; i++) {
+                        ia[i] = byteString.charCodeAt(i);
+                    }
+                    const blob = new Blob([ab], {type: mimeString});
+                    saveAs(blob, fileName);
+                } catch (e) {
+                    // Fallback to traditional anchor tag click
+                    const link = document.createElement('a');
+                    link.href = dataUrl;
+                    link.download = fileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
+                log(`QRコードを個別保存しました: ${fileName}`, 'success');
+            } else {
+                alert("QRコード画像の取得に失敗しました。");
+            }
+        }
+
+        // Tab switches handler
+        function switchTab(tab) {
+            const tabNodes = document.getElementById('tab-nodes');
+            const tabLogs = document.getElementById('tab-logs');
+            const contentNodes = document.getElementById('content-nodes');
+            const contentLogs = document.getElementById('content-logs');
+            
+            if (tab === 'nodes') {
+                tabNodes.classList.add('active');
+                tabLogs.classList.remove('active');
+                contentNodes.classList.remove('hidden');
+                contentLogs.classList.add('hidden');
+            } else {
+                tabNodes.classList.remove('active');
+                tabLogs.classList.add('active');
+                contentNodes.classList.add('hidden');
+                contentLogs.classList.remove('hidden');
+            }
+        }
+
+        // Bulk Zip Export Generator
         async function generateAll() {
             if (allNodes.length === 0) await loadData();
             if (allNodes.length === 0) {
@@ -223,94 +1223,90 @@
 
             const btn = document.getElementById('genBtn');
             btn.disabled = true;
-            btn.innerText = "生成中...";
+            btn.innerHTML = `
+                <svg class="btn-icon spinning" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                    <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+                </svg>
+                生成中...
+            `;
+            
+            // Switch tabs to show logs visually during bulk export
+            switchTab('logs');
 
             const zip = new JSZip();
             const folder = zip.folder("qr_code");
 
             const targetDiv = document.getElementById('qr-target');
-            // Base URL: replace current filename with map.html
             const baseUrl = window.location.href.split('?')[0].replace(/qr\.html$/, 'map.html');
 
-            log(`Base URL: ${baseUrl}`);
+            log(`ベースURL: ${baseUrl}`, 'info');
+            log(`一括生成処理を開始します。対象件数: ${allNodes.length}件`, 'info');
 
             let count = 0;
             const total = allNodes.length;
 
             for (const node of allNodes) {
-                // Update Progress
                 count++;
                 const pct = Math.floor((count / total) * 100);
                 document.getElementById('progress').style.width = `${pct}%`;
-                document.getElementById('status-text').innerText = `Processing ${count}/${total}: ${node.name}`;
+                document.getElementById('progress-percent').innerText = `${pct}%`;
+                document.getElementById('status-text').innerText = `生成中 ${count}/${total}: ${node.name}`;
 
-                // --- Generate QR ---
-                targetDiv.innerHTML = ''; // Clear previous
+                // Render live preview directly inside previewContainer (attached to DOM)
+                selectNode(node);
 
-                // Content format: Full URL for compatibility with standard camera apps.
-                // e.g. https://domain.com/map.html?current=1_101
-                const qrUrl = `${baseUrl}?current=${node.fullId}`;
+                // Yield to allow qrcodejs/canvas rendering
+                await new Promise(r => setTimeout(r, 45));
 
-                // Create QR object
-                // We use qrcode.js library
-                new QRCode(targetDiv, {
-                    text: qrUrl,
-                    width: 512,
-                    height: 512,
-                    colorDark: "#000000",
-                    colorLight: "#ffffff",
-                    correctLevel: QRCode.CorrectLevel.M // Optimized: Level M offers good balance of density vs error correction
-                });
-
-                // Wait for Canvas rendering
-                // qrcode.js renders immediately to canvas or table? Usually canvas if supported.
-                // We grab the canvas or img data.
                 let dataUrl = null;
-                const canvas = targetDiv.querySelector('canvas');
+                const previewContainer = document.getElementById('qr-preview-container');
+                const canvas = previewContainer.querySelector('canvas');
 
                 if (canvas) {
                     dataUrl = canvas.toDataURL("image/png");
-                    // Preview
-                    const preview = document.getElementById('qr-preview');
-                    preview.innerHTML = '';
-                    canvas.style.width = '200px';
-                    canvas.style.height = '200px';
-                    preview.appendChild(canvas.cloneNode(true));
                 } else {
-                    // Fallback forimg
-                    const img = targetDiv.querySelector('img');
+                    const img = previewContainer.querySelector('img');
                     if (img) dataUrl = img.src;
                 }
 
                 if (dataUrl) {
-                    // Filename: [Floor]_[Name].png
-                    // Sanitize name for filename
                     const safeName = node.name.replace(/[\/\\:*?"<>|]/g, '_');
                     const fileName = `${node.floorId}F_${safeName}.png`;
 
-                    // Add to Zip (remove base64 header)
                     const base64Data = dataUrl.split(',')[1];
                     folder.file(fileName, base64Data, { base64: true });
 
-                    log(`Generated: ${fileName}`);
+                    log(`生成成功: ${fileName}`, 'success');
                 } else {
-                    log(`Failed to render QR for: ${node.name}`);
+                    log(`QRコード生成に失敗しました: ${node.name}`, 'error');
                 }
-
-                // Slight yield to allow UI update
-                await new Promise(r => setTimeout(r, 20));
             }
 
-            log("All items processed. Compressing ZIP...");
-            document.getElementById('status-text').innerText = "Compressing ZIP...";
+            log("全地点のQRコード画像生成が完了しました。ZIPファイルの圧縮を開始します...", 'info');
+            document.getElementById('status-text').innerText = "ZIP圧縮中...";
 
-            const content = await zip.generateAsync({ type: "blob" });
-            saveAs(content, "qr_codes.zip");
+            try {
+                const content = await zip.generateAsync({ type: "blob" });
+                saveAs(content, "qr_codes.zip");
+                log("ZIPファイルの圧縮が完了し、ダウンロードが開始されました。", 'success');
+                document.getElementById('status-text').innerText = "ダウンロード完了";
+            } catch (err) {
+                log(`ZIP圧縮中にエラーが発生しました: ${err.message}`, 'error');
+                document.getElementById('status-text').innerText = "圧縮エラー";
+            }
 
-            log("Done! Download started.");
-            document.getElementById('status-text').innerText = "Completed!";
             btn.disabled = false;
-            btn.innerText = "再生成";
+            btn.innerHTML = `
+                <svg class="btn-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                    <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-3h4v3h3.5L12 17.5zM5.12 5l.82-1h12.06l.82 1H5.12z"/>
+                </svg>
+                一括生成とZIP保存
+            `;
+            
+            // Restore selection state
+            if (selectedNode) {
+                selectNode(selectedNode);
+            }
         }
 
         // Init
