@@ -1727,21 +1727,25 @@ input:checked+.slider:before {
     justify-content: center;
     gap: 8px;
     width: 100%;
-    padding: 12px;
-    border-radius: 10px;
+    padding: 10px;
+    border-radius: 8px;
     font-weight: 700;
-    background: linear-gradient(135deg, var(--primary-color) 0%, #1e299a 100%);
-    border: none;
-    color: white;
-    box-shadow: 0 4px 12px rgba(26, 35, 126, 0.2);
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-sub);
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-    font-size: 14px;
+    transition: all 0.2s ease;
+    font-size: 13px;
+}
+
+.tutorial-trigger-btn:hover {
+    background: rgba(0, 0, 0, 0.04);
+    color: var(--text-main);
+    border-color: var(--text-sub);
 }
 
 .tutorial-trigger-btn:active {
-    transform: scale(0.97);
-    box-shadow: 0 2px 6px rgba(26, 35, 126, 0.15);
+    transform: scale(0.98);
 }
 
 .tutorial-close-btn {

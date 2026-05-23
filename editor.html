@@ -711,7 +711,7 @@
                     <!-- Node Inspector Form -->
                     <div id="inspector-node" class="hidden">
                         <div class="sidebar-panel">
-                            <h3>📍 ポイントの属性編集</h3>
+                            <h3>ポイントの属性編集</h3>
                             <div class="inspector-group">
                                 <div class="form-row">
                                     <div class="form-field" style="flex:2;">
@@ -748,6 +748,13 @@
                                     <input type="text" id="nodeConnectionId" placeholder="例: stairs_south_1"
                                         oninput="saveSelectedNodeProperties()">
                                 </div>
+                                <div class="form-field"
+                                    style="flex-direction:row; align-items:center; gap:8px; margin: 4px 0;">
+                                    <input type="checkbox" id="nodeBarrierFreeBlocked" onchange="saveSelectedNodeProperties()"
+                                        style="width:auto; margin:0; cursor:pointer;">
+                                    <label for="nodeBarrierFreeBlocked"
+                                        style="cursor:pointer; color:var(--text-main); font-size:13px; font-weight:normal;">バリアフリー通行不可</label>
+                                </div>
                                 <div class="form-row">
                                     <div class="form-field">
                                         <label>座標 X</label>
@@ -758,14 +765,14 @@
                                         <input type="number" id="nodeY" onchange="saveSelectedNodeProperties(true)">
                                     </div>
                                 </div>
-
+ 
                                 <div style="margin-top:10px;">
-                                    <button class="btn btn-danger" onclick="deleteSelectedNode()">🗑️ この点を削除</button>
+                                    <button class="btn btn-danger" onclick="deleteSelectedNode()">この点を削除</button>
                                 </div>
                             </div>
                         </div>
                     </div>
-
+ 
                     <!-- Edge Inspector Form -->
                     <div id="inspector-edge" class="hidden">
                         <div class="sidebar-panel">
@@ -790,8 +797,7 @@
                                     <input type="checkbox" id="edgeBlocked" onchange="saveSelectedEdgeProperties()"
                                         style="width:auto; margin:0; cursor:pointer;">
                                     <label for="edgeBlocked"
-                                        style="cursor:pointer; color:var(--text-main); font-size:13px; font-weight:normal;">♿
-                                        バリアフリー通行不可</label>
+                                        style="cursor:pointer; color:var(--text-main); font-size:13px; font-weight:normal;">バリアフリー通行不可</label>
                                 </div>
                                 <p style="font-size:11px; color:var(--text-sub); margin:0 0 12px 0; line-height:1.4;">
                                     ※段差や階段など、車椅子・台車が通行できない経路の場合は有効にします。
@@ -929,7 +935,7 @@
             { id: 4, name: '4F', label: '4階', jsonPath: 'JSON/4.json', imagePath: 'images/floor4.png' }
         ];
 
-        const defaultFloorId = (typeof AppConfig !== 'undefined' && AppConfig.DEFAULT_FLOOR_ID) ? AppConfig.DEFAULT_FLOOR_ID : 2;
+        const defaultFloorId = 1;
         let currentFloorId = defaultFloorId;
 
         // Data Storage for all Floors
@@ -1642,6 +1648,7 @@
                 document.getElementById('nodeEventName').value = n.eventName || '';
                 document.getElementById('nodeX').value = n.x;
                 document.getElementById('nodeY').value = n.y;
+                document.getElementById('nodeBarrierFreeBlocked').checked = !!n.barrierFreeBlocked;
 
                 const connGroup = document.getElementById('connectionIdGroup');
                 if (n.type === 'stairs' || n.type === 'elevator') {
@@ -1700,6 +1707,7 @@
             n.type = document.getElementById('nodeType').value;
             n.name = document.getElementById('nodeName').value.trim();
             n.eventName = document.getElementById('nodeEventName').value.trim();
+            n.barrierFreeBlocked = document.getElementById('nodeBarrierFreeBlocked').checked;
 
             const connGroup = document.getElementById('connectionIdGroup');
             if (n.type === 'stairs' || n.type === 'elevator') {
@@ -2066,6 +2074,15 @@
 
                 ctx.fill();
                 ctx.stroke();
+
+                // Draw a warning ring around barrier-free blocked nodes
+                if (n.barrierFreeBlocked) {
+                    ctx.beginPath();
+                    ctx.arc(n.x, n.y, r + 4 / Math.sqrt(zoom), 0, Math.PI * 2);
+                    ctx.strokeStyle = '#ff3d00';
+                    ctx.lineWidth = 1.5 / Math.sqrt(zoom);
+                    ctx.stroke();
+                }
 
                 // Text labels for rooms
                 if (!isJunc) {

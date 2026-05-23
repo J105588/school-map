@@ -939,10 +939,10 @@ class MapEngine {
             // Draw Markers (Start/End)
             const startNode = this.getNode(this.path[0]);
             const endNode = this.getNode(this.path[this.path.length - 1]);
-            this.drawMarker(startNode, 'START', AppConfig.STYLES.node.highlightColor);
-            this.drawMarker(endNode, 'GOAL', AppConfig.STYLES.node.highlightColor);
+            this.drawMarker(startNode, 'START', '#1565c0'); // Blue for Start
+            this.drawMarker(endNode, 'GOAL', '#c62828');   // Red for Goal
         } else if (this.startNode) {
-            this.drawMarker(this.startNode, 'START', AppConfig.STYLES.node.highlightColor);
+            this.drawMarker(this.startNode, 'START', '#1565c0'); // Blue for Start
         }
 
         // Draw Current Location (Always visible if set)
@@ -1584,6 +1584,13 @@ class MapEngine {
                         // Priority: EV > Flat > Stairs
                         // Blocked Edges
                         if (edge.barrierFreeBlocked) continue; // Skip blocked edges
+
+                        // Blocked Nodes
+                        const toNode = this.getNode(edge.to);
+                        if (toNode && toNode.barrierFreeBlocked) continue;
+
+                        const fromNode = this.getNode(minId);
+                        if (fromNode && fromNode.barrierFreeBlocked) continue;
 
                         if (edge.type === 'elevator') {
                             // Prioritize Elevator (Reduce Cost significantly)
