@@ -230,7 +230,16 @@ class Tutorial {
         // On mobile, force top/bottom placement to prevent clipping
         if (window.innerWidth <= 768) {
             if (placement === 'left' || placement === 'right') {
-                placement = 'top';
+                // If the target element is in the upper half of the screen, place the bubble at the bottom.
+                // Otherwise place it at the top.
+                if (rect.top < window.innerHeight / 2) {
+                    placement = 'bottom';
+                } else {
+                    placement = 'top';
+                }
+            } else if (placement === 'top' && rect.top < 220) {
+                // If it was configured as 'top', but it's too close to the top boundary, switch to 'bottom'
+                placement = 'bottom';
             }
         }
 

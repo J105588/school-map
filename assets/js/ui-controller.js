@@ -17,6 +17,7 @@ class UIController {
         this.mobileSearchTrigger = document.getElementById('mobile-search-trigger');
         this.mobileQrBtn = document.getElementById('mobile-qr-btn');
         this.mobileSettingsBtn = document.getElementById('mobile-settings-btn');
+        this.sidebarSettingsBtn = document.getElementById('sidebar-settings-btn');
         this.sidebarCloseBtn = document.getElementById('sidebar-close-btn');
         this.routeList = document.getElementById('route-list');
         this.mobileOverlay = document.getElementById('mobile-route-overlay');
@@ -79,6 +80,9 @@ class UIController {
         if (this.mobileSearchTrigger) {
             this.mobileSearchTrigger.addEventListener('click', () => {
                 this.sidebar.classList.add('active');
+                if (this.sidebar) {
+                    this.sidebar.style.transform = ''; // Clear inline drag transform
+                }
             });
         }
         if (this.mobileQrBtn) {
@@ -89,6 +93,20 @@ class UIController {
         }
         if (this.mobileSettingsBtn) {
             this.mobileSettingsBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const settingsModal = document.getElementById('settings-modal');
+                if (settingsModal) {
+                    settingsModal.classList.remove('hidden');
+                    // Sync State
+                    const toggleRotation = document.getElementById('toggle-rotation');
+                    const toggleAccessibility = document.getElementById('toggle-accessibility');
+                    if (toggleRotation) toggleRotation.checked = this.engine.enableAutoRotation;
+                    if (toggleAccessibility) toggleAccessibility.checked = this.engine.accessibilityMode;
+                }
+            });
+        }
+        if (this.sidebarSettingsBtn) {
+            this.sidebarSettingsBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const settingsModal = document.getElementById('settings-modal');
                 if (settingsModal) {
@@ -288,6 +306,9 @@ class UIController {
                 }
             }
         }
+
+        // Initialize Sidebar Swipe-down Close Gesture
+        this.initSidebarSwipe();
     }
 
     renderFloorTabs() {
@@ -624,6 +645,48 @@ class UIController {
 
         header.addEventListener('mousedown', onStart);
         header.addEventListener('touchstart', onStart, { passive: false });
+    }
+
+    initSidebarSwipe() {
+        const header = document.querySelector('.sidebar-header');
+        if (!header || !this.sidebar) return;
+
+        let startY = 0;
+        let currentY = 0;
+        let isDragging = false;
+
+        header.addEventListener('touchstart', (e) => {
+            if (window.innerWidth > 768) return;
+            startY = e.touches[0].clientY;
+            currentY = startY;
+            isDragging = true;
+            this.sidebar.style.transition = 'none'; // Disable transition for 1:1 tracking
+        }, { passive: true });
+
+        header.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            currentY = e.touches[0].clientY;
+            const dy = currentY - startY;
+
+            // Only allow pulling down (dy > 0)
+            if (dy > 0) {
+                this.sidebar.style.transform = `translateY(${dy}px)`;
+            }
+        }, { passive: true });
+
+        header.addEventListener('touchend', (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            this.sidebar.style.transition = ''; // Restore CSS transition
+
+            const dy = currentY - startY;
+            // If pulled down more than 120px, close sidebar
+            if (dy > 120) {
+                this.sidebar.classList.remove('active');
+            }
+            // Reset position inline style (transition handles snapping)
+            this.sidebar.style.transform = '';
+        });
     }
 
     showLoading(show) {
