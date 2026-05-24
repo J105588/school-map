@@ -13,12 +13,21 @@ class UIController {
 
         // Mobile UI Elements
         this.sidebar = document.querySelector('.sidebar');
-        this.mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        this.mobileSearchBar = document.getElementById('mobile-search-bar');
+        this.mobileSearchTrigger = document.getElementById('mobile-search-trigger');
+        this.mobileQrBtn = document.getElementById('mobile-qr-btn');
+        this.mobileSettingsBtn = document.getElementById('mobile-settings-btn');
         this.sidebarCloseBtn = document.getElementById('sidebar-close-btn');
         this.routeList = document.getElementById('route-list');
         this.mobileOverlay = document.getElementById('mobile-route-overlay');
         this.mobileRouteContent = document.getElementById('mobile-route-content');
         this.overlayToggleBtn = document.getElementById('overlay-toggle-btn');
+
+        // Mobile Route Summary Bar Elements
+        this.mobileSummaryBar = document.getElementById('mobile-route-summary-bar');
+        this.summaryStartName = document.getElementById('summary-start-name');
+        this.summaryEndName = document.getElementById('summary-end-name');
+        this.summaryCloseBtn = document.getElementById('summary-close-btn');
 
         // Mobile Overlay Toggle & Drag
         if (this.overlayToggleBtn && this.mobileOverlay) {
@@ -29,6 +38,26 @@ class UIController {
 
         // Debounce State
         this.lastStepClickTime = 0;
+    }
+
+    clearRoute() {
+        if (this.startSelect) this.startSelect.select(null, "出発地を選択...");
+        if (this.endSelect) this.endSelect.select(null, "目的地を選択...");
+
+        // Clear engine route
+        this.engine.path = [];
+        this.engine.startNode = null;
+        this.engine.draw();
+
+        // Hide mobile overlays
+        if (this.mobileOverlay) this.mobileOverlay.classList.add('hidden');
+        if (this.mobileSummaryBar) this.mobileSummaryBar.classList.add('hidden');
+
+        // Show bottom search bar again
+        if (this.mobileSearchBar) this.mobileSearchBar.classList.remove('hidden');
+
+        // Reset route list
+        this.updateRouteList([]);
     }
 
     handleStepClick(node) {
@@ -47,14 +76,40 @@ class UIController {
 
     async init() {
         // Mobile Event Listeners
-        if (this.mobileMenuBtn) {
-            this.mobileMenuBtn.addEventListener('click', () => {
+        if (this.mobileSearchTrigger) {
+            this.mobileSearchTrigger.addEventListener('click', () => {
                 this.sidebar.classList.add('active');
             });
         }
+        if (this.mobileQrBtn) {
+            this.mobileQrBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.startScanner();
+            });
+        }
+        if (this.mobileSettingsBtn) {
+            this.mobileSettingsBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const settingsModal = document.getElementById('settings-modal');
+                if (settingsModal) {
+                    settingsModal.classList.remove('hidden');
+                    // Sync State
+                    const toggleRotation = document.getElementById('toggle-rotation');
+                    const toggleAccessibility = document.getElementById('toggle-accessibility');
+                    if (toggleRotation) toggleRotation.checked = this.engine.enableAutoRotation;
+                    if (toggleAccessibility) toggleAccessibility.checked = this.engine.accessibilityMode;
+                }
+            });
+        }
+
         if (this.sidebarCloseBtn) {
             this.sidebarCloseBtn.addEventListener('click', () => {
                 this.sidebar.classList.remove('active');
+            });
+        }
+        if (this.summaryCloseBtn) {
+            this.summaryCloseBtn.addEventListener('click', () => {
+                this.clearRoute();
             });
         }
 
@@ -327,6 +382,7 @@ class UIController {
         if (!startVal || !endVal) {
             // Hide mobile overlay if route is cleared
             if (this.mobileOverlay) this.mobileOverlay.classList.add('hidden');
+            if (this.mobileSummaryBar) this.mobileSummaryBar.classList.add('hidden');
             return;
         }
 
@@ -336,11 +392,40 @@ class UIController {
         if (path && path.length > 0) {
             this.engine.fitToPath(path);
 
-            // ... (keep mobile logic)
-
             // Mobile: Close Sidebar & Show Overlay
             if (window.innerWidth <= 768 && this.sidebar) {
                 this.sidebar.classList.remove('active');
+            }
+
+            // Hide bottom search bar during active routing
+            if (this.mobileSearchBar) this.mobileSearchBar.classList.add('hidden');
+
+            // Update Mobile Route Summary Bar
+            if (this.mobileSummaryBar && this.summaryStartName && this.summaryEndName) {
+                const sNode = this.engine.getNode(startVal);
+                const eNode = this.engine.getNode(endVal);
+                
+                let startText = sNode ? (sNode.eventName || sNode.name) : "出発地";
+                let endText = eNode ? (eNode.eventName || eNode.name) : "目的地";
+                
+                // Add floor info for extra clarity if nodes exist
+                if (sNode) startText += ` (${sNode.floorId}F)`;
+                if (eNode) {
+                    if (eNode.floorId) {
+                        endText += ` (${eNode.floorId}F)`;
+                    } else if (endVal.startsWith("NEAREST_")) {
+                        const labelMap = {
+                            "NEAREST_MALE": "最寄男子トイレ",
+                            "NEAREST_FEMALE": "最寄女子トイレ",
+                            "NEAREST_VENDING": "最寄自販機"
+                        };
+                        endText = labelMap[endVal] || endText;
+                    }
+                }
+                
+                this.summaryStartName.innerText = startText;
+                this.summaryEndName.innerText = endText;
+                this.mobileSummaryBar.classList.remove('hidden');
             }
 
             // Update Mobile Overlay with EXACT content from Route List
@@ -361,15 +446,9 @@ class UIController {
                         if (nodeId) {
                             const node = this.engine.getNode(nodeId);
                             if (node) {
-                                if (node) {
-                                    clone.onclick = () => {
-                                        this.handleStepClick(node);
-                                        // Make sure overlay is collapsed so user can see map? 
-                                        // User said "show clear UI to re-open".
-                                        // Maybe just keep it open? Or let user decide.
-                                        // Current visual implies it stays open unless user collapses.
-                                    };
-                                }
+                                clone.onclick = () => {
+                                    this.handleStepClick(node);
+                                };
                             }
                         }
                         ul.appendChild(clone);
@@ -382,6 +461,8 @@ class UIController {
             }
         } else {
             if (this.mobileOverlay) this.mobileOverlay.classList.add('hidden');
+            if (this.mobileSummaryBar) this.mobileSummaryBar.classList.add('hidden');
+            if (this.mobileSearchBar) this.mobileSearchBar.classList.remove('hidden');
         }
     }
 
@@ -418,8 +499,16 @@ class UIController {
             if (node.organization) desc += ` - ${node.organization}`;
 
             if (isTransfer) {
-                if (prevNode && prevNode.floorId !== node.floorId) title = `${node.floorId}階に到着`;
-                else if (nextNode && nextNode.floorId !== node.floorId) title = `${nextNode.floorId}階へ移動`;
+                const typeLabel = node.type === 'elevator' ? 'エレベーター' : (node.type === 'stairs' ? '階段' : '移動');
+                const nameLabel = node.name || '';
+                if (prevNode && prevNode.floorId !== node.floorId) {
+                    title = `${typeLabel}で ${node.floorId}階に到着`;
+                } else if (nextNode && nextNode.floorId !== node.floorId) {
+                    title = `${typeLabel}で ${node.floorId}階 ➔ ${nextNode.floorId}階へ`;
+                }
+                if (nameLabel) {
+                    title = `${nameLabel} (${title})`;
+                }
             }
 
             li.innerHTML = `
@@ -485,7 +574,10 @@ class UIController {
 
             if (Math.abs(dx) > 5 || Math.abs(dy) > 5) hasMoved = true;
 
-            this.mobileOverlay.style.left = `${initialLeft + dx}px`;
+            // Only track horizontal movement on desktop (where overlay has fixed width)
+            if (window.innerWidth > 768) {
+                this.mobileOverlay.style.left = `${initialLeft + dx}px`;
+            }
             this.mobileOverlay.style.top = `${initialTop + dy}px`;
         };
 
@@ -493,13 +585,20 @@ class UIController {
             if (!isDragging) return;
             isDragging = false;
 
-            // Re-enable height transition
-            this.mobileOverlay.style.transition = 'max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
-
             document.removeEventListener('mousemove', onMove);
             document.removeEventListener('touchmove', onMove);
             document.removeEventListener('mouseup', onEnd);
             document.removeEventListener('touchend', onEnd);
+
+            // Re-enable height transition and restore styles defined in stylesheet
+            this.mobileOverlay.style.transition = '';
+            this.mobileOverlay.style.left = '';
+            this.mobileOverlay.style.right = '';
+            
+            // On mobile, reset top to stick to bottom position
+            if (window.innerWidth <= 768) {
+                this.mobileOverlay.style.top = '';
+            }
 
             if (!hasMoved) {
                 // Treated as Click -> Toggle Collapse

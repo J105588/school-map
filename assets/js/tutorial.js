@@ -10,19 +10,19 @@ class Tutorial {
             {
                 target: '.search-panel',
                 title: '出発地・目的地の設定',
-                text: '出発地と目的地を選択すると、現在地から目的地までの最適なルートが自動的に計算され、地図上に表示されます。',
+                text: '出発地と目的地を選択すると、最適なルートが自動的に計算され、地図上に表示されます。<br>※スマートフォンでは画面下部にある「目的地を検索...」バーから設定できます。',
                 placement: 'right'
             },
             {
                 target: '#scan-btn',
                 title: '現在地をセット（QRスキャン）',
-                text: '校内の各所に設置されているQRコードをカメラでスキャンすることで、「現在地」がマップ上に自動設定されます。QRコードは通常、階段やエレベーターの近く、各教室の入り口前などに設置されています。<br><br><span class="tutorial-alert">Tips: <b>現在地がわからなくなったら：</b><br>パーカーを着ている実行委員に尋ねるか、まわりにある現在地を示すQRコードを探してみてください！</span>',
+                text: '校内の各所に設置されているQRコードをカメラでスキャンすることで、「現在地」がマップ上に自動設定されます。',
                 placement: 'top'
             },
             {
                 target: '.map-controls',
                 title: 'マップの操作',
-                text: '地図の拡大・縮小、全体表示、および左右への回転操作が可能です。<br>※スマートフォンではピンチイン・アウトや2本指での回転操作も行えます。',
+                text: '地図の拡大・縮小、全体表示が可能です。<br>※スマートフォンではピンチイン・アウトでの拡大縮小も行えます。',
                 placement: 'left'
             },
             {
@@ -149,8 +149,12 @@ class Tutorial {
 
         // Target Positioning
         let selector = step.target;
-        if (index === 1) {
-            selector = window.innerWidth <= 768 ? '#mobile-menu-btn' : '.search-panel';
+        if (window.innerWidth <= 768) {
+            if (index === 1) selector = '#mobile-search-bar';
+            else if (index === 2) selector = '#mobile-qr-btn';
+            else if (index === 4) selector = '#mobile-settings-btn';
+        } else {
+            if (index === 4) selector = '#settings-btn';
         }
 
         let targetEl = selector ? document.querySelector(selector) : null;
@@ -181,9 +185,9 @@ class Tutorial {
         // Special handling for .map-controls step to exclude #settings-btn
         if (step.target === '.map-controls') {
             const elements = Array.from(targetEl.children).filter(el => {
-                return el.id !== 'settings-btn' && 
-                       el.style.display !== 'none' && 
-                       window.getComputedStyle(el).display !== 'none';
+                return el.id !== 'settings-btn' &&
+                    el.style.display !== 'none' &&
+                    window.getComputedStyle(el).display !== 'none';
             });
 
             if (elements.length > 0) {

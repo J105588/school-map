@@ -1167,11 +1167,20 @@ class MapEngine {
 
                 // Transfer text with name if available
                 let depText = `${n2.floorId}階へ`;
-                if (n1.name && (n1.type === 'stairs' || n1.type === 'elevator')) {
-                    depText = `${n1.name} (${n2.floorId}階へ)`;
+                const depTypeLabel = n1.type === 'elevator' ? 'EV' : (n1.type === 'stairs' ? '階段' : '');
+                if (n1.name && depTypeLabel) {
+                    depText = `${n1.name}で${n2.floorId}階へ`;
+                } else if (depTypeLabel) {
+                    depText = `${depTypeLabel}で${n2.floorId}階へ`;
                 }
 
-                let arrText = `${n1.floorId}階から`;
+                let arrText = `${n2.floorId}階に到着`;
+                const arrTypeLabel = n2.type === 'elevator' ? 'EV' : (n2.type === 'stairs' ? '階段' : '');
+                if (n2.name && arrTypeLabel) {
+                    arrText = `${n2.name} (${n2.floorId}階に到着)`;
+                } else if (arrTypeLabel) {
+                    arrText = `${arrTypeLabel}で${n2.floorId}階に到着`;
+                }
 
                 // Determine "Path Direction" to avoid collision
                 // For n1 (Departure), the path on THIS floor comes from previous node
