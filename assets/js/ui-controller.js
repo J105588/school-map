@@ -734,6 +734,11 @@ class UIController {
         console.log("[QR] Starting manual camera stream...");
 
         try {
+            // Secure Context check & getUserMedia check
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error("NotSupportedError");
+            }
+
             // Request Camera
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: "environment" }
@@ -751,6 +756,8 @@ class UIController {
             let msg = "カメラの起動に失敗しました。";
             if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
                 msg = "カメラのアクセス権限がありません。\nブラウザの設定を確認してください。";
+            } else if (err.message === "NotSupportedError" || err.name === "TypeError") {
+                msg = "この接続環境（HTTP接続など）またはブラウザでは、カメラ機能がサポートされていません。\nHTTPS接続でアクセスするか、ローカルホストでお試しください。";
             }
             alert(msg);
             this.stopScanner();

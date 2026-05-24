@@ -63,39 +63,8 @@ class MapEngine {
         this.resize();
         window.addEventListener('resize', () => this.resize());
 
-        // --- INPUT HANDLING (Ported from scroll-test.html) ---
-        // Simple, standard listeners. No global capture.
-
-        // Mouse Events
-        this.canvas.addEventListener('mousedown', (e) => {
-            this.isDragging = true;
-            this.dragStart = { x: e.offsetX, y: e.offsetY };
-            this.canvas.style.cursor = 'grabbing';
-            // console.log("[Input] MouseDown");
-        });
-
-        window.addEventListener('mouseup', () => {
-            if (this.isDragging) {
-                this.isDragging = false;
-                this.canvas.style.cursor = 'grab';
-                // console.log("[Input] MouseUp");
-            }
-        });
-
-        this.canvas.addEventListener('mousemove', (e) => {
-            if (!this.isDragging) return;
-            e.preventDefault();
-
-            const dx = e.offsetX - this.dragStart.x;
-            const dy = e.offsetY - this.dragStart.y;
-            this.dragStart = { x: e.offsetX, y: e.offsetY };
-
-            this.applyRotatedPan(dx, dy);
-        });
-
-
-
-        // Touch Events (Expanded for Pinch Zoom & Rotate)
+        // --- INPUT HANDLING ---
+        // Unified input handling utilizing PointerEvents if supported, otherwise falling back.
         this.touchState = {
             mode: 'none', // 'drag', 'pinch'
             startDist: 0,
@@ -104,89 +73,215 @@ class MapEngine {
             startScale: 1
         };
 
-        this.canvas.addEventListener('touchstart', (e) => {
-            if (e.touches.length === 1) {
-                // Single Touch -> DRAG
-                this.isDragging = true;
-                this.touchState.mode = 'drag';
-                const rect = this.canvas.getBoundingClientRect();
-                this.dragStart = {
-                    x: e.touches[0].clientX - rect.left,
-                    y: e.touches[0].clientY - rect.top
-                };
-            } else if (e.touches.length === 2) {
-                // Two Touches -> PINCH (Zoom + Rotate)
-                this.isDragging = false; // Cancel drag
-                this.touchState.mode = 'pinch';
-                this.enableAutoRotation = false; // Disable auto-rotation on manual interaction
+        if (window.PointerEvent) {
+            this.activePointers = [];
 
-                const t1 = e.touches[0];
-                const t2 = e.touches[1];
-                const dx = t2.clientX - t1.clientX;
-                const dy = t2.clientY - t1.clientY;
+            this.canvas.addEventListener('pointerdown', (e) => {
+                if (e.pointerType === 'mouse' && e.button !== 0) return;
+                
+                this.activePointers.push({
+                    id: e.pointerId,
+                    clientX: e.clientX,
+                    clientY: e.clientY
+                });
 
-                this.touchState.startDist = Math.hypot(dx, dy);
-                this.touchState.startAngle = Math.atan2(dy, dx) * 180 / Math.PI;
-                this.touchState.startRotation = this.rotation;
-                this.touchState.startScale = this.transform.k;
-            }
-        }, { passive: false });
+                if (this.activePointers.length === 1) {
+                    this.isDragging = true;
+                    this.touchState.mode = 'drag';
+                    const rect = this.canvas.getBoundingClientRect();
+                    this.dragStart = {
+                        x: e.clientX - rect.left,
+                        y: e.clientY - rect.top
+                    };
+                    this.canvas.style.cursor = 'grabbing';
+                } else if (this.activePointers.length === 2) {
+                    this.isDragging = false;
+                    this.touchState.mode = 'pinch';
+                    this.enableAutoRotation = false;
 
-        this.canvas.addEventListener('touchmove', (e) => {
-            e.preventDefault(); // Always prevent default scroll/zoom
+                    const p1 = this.activePointers[0];
+                    const p2 = this.activePointers[1];
+                    const dx = p2.clientX - p1.clientX;
+                    const dy = p2.clientY - p1.clientY;
 
-            if (this.touchState.mode === 'drag' && e.touches.length === 1) {
-                const rect = this.canvas.getBoundingClientRect();
-                const tx = e.touches[0].clientX - rect.left;
-                const ty = e.touches[0].clientY - rect.top;
-
-                const dx = tx - this.dragStart.x;
-                const dy = ty - this.dragStart.y;
-                this.dragStart = { x: tx, y: ty };
-
-                this.applyRotatedPan(dx, dy);
-
-            } else if (this.touchState.mode === 'pinch' && e.touches.length === 2) {
-                const t1 = e.touches[0];
-                const t2 = e.touches[1];
-                const dx = t2.clientX - t1.clientX;
-                const dy = t2.clientY - t1.clientY;
-
-                // 1. Calculate New Distance & Scale
-                const currDist = Math.hypot(dx, dy);
-                if (this.touchState.startDist > 0) {
-                    const scaleFactor = currDist / this.touchState.startDist;
-                    const newScale = this.touchState.startScale * scaleFactor;
-
-                    // Apply Zoom (Manual D3 Scale Update)
-                    // We need to keep the "center" of the zoom stable? 
-                    // D3.zoom handles this beautifully. Replicating it perfectly is hard.
-                    // Ideally, we'd tell D3 to zoom. 
-                    this.zoom.scaleTo(d3.select(this.canvas), newScale);
+                    this.touchState.startDist = Math.hypot(dx, dy);
+                    this.touchState.startAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+                    this.touchState.startRotation = this.rotation;
+                    this.touchState.startScale = this.transform.k;
                 }
 
-                // 2. Calculate New Angle & Rotation
-                const currAngle = Math.atan2(dy, dx) * 180 / Math.PI;
-                const angleDiff = currAngle - this.touchState.startAngle;
-                this.setRotation(this.touchState.startRotation + angleDiff, 0); // 0 duration for instant update
-            }
-        }, { passive: false });
+                if (e.pointerType !== 'mouse') {
+                    try {
+                        this.canvas.setPointerCapture(e.pointerId);
+                    } catch (err) {}
+                }
+            });
 
-        this.canvas.addEventListener('touchend', (e) => {
-            if (e.touches.length === 0) {
-                this.isDragging = false;
-                this.touchState.mode = 'none';
-            } else if (e.touches.length === 1) {
-                // Switch back to drag? or just end pinch?
-                // Usually easier to just reset.
-                this.touchState.mode = 'drag';
-                const rect = this.canvas.getBoundingClientRect();
-                this.dragStart = {
-                    x: e.touches[0].clientX - rect.left,
-                    y: e.touches[0].clientY - rect.top
-                };
-            }
-        });
+            this.canvas.addEventListener('pointermove', (e) => {
+                const idx = this.activePointers.findIndex(p => p.id === e.pointerId);
+                if (idx === -1) return;
+
+                this.activePointers[idx].clientX = e.clientX;
+                this.activePointers[idx].clientY = e.clientY;
+
+                if (this.touchState.mode === 'drag' && this.activePointers.length === 1) {
+                    const rect = this.canvas.getBoundingClientRect();
+                    const tx = e.clientX - rect.left;
+                    const ty = e.clientY - rect.top;
+
+                    const dx = tx - this.dragStart.x;
+                    const dy = ty - this.dragStart.y;
+                    this.dragStart = { x: tx, y: ty };
+
+                    this.applyRotatedPan(dx, dy);
+                } else if (this.touchState.mode === 'pinch' && this.activePointers.length === 2) {
+                    const p1 = this.activePointers[0];
+                    const p2 = this.activePointers[1];
+                    const dx = p2.clientX - p1.clientX;
+                    const dy = p2.clientY - p1.clientY;
+
+                    // 1. Calculate New Distance & Scale
+                    const currDist = Math.hypot(dx, dy);
+                    if (this.touchState.startDist > 0) {
+                        const scaleFactor = currDist / this.touchState.startDist;
+                        const newScale = this.touchState.startScale * scaleFactor;
+                        this.zoom.scaleTo(d3.select(this.canvas), newScale);
+                    }
+
+                    // 2. Calculate New Angle & Rotation
+                    const currAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+                    const angleDiff = currAngle - this.touchState.startAngle;
+                    this.setRotation(this.touchState.startRotation + angleDiff, 0);
+                }
+            });
+
+            const onPointerEnd = (e) => {
+                this.activePointers = this.activePointers.filter(p => p.id !== e.pointerId);
+
+                if (this.activePointers.length === 0) {
+                    this.isDragging = false;
+                    this.touchState.mode = 'none';
+                    this.canvas.style.cursor = 'grab';
+                } else if (this.activePointers.length === 1) {
+                    this.touchState.mode = 'drag';
+                    const rect = this.canvas.getBoundingClientRect();
+                    const activeP = this.activePointers[0];
+                    this.dragStart = {
+                        x: activeP.clientX - rect.left,
+                        y: activeP.clientY - rect.top
+                    };
+                }
+
+                if (e.pointerType !== 'mouse') {
+                    try {
+                        this.canvas.releasePointerCapture(e.pointerId);
+                    } catch (err) {}
+                }
+            };
+
+            this.canvas.addEventListener('pointerup', onPointerEnd);
+            this.canvas.addEventListener('pointercancel', onPointerEnd);
+            this.canvas.addEventListener('pointerout', onPointerEnd);
+
+        } else {
+            // Fallback Mouse Events
+            this.canvas.addEventListener('mousedown', (e) => {
+                this.isDragging = true;
+                this.dragStart = { x: e.offsetX, y: e.offsetY };
+                this.canvas.style.cursor = 'grabbing';
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (this.isDragging) {
+                    this.isDragging = false;
+                    this.canvas.style.cursor = 'grab';
+                }
+            });
+
+            this.canvas.addEventListener('mousemove', (e) => {
+                if (!this.isDragging) return;
+                e.preventDefault();
+
+                const dx = e.offsetX - this.dragStart.x;
+                const dy = e.offsetY - this.dragStart.y;
+                this.dragStart = { x: e.offsetX, y: e.offsetY };
+
+                this.applyRotatedPan(dx, dy);
+            });
+
+            // Fallback Touch Events
+            this.canvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    this.isDragging = true;
+                    this.touchState.mode = 'drag';
+                    const rect = this.canvas.getBoundingClientRect();
+                    this.dragStart = {
+                        x: e.touches[0].clientX - rect.left,
+                        y: e.touches[0].clientY - rect.top
+                    };
+                } else if (e.touches.length === 2) {
+                    this.isDragging = false;
+                    this.touchState.mode = 'pinch';
+                    this.enableAutoRotation = false;
+
+                    const t1 = e.touches[0];
+                    const t2 = e.touches[1];
+                    const dx = t2.clientX - t1.clientX;
+                    const dy = t2.clientY - t1.clientY;
+
+                    this.touchState.startDist = Math.hypot(dx, dy);
+                    this.touchState.startAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+                    this.touchState.startRotation = this.rotation;
+                    this.touchState.startScale = this.transform.k;
+                }
+            }, { passive: false });
+
+            this.canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+
+                if (this.touchState.mode === 'drag' && e.touches.length === 1) {
+                    const rect = this.canvas.getBoundingClientRect();
+                    const tx = e.touches[0].clientX - rect.left;
+                    const ty = e.touches[0].clientY - rect.top;
+
+                    const dx = tx - this.dragStart.x;
+                    const dy = ty - this.dragStart.y;
+                    this.dragStart = { x: tx, y: ty };
+
+                    this.applyRotatedPan(dx, dy);
+                } else if (this.touchState.mode === 'pinch' && e.touches.length === 2) {
+                    const t1 = e.touches[0];
+                    const t2 = e.touches[1];
+                    const dx = t2.clientX - t1.clientX;
+                    const dy = t2.clientY - t1.clientY;
+
+                    const currDist = Math.hypot(dx, dy);
+                    if (this.touchState.startDist > 0) {
+                        const scaleFactor = currDist / this.touchState.startDist;
+                        const newScale = this.touchState.startScale * scaleFactor;
+                        this.zoom.scaleTo(d3.select(this.canvas), newScale);
+                    }
+
+                    const currAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+                    const angleDiff = currAngle - this.touchState.startAngle;
+                    this.setRotation(this.touchState.startRotation + angleDiff, 0);
+                }
+            }, { passive: false });
+
+            this.canvas.addEventListener('touchend', (e) => {
+                if (e.touches.length === 0) {
+                    this.isDragging = false;
+                    this.touchState.mode = 'none';
+                } else if (e.touches.length === 1) {
+                    this.touchState.mode = 'drag';
+                    const rect = this.canvas.getBoundingClientRect();
+                    this.dragStart = {
+                        x: e.touches[0].clientX - rect.left,
+                        y: e.touches[0].clientY - rect.top
+                    };
+                }
+            });
+        }
     }
 
     // Manual Rotation API
