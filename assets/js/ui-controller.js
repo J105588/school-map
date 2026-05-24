@@ -271,7 +271,7 @@ class UIController {
             return {
                 value: n.id,
                 title: title,
-                org: n.organization || (n.eventName ? '展示団体：' + n.name : ''), // Secondary text
+                org: n.organization || (n.eventName ? '展示場所：' + n.name : ''), // Secondary text
                 category: this.getTypeLabel(n.type),
                 type: n.type,
                 floor: n.floorId,
