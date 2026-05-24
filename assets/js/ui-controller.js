@@ -549,14 +549,16 @@ class UIController {
             startX = clientX;
             startY = clientY;
 
-            const rect = this.mobileOverlay.getBoundingClientRect();
-            // We need to work with computed values if style is not set, but rect is safer
-            initialLeft = rect.left;
-            initialTop = rect.top;
-
-            // Disable transition during drag
-            this.mobileOverlay.style.transition = 'none';
-            this.mobileOverlay.style.right = 'auto'; // Clear right to allow left positioning
+            if (window.innerWidth > 768) {
+                const rect = this.mobileOverlay.getBoundingClientRect();
+                initialLeft = rect.left;
+                initialTop = rect.top;
+                this.mobileOverlay.style.transition = 'none';
+                this.mobileOverlay.style.right = 'auto'; // Clear right to allow left positioning
+            } else {
+                // Mobile: Disable transition for smooth swipe tracking
+                this.mobileOverlay.style.transition = 'none';
+            }
 
             document.addEventListener(e.type === 'mousedown' ? 'mousemove' : 'touchmove', onMove, { passive: false });
             document.addEventListener(e.type === 'mousedown' ? 'mouseup' : 'touchend', onEnd);
@@ -574,11 +576,18 @@ class UIController {
 
             if (Math.abs(dx) > 5 || Math.abs(dy) > 5) hasMoved = true;
 
-            // Only track horizontal movement on desktop (where overlay has fixed width)
             if (window.innerWidth > 768) {
                 this.mobileOverlay.style.left = `${initialLeft + dx}px`;
+                this.mobileOverlay.style.top = `${initialTop + dy}px`;
+            } else {
+                // Mobile: Translate vertically based on drag distance
+                const isCollapsed = this.mobileOverlay.classList.contains('collapsed');
+                if (isCollapsed && dy < 0) {
+                    this.mobileOverlay.style.transform = `translateY(${dy}px)`;
+                } else if (!isCollapsed && dy > 0) {
+                    this.mobileOverlay.style.transform = `translateY(${dy}px)`;
+                }
             }
-            this.mobileOverlay.style.top = `${initialTop + dy}px`;
         };
 
         const onEnd = (e) => {
@@ -592,17 +601,24 @@ class UIController {
 
             // Re-enable height transition and restore styles defined in stylesheet
             this.mobileOverlay.style.transition = '';
-            this.mobileOverlay.style.left = '';
-            this.mobileOverlay.style.right = '';
-            
-            // On mobile, reset top to stick to bottom position
-            if (window.innerWidth <= 768) {
-                this.mobileOverlay.style.top = '';
-            }
+            this.mobileOverlay.style.transform = '';
 
-            if (!hasMoved) {
-                // Treated as Click -> Toggle Collapse
-                this.mobileOverlay.classList.toggle('collapsed');
+            if (window.innerWidth > 768) {
+                this.mobileOverlay.style.left = '';
+                this.mobileOverlay.style.right = '';
+                this.mobileOverlay.style.top = '';
+            } else {
+                const clientY = e.type === 'touchend' ? e.changedTouches[0].clientY : e.clientY;
+                const dy = clientY - startY;
+
+                if (dy < -40) {
+                    this.mobileOverlay.classList.remove('collapsed');
+                } else if (dy > 40) {
+                    this.mobileOverlay.classList.add('collapsed');
+                } else if (!hasMoved) {
+                    // Treated as Click -> Toggle Collapse
+                    this.mobileOverlay.classList.toggle('collapsed');
+                }
             }
         };
 
