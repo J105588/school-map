@@ -1029,6 +1029,39 @@ input:checked+.slider:before {
         gap: 12px;
         flex-grow: 1;
         min-width: 0;
+        cursor: pointer;
+        transition: opacity 0.2s, background-color 0.2s, transform 0.1s;
+        border-radius: 8px;
+        padding: 4px 8px;
+        margin-left: -8px;
+    }
+
+    .summary-content:hover {
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .summary-content:active {
+        background: rgba(255, 255, 255, 0.15);
+        transform: scale(0.98);
+    }
+
+    .summary-edit-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.15);
+        color: rgba(255, 255, 255, 0.85);
+        flex-shrink: 0;
+        margin-left: 4px;
+        transition: background-color 0.2s, color 0.2s;
+    }
+
+    .summary-content:hover .summary-edit-btn {
+        background: rgba(255, 255, 255, 0.3);
+        color: white;
     }
 
     .summary-point {

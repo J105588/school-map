@@ -131,6 +131,18 @@ class UIController {
             });
         }
 
+        if (this.mobileSummaryBar) {
+            const summaryContent = this.mobileSummaryBar.querySelector('.summary-content');
+            if (summaryContent) {
+                summaryContent.addEventListener('click', () => {
+                    if (this.sidebar) {
+                        this.sidebar.classList.add('active');
+                        this.sidebar.style.transform = '';
+                    }
+                });
+            }
+        }
+
         // No floor tabs needed for merged map
         // this.renderFloorTabs();
 
@@ -430,10 +442,22 @@ class UIController {
                 let endText = eNode ? (eNode.eventName || eNode.name) : "目的地";
                 
                 // Add floor info for extra clarity if nodes exist
-                if (sNode) startText += ` (${sNode.floorId}F)`;
+                if (sNode) {
+                    let startDetail = `${sNode.floorId}F`;
+                    const sOrg = sNode.organization || (sNode.eventName ? sNode.name : '');
+                    if (sOrg) {
+                        startDetail += ` - ${sOrg}`;
+                    }
+                    startText += ` (${startDetail})`;
+                }
                 if (eNode) {
                     if (eNode.floorId) {
-                        endText += ` (${eNode.floorId}F)`;
+                        let endDetail = `${eNode.floorId}F`;
+                        const eOrg = eNode.organization || (eNode.eventName ? eNode.name : '');
+                        if (eOrg) {
+                            endDetail += ` - ${eOrg}`;
+                        }
+                        endText += ` (${endDetail})`;
                     } else if (endVal.startsWith("NEAREST_")) {
                         const labelMap = {
                             "NEAREST_MALE": "最寄男子トイレ",
@@ -517,7 +541,8 @@ class UIController {
             if (!title && isTransfer) title = "フロア移動";
 
             let desc = `${node.floorId}階`;
-            if (node.organization) desc += ` - ${node.organization}`;
+            const orgText = node.organization || (node.eventName ? node.name : '');
+            if (orgText) desc += ` - ${orgText}`;
 
             if (isTransfer) {
                 const typeLabel = node.type === 'elevator' ? 'エレベーター' : (node.type === 'stairs' ? '階段' : '移動');
