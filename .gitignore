@@ -1,3 +1,4 @@
 qr_code/
 JSON/
 supabase_insert_data.sql
+migrate-to-supabase.js
