@@ -19,8 +19,91 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-    <!-- Styles -->
-    <link rel="stylesheet" href="assets/css/style.css">
+    <!-- App Config & Privacy Pre-check -->
+    <script src="assets/js/config.js"></script>
+    <script>
+        (async function() {
+            try {
+                // Direct REST API fetch to Supabase RPC without loading SDK
+                const response = await fetch(`${AppConfig.SUPABASE_URL}/rest/v1/rpc/get_map_status`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': AppConfig.SUPABASE_ANON_KEY,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const isPrivate = await response.json();
+                
+                if (isPrivate) {
+                    // Private Mode: Overwrite document, display minimal UI, and stop loading everything else
+                    document.documentElement.innerHTML = `
+                        <html lang="ja">
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            <title>I-Compass - 非公開</title>
+                            <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+                            <style>
+                                body {
+                                    margin: 0;
+                                    padding: 20px;
+                                    height: 100vh;
+                                    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+                                    font-family: 'Outfit', 'Noto Sans JP', sans-serif;
+                                    color: #ffffff;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    text-align: center;
+                                }
+                                .box {
+                                    max-width: 500px;
+                                    padding: 40px;
+                                    border-radius: 24px;
+                                    background: rgba(255, 255, 255, 0.03);
+                                    border: 1px solid rgba(255, 255, 255, 0.08);
+                                    backdrop-filter: blur(12px);
+                                    -webkit-backdrop-filter: blur(12px);
+                                    box-shadow: 0 30px 50px rgba(0, 0, 0, 0.4);
+                                }
+                                h1 { margin: 0 0 12px 0; font-size: 26px; font-weight: 700; }
+                                h2 { margin: 0 0 16px 0; color: #c5a059; font-size: 18px; font-weight: 600; }
+                                p { margin: 0; color: #94a3b8; font-size: 14px; line-height: 1.6; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="box">
+                                <div style="margin-bottom: 28px; display: inline-flex; align-items: center; justify-content: center; width: 80px; height: 80px; border-radius: 50%; background: rgba(255, 255, 255, 0.05); border: 1.5px solid rgba(197, 160, 89, 0.3);">
+                                    <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#c5a059" stroke-width="1.5">
+                                        <circle cx="12" cy="12" r="9" />
+                                        <rect x="9" y="11" width="6" height="5" rx="1" stroke="#ff5252" stroke-width="2"/>
+                                        <path d="M10 11V9a2 2 0 0 1 4 0v2" stroke="#ff5252" stroke-width="2" stroke-linecap="round"/>
+                                    </svg>
+                                </div>
+                                <h1>I-Compass</h1>
+                                <h2>非公開設定</h2>
+                                <p>現在、校内マップは非公開に設定されています。<br>公開開始までしばらくお待ちください。</p>
+                            </div>
+                        </body>
+                        </html>
+                    `;
+                    window.stop();
+                } else {
+                    // Public Mode: Dynamically load stylesheet
+                    const link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href = 'assets/css/style.css';
+                    document.head.appendChild(link);
+                }
+            } catch (err) {
+                console.error("Privacy check failed, load assets:", err);
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = 'assets/css/style.css';
+                document.head.appendChild(link);
+            }
+        })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 </head>
 
@@ -341,40 +424,57 @@
         </div>
     </div>
 
-    <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="assets/js/config.js"></script>
-    <script src="assets/js/supabase-client.js"></script>
-    <script src="assets/js/map-core.js"></script>
-    <script src="assets/js/ui-controller.js"></script>
-    <script src="assets/js/tutorial.js"></script>
-
+    <!-- Dynamic scripts loader -->
     <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            // Check privacy status
-            try {
-                const isPrivate = await SupabaseClient.isPrivate();
-                if (isPrivate) {
-                    SupabaseClient.showPrivateMessage();
-                    return; // Stop initialization
+        // Only run script loading if page wasn't stopped by private mode
+        if (typeof AppConfig !== 'undefined') {
+            (function() {
+                const scripts = [
+                    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
+                    'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js',
+                    'https://d3js.org/d3.v7.min.js',
+                    'assets/js/supabase-client.js',
+                    'assets/js/map-core.js',
+                    'assets/js/ui-controller.js',
+                    'assets/js/tutorial.js'
+                ];
+
+                let index = 0;
+                function loadNextScript() {
+                    if (index >= scripts.length) {
+                        // All scripts loaded, initialize app!
+                        initializeApp();
+                        return;
+                    }
+                    const script = document.createElement('script');
+                    script.src = scripts[index];
+                    script.onload = () => {
+                        index++;
+                        loadNextScript();
+                    };
+                    script.onerror = () => {
+                        console.error("Failed to load script:", scripts[index]);
+                        index++;
+                        loadNextScript();
+                    };
+                    document.head.appendChild(script);
                 }
-            } catch (err) {
-                console.error("Privacy check failed:", err);
-            }
+                loadNextScript();
+            })();
 
-            // Init App
-            const engine = new MapEngine('mapCanvas', 'map-wrapper');
-            window.ui = new UIController(engine);
+            function initializeApp() {
+                // Init App
+                const engine = new MapEngine('mapCanvas', 'map-wrapper');
+                window.ui = new UIController(engine);
 
-            // Check URL params for floor
-            const params = new URLSearchParams(window.location.search);
-            const floor = params.get('floor');
-            if (floor) {
-                window.ui.switchFloor(parseInt(floor));
+                // Check URL params for floor
+                const params = new URLSearchParams(window.location.search);
+                const floor = params.get('floor');
+                if (floor) {
+                    window.ui.switchFloor(parseInt(floor));
+                }
             }
-        });
+        }
     </script>
 </body>
 
