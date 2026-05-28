@@ -21,6 +21,15 @@
 
     <!-- App Config & Privacy Pre-check -->
     <script src="assets/js/config.js"></script>
+    <style id="detection-blocking-style">
+        html, body {
+            background-color: #ffffff !important;
+            background: #ffffff !important;
+        }
+        body {
+            display: none !important;
+        }
+    </style>
     <script>
         (async function() {
             try {
@@ -70,7 +79,7 @@
                                 h2 { margin: 0 0 16px 0; color: #c5a059; font-size: 18px; font-weight: 600; }
                                 p { margin: 0; color: #94a3b8; font-size: 14px; line-height: 1.6; }
                             <\/style>
-                        <\/head>
+                            <\/head>
                         <body>
                             <div class="box">
                                 <div style="margin-bottom: 28px; display: inline-flex; align-items: center; justify-content: center; width: 80px; height: 80px; border-radius: 50%; background: rgba(255, 255, 255, 0.05); border: 1.5px solid rgba(197, 160, 89, 0.3);">
@@ -89,7 +98,10 @@
                     `;
                     window.stop();
                 } else {
-                    // Public Mode: Dynamically load stylesheet
+                    // Public Mode: Remove blocking style and dynamically load stylesheet
+                    const blockStyle = document.getElementById('detection-blocking-style');
+                    if (blockStyle) blockStyle.remove();
+
                     const link = document.createElement('link');
                     link.rel = 'stylesheet';
                     link.href = 'assets/css/style.css';
@@ -97,6 +109,9 @@
                 }
             } catch (err) {
                 console.error("Privacy check failed, load assets:", err);
+                const blockStyle = document.getElementById('detection-blocking-style');
+                if (blockStyle) blockStyle.remove();
+
                 const link = document.createElement('link');
                 link.rel = 'stylesheet';
                 link.href = 'assets/css/style.css';
