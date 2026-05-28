@@ -52,7 +52,7 @@ const SupabaseClient = {
 
         const { data, error } = await client.rpc('get_public_floor_data', { p_floor_id: floorId });
         if (error) throw error;
-        
+
         // Match response format (RPC returns array, we extract first item)
         if (data && data.length > 0) {
             return {
@@ -78,9 +78,9 @@ const SupabaseClient = {
         const client = this.init();
         if (!client) throw new Error("Supabase is not initialized");
 
-        const { data, error } = await client.rpc('get_admin_floor_data', { 
-            p_floor_id: floorId, 
-            p_admin_passcode: passcode 
+        const { data, error } = await client.rpc('get_admin_floor_data', {
+            p_floor_id: floorId,
+            p_admin_passcode: passcode
         });
         if (error) throw error;
 
@@ -98,8 +98,8 @@ const SupabaseClient = {
         const client = this.init();
         if (!client) throw new Error("Supabase is not initialized");
 
-        const { data, error } = await client.rpc('get_admin_order_data', { 
-            p_admin_passcode: passcode 
+        const { data, error } = await client.rpc('get_admin_order_data', {
+            p_admin_passcode: passcode
         });
         if (error) throw error;
         return data || { default: 9999, items: {} };
@@ -348,9 +348,9 @@ const SupabaseClient = {
                 </svg>
             </div>
             <h1 style="margin: 0 0 12px 0; color: #ffffff; font-size: 26px; font-weight: 700; letter-spacing: -0.5px;">I-Compass</h1>
-            <h2 style="margin: 0 0 16px 0; color: #c5a059; font-size: 18px; font-weight: 600;">校内マップ非公開設定</h2>
+            <h2 style="margin: 0 0 16px 0; color: #c5a059; font-size: 18px; font-weight: 600;">非公開設定</h2>
             <p style="margin: 0; color: #94a3b8; font-size: 14px; line-height: 1.6;">
-                現在、マップデータは非公開に設定されています。<br>
+                現在、校内マップは非公開に設定されています。<br>
                 公開開始までしばらくお待ちください。
             </p>
         `;
@@ -361,7 +361,7 @@ const SupabaseClient = {
         // Hide app-container to prevent showing cached background UI
         const appContainer = document.querySelector('.app-container');
         if (appContainer) appContainer.style.display = 'none';
-        
+
         const openingOverlay = document.getElementById('opening-overlay');
         if (openingOverlay) openingOverlay.style.display = 'none';
 
