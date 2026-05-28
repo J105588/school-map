@@ -72,10 +72,7 @@ button, a, select, input, [role="button"],
     height: 120px;
     margin: 0 auto 20px;
     position: relative;
-    border: 4px solid var(--primary-color);
-    /* Navy border */
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.5);
     box-shadow: 0 10px 30px rgba(26, 35, 126, 0.2);
     display: flex;
     justify-content: center;
@@ -83,9 +80,7 @@ button, a, select, input, [role="button"],
 }
 
 .compass-needle-large {
-    width: 90px;
-    height: 90px;
-    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,0 60,50 50,100 40,50" fill="%23c5a059"/><polygon points="50,0 60,50 50,50 50,0" fill="%23c62828"/></svg>') no-repeat center/contain;
+    transform-origin: 60px 60px;
     /* Initial state, animation handled by JS/classes */
     transform: rotate(-90deg);
     filter: drop-shadow(2px 2px 3px rgba(0, 0, 0, 0.2));

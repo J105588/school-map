@@ -135,7 +135,19 @@
     <div id="opening-overlay">
         <div class="opening-content">
             <div class="compass-logo-large">
-                <div class="compass-needle-large"></div>
+                <svg class="compass-svg-large" viewBox="0 0 120 120" width="120" height="120">
+                    <!-- Disk Background -->
+                    <circle cx="60" cy="60" r="56" fill="rgba(255, 255, 255, 0.5)" />
+                    <!-- Outer Ring (Border) -->
+                    <circle cx="60" cy="60" r="56" fill="none" stroke="var(--primary-color)" stroke-width="4" />
+                    <!-- Needle Group -->
+                    <g class="compass-needle-large">
+                        <!-- Gold Diamond -->
+                        <polygon points="60,15 70,60 60,105 50,60" fill="#c5a059" />
+                        <!-- Red Triangle -->
+                        <polygon points="60,15 70,60 60,60" fill="#c62828" />
+                    </g>
+                </svg>
             </div>
             <h1 class="opening-title">I-Compass</h1>
             <div class="opening-status">システム起動中...</div>
