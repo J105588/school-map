@@ -27,11 +27,15 @@
             background: #ffffff !important;
         }
         body {
-            display: none !important;
+            opacity: 0 !important;
         }
     </style>
     <script>
         (async function() {
+            const removeBlock = () => {
+                const blockStyle = document.getElementById('detection-blocking-style');
+                if (blockStyle) blockStyle.remove();
+            };
             try {
                 // Direct REST API fetch to Supabase RPC without loading SDK
                 const response = await fetch(`${AppConfig.SUPABASE_URL}/rest/v1/rpc/get_map_status`, {
@@ -98,24 +102,28 @@
                     `;
                     window.stop();
                 } else {
-                    // Public Mode: Remove blocking style and dynamically load stylesheet
-                    const blockStyle = document.getElementById('detection-blocking-style');
-                    if (blockStyle) blockStyle.remove();
-
+                    // Public Mode: Dynamically load stylesheet and remove blocking style once loaded
                     const link = document.createElement('link');
                     link.rel = 'stylesheet';
                     link.href = 'assets/css/style.css';
+                    link.onload = removeBlock;
+                    link.onerror = removeBlock;
                     document.head.appendChild(link);
+
+                    // Fallback to prevent infinite blank screen
+                    setTimeout(removeBlock, 1500);
                 }
             } catch (err) {
                 console.error("Privacy check failed, load assets:", err);
-                const blockStyle = document.getElementById('detection-blocking-style');
-                if (blockStyle) blockStyle.remove();
-
                 const link = document.createElement('link');
                 link.rel = 'stylesheet';
                 link.href = 'assets/css/style.css';
+                link.onload = removeBlock;
+                link.onerror = removeBlock;
                 document.head.appendChild(link);
+
+                // Fallback to prevent infinite blank screen
+                setTimeout(removeBlock, 1500);
             }
         })();
     </script>
@@ -151,7 +159,7 @@
                         </svg>
                         <h1 class="logo-text">I-Compass</h1>
                     </div>
-                    <div class="header-actions mobile-only" style="display: flex; gap: 8px;">
+                    <div class="header-actions mobile-only">
                         <button id="sidebar-close-btn" class="icon-btn" title="閉じる">
                             <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
                                 <path
@@ -488,6 +496,11 @@
                 if (floor) {
                     window.ui.switchFloor(parseInt(floor));
                 }
+
+                // Force a resize check in case the stylesheet loaded after MapEngine creation
+                setTimeout(() => {
+                    engine.resize();
+                }, 100);
             }
         }
     </script>

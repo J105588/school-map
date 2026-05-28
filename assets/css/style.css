@@ -930,6 +930,7 @@ input:checked+.slider:before {
     .header-actions {
         position: static;
         transform: none;
+        display: flex;
     }
 
     .logo-text {
