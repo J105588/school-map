@@ -20,7 +20,14 @@ const SupabaseClient = {
             return null;
         }
 
-        this.client = supabase.createClient(AppConfig.SUPABASE_URL, AppConfig.SUPABASE_ANON_KEY);
+        // URLの末尾のスラッシュや '/rest/v1' を自動でクレンジングするセーフガード
+        let url = AppConfig.SUPABASE_URL.trim().replace(/\/$/, "");
+        if (url.endsWith("/rest/v1")) {
+            url = url.substring(0, url.length - 8);
+        }
+        url = url.trim().replace(/\/$/, "");
+
+        this.client = supabase.createClient(url, AppConfig.SUPABASE_ANON_KEY);
         console.log("[SupabaseClient] Supabase initialized successfully.");
         return this.client;
     },

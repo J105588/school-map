@@ -3,7 +3,7 @@
  */
 const AppConfig = {
     // Supabase Settings (※実際のプロジェクト値に差し替えてください)
-    SUPABASE_URL: "https://rngkgtvdrlhnupczwuzx.supabase.co/rest/v1/",
+    SUPABASE_URL: "https://rngkgtvdrlhnupczwuzx.supabase.co",
     SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJuZ2tndHZkcmxobnVwY3p3dXp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzUwNDAsImV4cCI6MjA5NTU1MTA0MH0.mtmOAD7rILbDsSHLYfepxkXxlNt1Du6WYCzXyjjWw_E",
 
     FLOORS: [
