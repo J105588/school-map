@@ -331,7 +331,7 @@ class MapEngine {
         this.floorsConfig = floorsConfig;
 
         // Initialize with default immediately to prevent undefined errors
-        this.orderData = AppConfig.DEFAULT_ORDER || { default: 9999, items: {} };
+        this.orderData = { default: 9999, items: {} };
         console.log("[MapCore] Initialized orderData synchronously:", this.orderData);
 
         // Load Order Data Parallel from Supabase
@@ -341,8 +341,8 @@ class MapEngine {
                 console.log("[MapCore] Order data loaded from Supabase:", this.orderData);
             })
             .catch(e => {
-                console.warn("[MapCore] Using embedded default order:", e);
-                this.orderData = AppConfig.DEFAULT_ORDER || { default: 9999, items: {} };
+                console.warn("[MapCore] Using generic default order:", e);
+                this.orderData = { default: 9999, items: {} };
             });
 
         this.globalNodes = [];

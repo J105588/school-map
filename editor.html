@@ -956,10 +956,10 @@
 
         // Use AppConfig if loaded, otherwise fallback
         const floorsConfig = (typeof AppConfig !== 'undefined' && AppConfig.FLOORS) ? AppConfig.FLOORS : [
-            { id: 1, name: '1F', label: '1階', jsonPath: 'JSON/1.json', imagePath: 'images/floor1.png' },
-            { id: 2, name: '2F', label: '2階', jsonPath: 'JSON/2.json', imagePath: 'images/floor2.png' },
-            { id: 3, name: '3F', label: '3階', jsonPath: 'JSON/3.json', imagePath: 'images/floor3.png' },
-            { id: 4, name: '4F', label: '4階', jsonPath: 'JSON/4.json', imagePath: 'images/floor4.png' }
+            { id: 1, name: '1F', label: '1階', imagePath: 'images/floor1.png' },
+            { id: 2, name: '2F', label: '2階', imagePath: 'images/floor2.png' },
+            { id: 3, name: '3F', label: '3階', imagePath: 'images/floor3.png' },
+            { id: 4, name: '4F', label: '4階', imagePath: 'images/floor4.png' }
         ];
 
         const defaultFloorId = 1;
@@ -972,7 +972,6 @@
                 id: floor.id,
                 name: floor.name,
                 label: floor.label,
-                jsonPath: floor.jsonPath,
                 imagePath: floor.imagePath,
                 nodes: [],
                 edges: [],
