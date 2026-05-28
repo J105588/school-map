@@ -334,55 +334,117 @@ class MapEngine {
         this.orderData = AppConfig.DEFAULT_ORDER || { default: 9999, items: {} };
         console.log("[MapCore] Initialized orderData synchronously:", this.orderData);
 
+        // Load Order Data Parallel from Supabase
+        const orderPromise = SupabaseClient.getPublicOrderData()
+            .then(data => {
+                this.orderData = data;
+                console.log("[MapCore] Order data loaded from Supabase:", this.orderData);
+            })
+            .catch(e => {
+                console.warn("[MapCore] Using embedded default order:", e);
+                this.orderData = AppConfig.DEFAULT_ORDER || { default: 9999, items: {} };
+            });
 
-        // Fetch all JSONs
-        const promises = floorsConfig.map(async (conf) => {
-            try {
-                const response = await fetch(conf.jsonPath);
-                const data = await response.json();
+        this.globalNodes = [];
+        this.globalEdges = [];
+        this.idMap = new Map();
+        this.images = {};
+        this.floorOffsets = {}; // { floorId: yOffset }
 
-                // Tag nodes with floorId
-                data.nodes.forEach(n => n.floorId = conf.id);
-                // Tag edges with floorId
-                data.edges.forEach(e => e.floorId = conf.id);
-
-                this.floorsData[conf.id] = data;
-
+        // 1. Load Images first to get dimensions
+        const imagePromises = floorsConfig.map(conf => {
+            return new Promise((resolve) => {
                 const img = new Image();
-                img.onload = () => {
-                    this.draw(); // Redraw when image loads
-                };
+                img.onload = () => resolve({ id: conf.id, img });
+                img.onerror = () => { console.error(`Failed loading ${conf.imagePath}`); resolve({ id: conf.id, img: null }); };
                 img.src = conf.imagePath;
                 this.images[conf.id] = img;
+            });
+        });
+
+        await Promise.all(imagePromises);
+
+        // 2. Calculate Offsets (Stacking and Cropping)
+        let currentY = 0;
+        const gap = AppConfig.FLOOR_GAP || 200;
+
+        // Settings for Cropping
+        const TARGET_WIDTH = 940;
+        this.floorCropX = {}; // { floorId: cropOffsetX }
+
+        // Sort floors descending (3, 2, 1) to stack top-down
+        const sortedFloors = [...floorsConfig].sort((a, b) => b.id - a.id);
+
+        sortedFloors.forEach(conf => {
+            this.floorOffsets[conf.id] = currentY;
+            const img = this.images[conf.id];
+
+            // Calculate Crop X (Center)
+            let cropX = 0;
+            if (img && img.width > TARGET_WIDTH) {
+                cropX = (img.width - TARGET_WIDTH) / 2;
+            }
+            this.floorCropX[conf.id] = cropX;
+
+            const height = (img && img.height) ? img.height : 1000;
+            currentY += height + gap;
+        });
+
+        this.totalHeight = currentY;
+        this.maxWidth = TARGET_WIDTH;
+
+        // 3. Load Map Data from Supabase and Apply Offsets
+        const jsonPromises = floorsConfig.map(async (conf) => {
+            try {
+                const data = await SupabaseClient.getPublicFloorData(conf.id);
+                const yOffset = this.floorOffsets[conf.id];
+                const xCrop = this.floorCropX[conf.id];
+
+                // Nodes
+                data.nodes.forEach(node => {
+                    const newId = `${conf.id}_${node.id}`;
+                    this.idMap.set(newId, {
+                        ...node,
+                        id: newId,
+                        originalId: node.id,
+                        floorId: conf.id,
+                        x: node.x - xCrop, // Current X
+                        baseX: node.x - xCrop, // Base X (Scale 1.0)
+                        localY: node.y,     // Store Local Y (Image Space) for dynamic stacking
+                        y: node.y + yOffset // Initial World Y
+                    });
+                    this.globalNodes.push(this.idMap.get(newId));
+                });
+
+                // Edges
+                let edgesCount = 0;
+                data.edges.forEach(edge => {
+                    const fromId = `${conf.id}_${edge.from}`;
+                    const toId = `${conf.id}_${edge.to}`;
+
+                    if (this.idMap.has(fromId) && this.idMap.has(toId)) {
+                        const dist = (typeof edge.dist === 'number') ? edge.dist : 1;
+                        this.globalEdges.push({
+                            from: fromId,
+                            to: toId,
+                            dist: dist,
+                            floorId: conf.id
+                        });
+                        edgesCount++;
+                    }
+                });
+
+                console.log(`Floor ${conf.id}: Loaded ${data.nodes.length} nodes, ${edgesCount} edges from Supabase`);
+
             } catch (e) {
-                console.error(`Failed to load floor ${conf.id}:`, e);
+                console.error(`Failed to load Supabase data for floor ${conf.id}`, e);
             }
         });
 
-        // Load Order Data (Try JSON first, fallback to Config)
-        // This ensures deployment uses latest JSON, while local dev works if fetch is blocked.
-        // Load Order Data (Try JSON first, fallback to Config)
-        const orderPromise = fetch(AppConfig.ORDER_FILE || 'JSON/order.json')
-            .then(res => {
-                if (!res.ok) throw new Error("Fetch failed: " + res.status);
-                return res.json();
-            })
-            .then(data => {
-                if (!data) throw new Error("JSON data is empty/null");
-                this.orderData = data;
-                console.log("[MapCore] Order data loaded from JSON:", this.orderData);
-            })
-            .catch(e => {
-                console.warn("[MapCore] Using embedded default order (JSON load skipped/failed):", e);
-                // Re-assign default just in case it was blown away
-                this.orderData = AppConfig.DEFAULT_ORDER || { default: 9999, items: {} };
-                console.log("[MapCore] Re-applied default orderData:", this.orderData);
-            });
-
-        promises.push(orderPromise);
-
-        await Promise.all(promises);
+        await Promise.all([orderPromise, ...jsonPromises]);
         this.buildGlobalGraph();
+        this.updateFloorLayout([]); // Init default layout
+        this.draw();
     }
 
     buildGlobalGraph() {
@@ -603,127 +665,7 @@ class MapEngine {
     }
     handleMouseUp() { this.isDragging = false; this.canvas.style.cursor = 'grab'; }
     // Load ALL data at startup to build the graph
-    async loadAllData(floorsConfig) {
-        this.floorsConfig = floorsConfig;
 
-        // Initialize with default immediately to prevent undefined errors
-        this.orderData = AppConfig.DEFAULT_ORDER || { default: 9999, items: {} };
-        console.log("[MapCore] Initialized orderData synchronously:", this.orderData);
-
-        // Load Order Data Parallel
-        fetch(AppConfig.ORDER_FILE || 'JSON/order.json')
-            .then(res => res.ok ? res.json() : Promise.reject(res.status))
-            .then(data => {
-                this.orderData = data;
-                console.log("[MapCore] Order data loaded from JSON:", this.orderData);
-            })
-            .catch(e => {
-                console.warn("[MapCore] Using embedded default order:", e);
-                this.orderData = AppConfig.DEFAULT_ORDER || { default: 9999, items: {} };
-            });
-
-        this.globalNodes = [];
-        this.globalEdges = [];
-        this.idMap = new Map();
-        this.images = {};
-        this.floorOffsets = {}; // { floorId: yOffset }
-
-        // 1. Load Images first to get dimensions
-        const imagePromises = floorsConfig.map(conf => {
-            return new Promise((resolve) => {
-                const img = new Image();
-                img.onload = () => resolve({ id: conf.id, img });
-                img.onerror = () => { console.error(`Failed loading ${conf.imagePath}`); resolve({ id: conf.id, img: null }); };
-                img.src = conf.imagePath;
-                this.images[conf.id] = img;
-            });
-        });
-
-        const loadedImages = await Promise.all(imagePromises);
-
-        // 2. Calculate Offsets (Stacking and Cropping)
-        let currentY = 0;
-        const gap = AppConfig.FLOOR_GAP || 200;
-
-        // Settings for Cropping
-        const TARGET_WIDTH = 940;
-        this.floorCropX = {}; // { floorId: cropOffsetX }
-
-        // Sort floors descending (3, 2, 1) to stack top-down
-        const sortedFloors = [...floorsConfig].sort((a, b) => b.id - a.id);
-
-        sortedFloors.forEach(conf => {
-            this.floorOffsets[conf.id] = currentY;
-            const img = this.images[conf.id];
-
-            // Calculate Crop X (Center)
-            let cropX = 0;
-            if (img && img.width > TARGET_WIDTH) {
-                cropX = (img.width - TARGET_WIDTH) / 2;
-            }
-            this.floorCropX[conf.id] = cropX;
-
-            const height = (img && img.height) ? img.height : 1000;
-            currentY += height + gap;
-        });
-
-        this.totalHeight = currentY;
-        this.maxWidth = TARGET_WIDTH;
-
-        // 3. Load JSON and Apply Offsets
-        const jsonPromises = floorsConfig.map(async (conf) => {
-            try {
-                const response = await fetch(conf.jsonPath);
-                const data = await response.json();
-                const yOffset = this.floorOffsets[conf.id];
-                const xCrop = this.floorCropX[conf.id];
-
-                // Nodes
-                data.nodes.forEach(node => {
-                    const newId = `${conf.id}_${node.id}`;
-                    this.idMap.set(newId, {
-                        ...node,
-                        id: newId,
-                        originalId: node.id,
-                        floorId: conf.id,
-                        x: node.x - xCrop, // Current X
-                        baseX: node.x - xCrop, // Base X (Scale 1.0)
-                        localY: node.y,     // Store Local Y (Image Space) for dynamic stacking
-                        y: node.y + yOffset // Initial World Y
-                    });
-                    this.globalNodes.push(this.idMap.get(newId));
-                });
-
-                // Edges
-                let edgesCount = 0;
-                data.edges.forEach(edge => {
-                    const fromId = `${conf.id}_${edge.from}`;
-                    const toId = `${conf.id}_${edge.to}`;
-
-                    if (this.idMap.has(fromId) && this.idMap.has(toId)) {
-                        const dist = (typeof edge.dist === 'number') ? edge.dist : 1;
-                        this.globalEdges.push({
-                            from: fromId,
-                            to: toId,
-                            dist: dist,
-                            floorId: conf.id
-                        });
-                        edgesCount++;
-                    }
-                });
-
-                console.log(`Floor ${conf.id}: Loaded ${data.nodes.length} nodes, ${edgesCount} edges`);
-
-            } catch (e) {
-                console.error(`Failed to load JSON for ${conf.id}`, e);
-            }
-        });
-
-        await Promise.all(jsonPromises);
-        this.buildGlobalGraph();
-        this.updateFloorLayout([]); // Init default layout
-        this.draw();
-    }
 
     // Switch floor is now "Focus Floor"
     async switchFloor(floorId) {

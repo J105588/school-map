@@ -342,16 +342,28 @@
     </div>
 
     <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="assets/js/config.js"></script>
+    <script src="assets/js/supabase-client.js"></script>
     <script src="assets/js/map-core.js"></script>
     <script src="assets/js/ui-controller.js"></script>
     <script src="assets/js/tutorial.js"></script>
 
-
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check privacy status
+            try {
+                const isPrivate = await SupabaseClient.isPrivate();
+                if (isPrivate) {
+                    SupabaseClient.showPrivateMessage();
+                    return; // Stop initialization
+                }
+            } catch (err) {
+                console.error("Privacy check failed:", err);
+            }
+
             // Init App
             const engine = new MapEngine('mapCanvas', 'map-wrapper');
             window.ui = new UIController(engine);

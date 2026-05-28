@@ -8,12 +8,14 @@
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 
     <!-- Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
     <!-- App Config -->
     <script src="assets/js/config.js"></script>
+    <script src="assets/js/supabase-client.js"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:wght@400;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
@@ -947,15 +949,24 @@
 
         // Load map data
         async function loadData() {
+            if (!window.adminPasscode) {
+                try {
+                    window.adminPasscode = await SupabaseClient.promptAdminPasscode();
+                    log("管理者認証に成功しました", 'success');
+                } catch (e) {
+                    log("認証に失敗しました。ページをリロードしてください。", 'error');
+                    alert("管理者認証が必要です。ページをリロードしてください。");
+                    return;
+                }
+            }
+
             log("マップデータのロードを開始します...", 'info');
             const floors = AppConfig.FLOORS;
             allNodes = [];
 
             for (const floor of floors) {
                 try {
-                    const res = await fetch(floor.jsonPath);
-                    if (!res.ok) throw new Error(`HTTPステータス: ${res.status}`);
-                    const data = await res.json();
+                    const data = await SupabaseClient.getAdminFloorData(floor.id, window.adminPasscode);
 
                     data.nodes.forEach(n => {
                         n.floorId = floor.id;

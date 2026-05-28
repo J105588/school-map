@@ -2,6 +2,10 @@
  * Application Configuration
  */
 const AppConfig = {
+    // Supabase Settings (※実際のプロジェクト値に差し替えてください)
+    SUPABASE_URL: "https://your-project.supabase.co",
+    SUPABASE_ANON_KEY: "eyJhbGciOi...",
+
     FLOORS: [
         { id: 1, name: '1F', label: '1階', jsonPath: 'JSON/1.json', imagePath: 'images/floor1.png' },
         { id: 2, name: '2F', label: '2階', jsonPath: 'JSON/2.json', imagePath: 'images/floor2.png' },

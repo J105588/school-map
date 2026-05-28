@@ -860,12 +860,30 @@
                             点（ノード）数: <span id="stats-nodes">0</span> 個<br>
                             線（エッジ）数: <span id="stats-edges">0</span> 本
                         </div>
-                        <button class="btn btn-primary" onclick="exportJSONToClipboard()" style="margin-bottom:8px;">
-                            JSONデータをコピー</button>
-                        <button class="btn btn-secondary" onclick="downloadJSONFile()">JSONファイルをダウンロード</button>
+                        <button class="btn btn-primary" onclick="saveToSupabase()" style="margin-bottom:12px; background-color:#1a237e; font-weight:bold;">
+                            Supabaseに直接保存</button>
+                        <div style="display:flex; gap:8px; margin-bottom:8px;">
+                            <button class="btn btn-secondary" onclick="exportJSONToClipboard()" style="flex:1; padding:8px 4px; font-size:12px;">
+                                コピー</button>
+                            <button class="btn btn-secondary" onclick="downloadJSONFile()" style="flex:1; padding:8px 4px; font-size:12px;">
+                                ダウンロード</button>
+                        </div>
                         <textarea id="jsonOutput"
-                            style="width:100%; height:120px; font-family:monospace; font-size:11px; resize:vertical; background:#f8f9fa; margin-top:8px; box-sizing:border-box;"
+                            style="width:100%; height:80px; font-family:monospace; font-size:11px; resize:vertical; background:#f8f9fa; margin-top:8px; box-sizing:border-box;"
                             readonly></textarea>
+
+                        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color);">
+                            <label style="display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: bold; color: var(--text-main); cursor: pointer;">
+                                <span>マップを非公開にする</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="supabase-private-toggle" onchange="toggleSupabasePrivacy(this.checked)">
+                                    <span class="slider round"></span>
+                                </label>
+                            </label>
+                            <p style="font-size:10px; color:var(--text-sub); margin:6px 0 0 0; line-height:1.4;">
+                                有効にすると、一般ユーザー向け画面でマップデータが一切読み込まれなくなります。
+                            </p>
+                        </div>
                     </div>
 
                     <div class="sidebar-panel hidden" id="local-backup-panel" style="margin-top:15px; border-left: 4px solid var(--secondary-color);">
@@ -925,7 +943,9 @@
     <div class="toast-container" id="toast-container"></div>
 
     <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="assets/js/config.js"></script>
+    <script src="assets/js/supabase-client.js"></script>
     <script>
         // --- Constants & Variables ---
         const canvas = document.getElementById('mapCanvas');
@@ -990,12 +1010,30 @@
         const SNAP_RADIUS = 20; // screen pixels
 
         // --- Init App ---
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', async () => {
             initFloorTabs();
 
             // Resize Canvas to container sizes
             canvas.width = canvasWrapper.clientWidth;
             canvas.height = canvasWrapper.clientHeight;
+
+            // Prompt for Admin Passcode
+            try {
+                window.adminPasscode = await SupabaseClient.promptAdminPasscode();
+                showToast("管理者ログインに成功しました", "success");
+            } catch (e) {
+                showToast("認証に失敗しました。ページをリロードしてください。", "error");
+                return;
+            }
+
+            // Load current privacy status to toggle checkbox
+            try {
+                const isPrivate = await SupabaseClient.isPrivate();
+                const checkbox = document.getElementById('supabase-private-toggle');
+                if (checkbox) checkbox.checked = isPrivate;
+            } catch (e) {
+                console.error("Failed to load map privacy settings", e);
+            }
 
             // Load floor data
             switchFloor(defaultFloorId);
@@ -1057,15 +1095,8 @@
             } else {
                 showToast("データを読み込み中...");
                 try {
-                    const isLocal = window.location.protocol === 'file:';
-                    if (isLocal) {
-                        showCORSModal();
-                        throw new Error("Local file protocol restriction");
-                    }
-
-                    const res = await fetch(floor.jsonPath);
-                    if (!res.ok) throw new Error("JSON fetch failed");
-                    const data = await res.json();
+                    // Fetch from Supabase using admin passcode
+                    const data = await SupabaseClient.getAdminFloorData(floorId, window.adminPasscode);
 
                     floor.nodes = data.nodes || [];
                     floor.edges = data.edges || [];
@@ -1086,7 +1117,7 @@
                     edges = floor.edges;
 
                     loadImageAndFit(floor.imagePath);
-                    showToast(`${floor.label}の自動取得に失敗したため、新規マップとして起動します。`, 'warning');
+                    showToast(`${floor.label}の取得に失敗したため、新規マップとして起動します。`, 'warning');
                 }
             }
             checkLocalBackupExists();
@@ -2479,6 +2510,45 @@
                 toast.style.transform = 'translateY(-10px)';
                 setTimeout(() => toast.remove(), 300);
             }, 4000);
+        }
+
+        // --- Supabase Save and Privacy Functions ---
+        async function saveToSupabase() {
+            if (!window.adminPasscode) {
+                showToast("管理者認証が完了していません", "error");
+                return;
+            }
+            // Save current nodes/edges back to floorsData cache
+            if (floorsData[currentFloorId]) {
+                floorsData[currentFloorId].nodes = JSON.parse(JSON.stringify(nodes));
+                floorsData[currentFloorId].edges = JSON.parse(JSON.stringify(edges));
+            }
+
+            showToast("Supabaseに保存中...");
+            try {
+                await SupabaseClient.saveFloorData(currentFloorId, nodes, edges, window.adminPasscode);
+                showToast(`フロア ${currentFloorId} のデータを Supabase に保存しました`, "success");
+            } catch (e) {
+                console.error(e);
+                showToast("保存に失敗しました: " + e.message, "error");
+            }
+        }
+
+        async function toggleSupabasePrivacy(isPrivate) {
+            if (!window.adminPasscode) {
+                showToast("管理者認証が完了していません", "error");
+                return;
+            }
+            try {
+                await SupabaseClient.setMapPrivacy(isPrivate, window.adminPasscode);
+                showToast(isPrivate ? "マップを非公開に設定しました" : "マップを公開に設定しました", "success");
+            } catch (e) {
+                console.error(e);
+                showToast("設定変更に失敗しました: " + e.message, "error");
+                // Reset toggle
+                const toggle = document.getElementById('supabase-private-toggle');
+                if (toggle) toggle.checked = !isPrivate;
+            }
         }
     </script>
 </body>
