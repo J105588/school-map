@@ -536,7 +536,7 @@
         /* Toast notifications styling */
         .toast-container {
             position: fixed;
-            top: 20px;
+            bottom: 20px;
             right: 20px;
             display: flex;
             flex-direction: column;
@@ -1689,7 +1689,23 @@
                 connectStartId = nodeId;
             } else {
                 if (connectStartId !== nodeId) {
-                    addEdge(connectStartId, nodeId);
+                    // Check if an edge already exists between these two nodes
+                    const existingEdgeIndex = edges.findIndex(e => 
+                        (e.from === connectStartId && e.to === nodeId) || 
+                        (e.from === nodeId && e.to === connectStartId)
+                    );
+
+                    if (existingEdgeIndex !== -1) {
+                        // Edge exists: Sever the connection
+                        edges.splice(existingEdgeIndex, 1);
+                        markAsModified();
+                        updateStats();
+                        showToast("2点間の接続を解除しました", "info");
+                    } else {
+                        // Edge does not exist: Add the connection
+                        addEdge(connectStartId, nodeId);
+                        showToast("2点間を接続しました", "success");
+                    }
                     connectStartId = null;
                 } else {
                     connectStartId = null;
@@ -2625,7 +2641,7 @@
 
             setTimeout(() => {
                 toast.style.opacity = '0';
-                toast.style.transform = 'translateY(-10px)';
+                toast.style.transform = 'translateY(10px)';
                 setTimeout(() => toast.remove(), 300);
             }, 4000);
         }
