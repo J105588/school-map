@@ -8,6 +8,10 @@
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <link rel="stylesheet" href="assets/css/style.css">
     <style>
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
         /* Editor specific layout & aesthetics overrides */
         :root {
             --editor-sidebar-width: 380px;
@@ -140,8 +144,7 @@
         .workspace {
             display: flex;
             flex-grow: 1;
-            height: calc(100vh - 60px);
-            height: calc(100dvh - 60px);
+            min-height: 0;
             position: relative;
         }
 
@@ -584,6 +587,29 @@
 
         .hidden {
             display: none !important;
+        }
+
+        /* Responsive Design for smaller screens */
+        @media (max-width: 900px) {
+            body {
+                height: auto;
+                overflow: auto;
+            }
+            .workspace {
+                flex-direction: column;
+                height: auto;
+            }
+            .editor-sidebar {
+                width: 100%;
+                height: auto;
+                border-left: none;
+                border-top: 1px solid var(--border-color);
+            }
+            #canvas-container {
+                height: 50vh;
+                width: 100%;
+                min-height: 350px;
+            }
         }
     </style>
 </head>
