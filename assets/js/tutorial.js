@@ -316,10 +316,18 @@ class Tutorial {
 
 // Auto start on page load if first time
 function initTutorial() {
+    // Do not run if map is private or private overlay is present
+    if (document.title.includes("非公開") || document.getElementById('supabase-private-overlay')) {
+        return;
+    }
+
     window.tutorial = new Tutorial();
     if (!localStorage.getItem('tutorial_shown')) {
         // Delay slightly for initial map animation to start/finish
         setTimeout(() => {
+            if (document.title.includes("非公開") || document.getElementById('supabase-private-overlay')) {
+                return;
+            }
             window.tutorial.start();
         }, 3500);
     }
@@ -328,6 +336,9 @@ function initTutorial() {
     const startTutorialBtn = document.getElementById('start-tutorial-btn');
     if (startTutorialBtn) {
         startTutorialBtn.addEventListener('click', () => {
+            if (document.title.includes("非公開") || document.getElementById('supabase-private-overlay')) {
+                return;
+            }
             // Close settings modal
             const settingsModal = document.getElementById('settings-modal');
             if (settingsModal) {

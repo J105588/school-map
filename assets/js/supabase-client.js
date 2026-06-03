@@ -367,5 +367,15 @@ const SupabaseClient = {
 
         const loadingOverlay = document.getElementById('loading-overlay');
         if (loadingOverlay) loadingOverlay.style.display = 'none';
+
+        // Hide tutorial overlay and QR scanner overlay if present
+        const tutorialOverlay = document.getElementById('tutorial-overlay');
+        if (tutorialOverlay) tutorialOverlay.style.display = 'none';
+        if (window.tutorial) {
+            window.tutorial.stop();
+        }
+
+        const qrOverlay = document.getElementById('qr-overlay');
+        if (qrOverlay) qrOverlay.style.display = 'none';
     }
 };
