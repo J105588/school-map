@@ -639,6 +639,11 @@
         </div>
 
         <div class="header-right">
+            <!-- 接続警告バッジ (デフォルト非表示) -->
+            <div class="status-badge warning hidden" id="connection-warning-status" style="background-color: #ffebee; color: #c62828; border: 1px solid #ffcdd2; cursor: pointer; margin-right: 8px;" onclick="showConnectionWarnings()">
+                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:currentColor;"></span>
+                <span id="warning-status-text">自動接続警告 0件</span>
+            </div>
             <div class="status-badge saved" id="modified-status">
                 <span
                     style="display:inline-block; width:8px; height:8px; border-radius:50%; background:currentColor;"></span>
@@ -780,6 +785,13 @@
                                     <label>接続ID (階段/EVの階連結用)</label>
                                     <input type="text" id="nodeConnectionId" placeholder="例: stairs_south_1"
                                         oninput="saveSelectedNodeProperties()">
+                                    <!-- 他フロア接続状況プレビュー -->
+                                    <div id="autoConnectionPreview" style="margin-top: 8px; padding: 8px; background: rgba(0,0,0,0.03); border-radius: 4px; font-size: 11px; color: var(--text-sub); border: 1px solid var(--border-color);">
+                                        <strong style="color:var(--text-main); display:block; margin-bottom:4px;">自動接続先（他フロア）:</strong>
+                                        <div id="autoConnectionList" style="line-height: 1.4;">
+                                            <!-- 動的に挿入 -->
+                                        </div>
+                                    </div>
                                 </div>
                                 <div class="form-field"
                                     style="flex-direction:row; align-items:center; gap:8px; margin: 4px 0;">
@@ -887,7 +899,7 @@
                             線（エッジ）数: <span id="stats-edges">0</span> 本
                         </div>
                         <button class="btn btn-primary" onclick="saveToSupabase()" style="margin-bottom:12px; background-color:#1a237e; font-weight:bold;">
-                            Supabaseに直接保存</button>
+                            Supabaseに直接保存（全フロア一括）</button>
                         <div style="display:flex; gap:8px; margin-bottom:8px;">
                             <button class="btn btn-secondary" onclick="exportJSONToClipboard()" style="flex:1; padding:8px 4px; font-size:12px;">
                                 コピー</button>
@@ -961,6 +973,30 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeImageLoaderModal()" style="width:auto;">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Connection Warning Modal -->
+    <div class="modal-overlay" id="connection-warning-modal">
+        <div class="modal-content" style="max-width: 550px;">
+            <div class="modal-header" style="color: #c62828; display: flex; align-items: center; gap: 8px;">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                </svg>
+                <strong>階段・EV自動接続の警告一覧</strong>
+            </div>
+            <div class="modal-body">
+                <p style="margin-top:0; font-size:13px; color:var(--text-main);">
+                    以下の階段・エレベーター（EV）で、自動接続の不整合が検知されました。<br>
+                    名前（または接続ID）が一致しているか、同じ階に重複して登録されていないか確認してください。
+                </p>
+                <div id="warning-list-container" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 4px; padding: 10px; background: #fafafa; font-size: 12px; line-height: 1.6;">
+                    <!-- 動的に警告行が挿入される -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeWarningModal()" style="width:auto;">閉じる</button>
             </div>
         </div>
     </div>
@@ -1060,8 +1096,9 @@
                 console.error("Failed to load map privacy settings", e);
             }
 
-            // Load floor data
-            switchFloor(defaultFloorId);
+            // Load floor data & all floors in background
+            await switchFloor(defaultFloorId);
+            loadAllFloorsDataInBackground();
 
             // Event Listeners setup
             setupCanvasEvents();
@@ -1717,6 +1754,7 @@
                 if (n.type === 'stairs' || n.type === 'elevator') {
                     connGroup.classList.remove('hidden');
                     document.getElementById('nodeConnectionId').value = n.connectionId || '';
+                    updateAutoConnectionPreview(n);
                 } else {
                     connGroup.classList.add('hidden');
                 }
@@ -1776,10 +1814,12 @@
             if (n.type === 'stairs' || n.type === 'elevator') {
                 connGroup.classList.remove('hidden');
                 n.connectionId = document.getElementById('nodeConnectionId').value.trim();
+                updateAutoConnectionPreview(n);
             } else {
                 connGroup.classList.add('hidden');
                 delete n.connectionId;
             }
+            validateAllConnections();
 
             if (recalcCoords) {
                 n.x = Math.round(Number(document.getElementById('nodeX').value));
@@ -2543,18 +2583,31 @@
                 showToast("管理者認証が完了していません", "error");
                 return;
             }
-            // Save current nodes/edges back to floorsData cache
+
+            // Sync current editor state back to the current floor cache
             if (floorsData[currentFloorId]) {
                 floorsData[currentFloorId].nodes = JSON.parse(JSON.stringify(nodes));
                 floorsData[currentFloorId].edges = JSON.parse(JSON.stringify(edges));
             }
 
-            showToast("Supabaseに保存中...");
+            showToast("全フロアのデータをSupabaseに一括保存中...");
+            
+            // Collect promises for all loaded floors
+            const savePromises = floorsConfig.map(async (floor) => {
+                const fData = floorsData[floor.id];
+                // Only save if the floor data has been loaded/initialized
+                if (fData && fData.isLoaded) {
+                    await SupabaseClient.saveFloorData(floor.id, fData.nodes, fData.edges, window.adminPasscode);
+                    fData.isModified = false;
+                }
+            });
+
             try {
-                await SupabaseClient.saveFloorData(currentFloorId, nodes, edges, window.adminPasscode);
-                showToast(`フロア ${currentFloorId} のデータを Supabase に保存しました`, "success");
+                await Promise.all(savePromises);
+                showToast("すべてのフロアのデータを Supabase に一括保存しました", "success");
+                updateStatusIndicator();
             } catch (e) {
-                console.error(e);
+                console.error("Failed to save all floor data to Supabase:", e);
                 showToast("保存に失敗しました: " + e.message, "error");
             }
         }
@@ -2573,6 +2626,209 @@
                 // Reset toggle
                 const toggle = document.getElementById('supabase-private-toggle');
                 if (toggle) toggle.checked = !isPrivate;
+            }
+        }
+
+        // --- Auto Connection Validation & Preview Utilities ---
+        let activeWarnings = [];
+
+        async function loadAllFloorsDataInBackground() {
+            const promises = floorsConfig.map(async (floor) => {
+                if (floorsData[floor.id].isLoaded) return;
+                try {
+                    const data = await SupabaseClient.getAdminFloorData(floor.id, window.adminPasscode);
+                    floorsData[floor.id].nodes = data.nodes || [];
+                    floorsData[floor.id].edges = data.edges || [];
+                    floorsData[floor.id].isLoaded = true;
+                } catch (e) {
+                    console.warn(`Failed to background load floor ${floor.id}`, e);
+                    floorsData[floor.id].nodes = [];
+                    floorsData[floor.id].edges = [];
+                    floorsData[floor.id].isLoaded = true;
+                }
+            });
+
+            try {
+                await Promise.all(promises);
+                console.log("[Editor] All floors data preloaded successfully.");
+                
+                // Sync current nodes/edges if needed
+                if (floorsData[currentFloorId]) {
+                    nodes = floorsData[currentFloorId].nodes;
+                    edges = floorsData[currentFloorId].edges;
+                    updateStats();
+                    updateList();
+                    draw();
+                }
+
+                validateAllConnections();
+            } catch (err) {
+                console.error("Error loading background floors", err);
+            }
+        }
+
+        function validateAllConnections() {
+            activeWarnings = [];
+            const globalNodes = [];
+
+            Object.keys(floorsData).forEach(floorId => {
+                const fData = floorsData[floorId];
+                if (fData.isLoaded) {
+                    fData.nodes.forEach(n => {
+                        globalNodes.push({
+                            ...n,
+                            floorId: parseInt(floorId)
+                        });
+                    });
+                }
+            });
+
+            const connectionMap = {};
+            globalNodes.forEach(n => {
+                if (n.type === 'stairs' || n.type === 'elevator') {
+                    let key = null;
+                    if (n.name) {
+                        key = n.name;
+                    } else if (n.connectionId) {
+                        key = n.connectionId;
+                    }
+
+                    if (key) {
+                        if (!connectionMap[key]) connectionMap[key] = [];
+                        connectionMap[key].push(n);
+                    }
+                }
+            });
+
+            Object.keys(connectionMap).forEach(key => {
+                const list = connectionMap[key];
+                const floors = list.map(n => n.floorId);
+                const uniqueFloors = new Set(floors);
+
+                // 1. 同一フロア内重複
+                if (floors.length !== uniqueFloors.size) {
+                    const counts = {};
+                    floors.forEach(f => counts[f] = (counts[f] || 0) + 1);
+                    const dupFloors = Object.keys(counts).filter(f => counts[f] > 1);
+                    dupFloors.forEach(f => {
+                        activeWarnings.push({
+                            type: 'duplicate',
+                            key: key,
+                            floorId: f,
+                            message: `${f}F において「${key}」が重複して登録されています（経路探索時のバグ原因になります）。`
+                        });
+                    });
+                }
+
+                // 2. 孤立
+                if (list.length === 1) {
+                    activeWarnings.push({
+                        type: 'isolated',
+                        key: key,
+                        floorId: list[0].floorId,
+                        message: `${list[0].floorId}F の「${key}」は、他フロアに同じ名前/接続IDの接続相手が見つかりません。`
+                    });
+                }
+
+                // 3. タイプ混在
+                const types = new Set(list.map(n => n.type));
+                if (types.size > 1) {
+                    activeWarnings.push({
+                        type: 'type_mismatch',
+                        key: key,
+                        message: `「${key}」のグループ内に異なる種別（${Array.from(types).map(t => t === 'elevator' ? 'EV' : '階段').join('と')}）が混在しています。`
+                    });
+                }
+            });
+
+            const warningBadge = document.getElementById('connection-warning-status');
+            const warningText = document.getElementById('warning-status-text');
+            if (warningBadge && warningText) {
+                if (activeWarnings.length > 0) {
+                    warningBadge.classList.remove('hidden');
+                    warningText.innerText = `自動接続警告 ${activeWarnings.length}件`;
+                } else {
+                    warningBadge.classList.add('hidden');
+                }
+            }
+        }
+
+        function showConnectionWarnings() {
+            const container = document.getElementById('warning-list-container');
+            if (!container) return;
+
+            container.innerHTML = '';
+            if (activeWarnings.length === 0) {
+                container.innerHTML = '<div style="color:green; font-weight:bold; padding: 10px 0;">警告はありません。正常に接続されています。</div>';
+            } else {
+                activeWarnings.forEach(w => {
+                    const item = document.createElement('div');
+                    item.style.padding = '8px 0';
+                    item.style.borderBottom = '1px solid #eee';
+                    
+                    let iconColor = '#c62828';
+                    let typeLabel = '[エラー]';
+                    if (w.type === 'isolated') {
+                        iconColor = '#f57c00';
+                        typeLabel = '[警告]';
+                    }
+
+                    item.innerHTML = `<span style="color:${iconColor}; font-weight:bold; margin-right:6px;">${typeLabel}</span> ${w.message}`;
+                    container.appendChild(item);
+                });
+            }
+
+            document.getElementById('connection-warning-modal').classList.add('open');
+        }
+
+        function closeWarningModal() {
+            document.getElementById('connection-warning-modal').classList.remove('open');
+        }
+
+        function updateAutoConnectionPreview(node) {
+            const listDiv = document.getElementById('autoConnectionList');
+            if (!listDiv) return;
+
+            listDiv.innerHTML = '';
+            
+            const key = node.name || node.connectionId;
+            if (!key) {
+                listDiv.innerHTML = '<span style="color:#d32f2f;">※名前または接続IDが未入力のため、他フロアと自動接続されません。</span>';
+                return;
+            }
+
+            const matches = [];
+            Object.keys(floorsData).forEach(floorId => {
+                const fId = parseInt(floorId);
+                if (fId === currentFloorId) return;
+
+                const fData = floorsData[floorId];
+                if (fData.isLoaded) {
+                    fData.nodes.forEach(n => {
+                        if (n.type === 'stairs' || n.type === 'elevator') {
+                            if (n.name === key || (n.connectionId && n.connectionId === key)) {
+                                matches.push({
+                                    floorLabel: fData.label,
+                                    nodeName: n.name || n.connectionId || '名前なし',
+                                    type: n.type
+                                });
+                            }
+                        }
+                    });
+                }
+            });
+
+            if (matches.length === 0) {
+                listDiv.innerHTML = '<span style="color:#f57c00;">⚠️ 他フロアに一致する接続先が見つかりません。</span>';
+            } else {
+                matches.forEach(m => {
+                    const row = document.createElement('div');
+                    row.style.display = 'flex';
+                    row.style.justifyContent = 'space-between';
+                    row.style.padding = '2px 0';
+                    row.innerHTML = `<span style="color:var(--primary-color); font-weight:bold;">${m.floorLabel}</span> <span>${m.nodeName} (${m.type === 'elevator' ? 'EV' : '階段'})</span>`;
+                    listDiv.appendChild(row);
+                });
             }
         }
     </script>
