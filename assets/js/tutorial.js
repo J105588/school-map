@@ -315,7 +315,7 @@ class Tutorial {
 }
 
 // Auto start on page load if first time
-document.addEventListener('DOMContentLoaded', () => {
+function initTutorial() {
     window.tutorial = new Tutorial();
     if (!localStorage.getItem('tutorial_shown')) {
         // Delay slightly for initial map animation to start/finish
@@ -337,4 +337,10 @@ document.addEventListener('DOMContentLoaded', () => {
             window.tutorial.start();
         });
     }
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTutorial);
+} else {
+    initTutorial();
+}
