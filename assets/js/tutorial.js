@@ -99,6 +99,12 @@ class Tutorial {
 
     stop() {
         this.overlay.classList.add('hidden');
+        
+        // Show terms modal after tutorial stops if terms have not been accepted yet
+        const termsAccepted = localStorage.getItem('terms_accepted') === 'true';
+        if (!termsAccepted) {
+            showTermsModal();
+        }
     }
 
     next() {
@@ -314,6 +320,74 @@ class Tutorial {
     }
 }
 
+function showTermsModal() {
+    const modal = document.getElementById('terms-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        // Reset checkbox and button state when opening
+        const checkbox = document.getElementById('terms-checkbox');
+        const agreeBtn = document.getElementById('terms-agree-btn');
+        if (checkbox) checkbox.checked = false;
+        if (agreeBtn) agreeBtn.disabled = true;
+    }
+}
+
+function hideTermsModal() {
+    const modal = document.getElementById('terms-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+function showBlockedOverlay() {
+    const overlay = document.getElementById('terms-blocked-overlay');
+    if (overlay) {
+        overlay.classList.remove('hidden');
+    }
+}
+
+function hideBlockedOverlay() {
+    const overlay = document.getElementById('terms-blocked-overlay');
+    if (overlay) {
+        overlay.classList.add('hidden');
+    }
+}
+
+function initTermsConsent() {
+    const checkbox = document.getElementById('terms-checkbox');
+    const agreeBtn = document.getElementById('terms-agree-btn');
+    const declineBtn = document.getElementById('terms-decline-btn');
+    const recheckBtn = document.getElementById('terms-recheck-btn');
+
+    if (checkbox && agreeBtn) {
+        checkbox.addEventListener('change', () => {
+            agreeBtn.disabled = !checkbox.checked;
+        });
+    }
+
+    if (agreeBtn) {
+        agreeBtn.addEventListener('click', () => {
+            localStorage.setItem('terms_accepted', 'true');
+            hideTermsModal();
+            hideBlockedOverlay();
+        });
+    }
+
+    if (declineBtn) {
+        declineBtn.addEventListener('click', () => {
+            hideTermsModal();
+            showBlockedOverlay();
+        });
+    }
+
+    if (recheckBtn) {
+        recheckBtn.addEventListener('click', () => {
+            hideBlockedOverlay();
+            showTermsModal();
+        });
+    }
+}
+
 // Auto start on page load if first time
 function initTutorial() {
     // Do not run if map is private or private overlay is present
@@ -321,9 +395,35 @@ function initTutorial() {
         return;
     }
 
+    // Initialize terms consent events
+    initTermsConsent();
+
     window.tutorial = new Tutorial();
-    if (!localStorage.getItem('tutorial_shown')) {
-        // Delay slightly for initial map animation to start/finish
+    
+    const termsAccepted = localStorage.getItem('terms_accepted') === 'true';
+    const tutorialShown = localStorage.getItem('tutorial_shown') === 'true';
+
+    // If terms have not been accepted, control flow:
+    if (!termsAccepted) {
+        if (!tutorialShown) {
+            // Delay slightly for initial map animation to start/finish
+            setTimeout(() => {
+                if (document.title.includes("非公開") || document.getElementById('supabase-private-overlay')) {
+                    return;
+                }
+                window.tutorial.start();
+            }, 3500);
+        } else {
+            // Already saw tutorial but hasn't accepted terms (e.g. declined or storage cleared), show terms immediately
+            setTimeout(() => {
+                if (document.title.includes("非公開") || document.getElementById('supabase-private-overlay')) {
+                    return;
+                }
+                showTermsModal();
+            }, 1000);
+        }
+    } else if (!tutorialShown) {
+        // If terms accepted but tutorial not shown
         setTimeout(() => {
             if (document.title.includes("非公開") || document.getElementById('supabase-private-overlay')) {
                 return;
