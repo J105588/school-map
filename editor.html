@@ -2189,22 +2189,40 @@
 
                 // Text labels for rooms
                 if (!isJunc) {
-                    const labelSz = Math.max(10, 12 / Math.sqrt(zoom));
-                    ctx.font = `bold ${labelSz}px sans-serif`;
+                    ctx.save();
+                    ctx.translate(n.x, n.y);
+                    const scaleFactor = 1 / zoom;
+                    ctx.scale(scaleFactor, scaleFactor);
+
+                    // Compute node radius in screen pixels
+                    const rScreen = r * zoom;
+
+                    const fontSizeScreen = 12;
+                    const padXScreen = 4;
+                    const padYScreen = 2;
+                    const gapScreen = 3;
+
+                    ctx.font = `bold ${fontSizeScreen}px sans-serif`;
                     ctx.fillStyle = '#000000';
                     ctx.textAlign = 'center';
 
                     const text = n.eventName ? `${n.eventName} (${n.name})` : n.name;
                     const metrics = ctx.measureText(text);
                     const labelW = metrics.width;
-                    const labelH = labelSz;
+                    const labelH = fontSizeScreen;
 
-                    // Text background rectangle for legibility
+                    // Text background rectangle for legibility (in screen pixels)
                     ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-                    ctx.fillRect(n.x - labelW / 2 - 4, n.y - r - labelH - 3, labelW + 8, labelH + 4);
+                    const rectX = -labelW / 2 - padXScreen;
+                    const rectY = -rScreen - labelH - gapScreen - padYScreen;
+                    const rectW = labelW + padXScreen * 2;
+                    const rectH = labelH + padYScreen * 2;
+                    ctx.fillRect(rectX, rectY, rectW, rectH);
 
                     ctx.fillStyle = '#000000';
-                    ctx.fillText(text, n.x, n.y - r - 3);
+                    ctx.fillText(text, 0, -rScreen - gapScreen);
+
+                    ctx.restore();
                 }
             });
 
