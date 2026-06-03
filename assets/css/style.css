@@ -1996,3 +1996,76 @@ input:checked+.slider:before {
 .tutorial-close-btn:active {
     transform: scale(0.9);
 }
+
+/* =========================================
+   Route Warning Cards (When path is not found)
+   ========================================= */
+.route-error-card {
+    background: #fff5f5;
+    border: 1px solid #feb2b2;
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 15px;
+    text-align: center;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: errorCardFadeIn 0.3s ease-out;
+}
+
+.route-error-icon {
+    font-size: 32px;
+    margin-bottom: 10px;
+}
+
+.route-error-title {
+    font-weight: 700;
+    color: #c53030;
+    font-size: 16px;
+    margin-bottom: 8px;
+    font-family: var(--font-body);
+}
+
+.route-error-desc {
+    font-size: 13px;
+    color: #742a2a;
+    line-height: 1.6;
+    font-family: var(--font-body);
+}
+
+.mobile-route-error-card {
+    padding: 15px;
+    text-align: center;
+    background: rgba(229, 62, 62, 0.15);
+    border: 1px solid rgba(229, 62, 62, 0.3);
+    border-radius: 10px;
+    margin-top: 5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: errorCardFadeIn 0.3s ease-out;
+}
+
+.mobile-route-error-card .route-error-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+}
+
+.mobile-route-error-card .route-error-title {
+    color: #feb2b2;
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.mobile-route-error-card .route-error-desc {
+    color: #fed7d7;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+@keyframes errorCardFadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}

@@ -505,14 +505,90 @@ class UIController {
                 this.mobileOverlay.classList.remove('collapsed'); // Auto-expand on new route
             }
         } else {
-            if (this.mobileOverlay) this.mobileOverlay.classList.add('hidden');
-            if (this.mobileSummaryBar) this.mobileSummaryBar.classList.add('hidden');
-            if (this.mobileSearchBar) this.mobileSearchBar.classList.remove('hidden');
+            // No route found
+            this.updateRouteList([], true); // Render warning card on desktop
+
+            if (startVal && endVal) {
+                // Close Sidebar on Mobile to show warning overlay
+                if (window.innerWidth <= 768 && this.sidebar) {
+                    this.sidebar.classList.remove('active');
+                }
+
+                // Hide bottom search bar
+                if (this.mobileSearchBar) this.mobileSearchBar.classList.add('hidden');
+
+                // Update Mobile Route Summary Bar to show starting and ending points
+                if (this.mobileSummaryBar && this.summaryStartName && this.summaryEndName) {
+                    const sNode = this.engine.getNode(startVal);
+                    const eNode = this.engine.getNode(endVal);
+                    
+                    let startText = sNode ? (sNode.eventName || sNode.name) : "出発地";
+                    let endText = eNode ? (eNode.eventName || eNode.name) : "目的地";
+                    
+                    if (sNode) {
+                        let startDetail = `${sNode.floorId}F`;
+                        const sOrg = sNode.organization || (sNode.eventName ? sNode.name : '');
+                        if (sOrg) {
+                            startDetail += ` - ${sOrg}`;
+                        }
+                        startText += ` (${startDetail})`;
+                    }
+                    if (eNode) {
+                        if (eNode.floorId) {
+                            let endDetail = `${eNode.floorId}F`;
+                            const eOrg = eNode.organization || (eNode.eventName ? eNode.name : '');
+                            if (eOrg) {
+                                endDetail += ` - ${eOrg}`;
+                            }
+                            endText += ` (${endDetail})`;
+                        } else if (endVal.startsWith("NEAREST_")) {
+                            const labelMap = {
+                                "NEAREST_MALE": "最寄男子トイレ",
+                                "NEAREST_FEMALE": "最寄女子トイレ",
+                                "NEAREST_VENDING": "最寄自販機"
+                            };
+                            endText = labelMap[endVal] || endText;
+                        }
+                    }
+                    
+                    this.summaryStartName.innerText = startText;
+                    this.summaryEndName.innerText = endText;
+                    this.mobileSummaryBar.classList.remove('hidden');
+                }
+
+                // Render mobile overlay with warning card
+                if (this.mobileOverlay && this.mobileRouteContent) {
+                    this.mobileRouteContent.innerHTML = `
+                        <div class="mobile-route-error-card">
+                            <div class="route-error-icon">⚠️</div>
+                            <div class="route-error-title">経路を案内できません</div>
+                            <div class="route-error-desc">お選びいただいた地点間の経路が存在しないか、バリアフリーモードにより通行可能な経路がありません。</div>
+                        </div>
+                    `;
+                    this.mobileOverlay.classList.remove('hidden');
+                    this.mobileOverlay.classList.remove('collapsed');
+                }
+            } else {
+                if (this.mobileOverlay) this.mobileOverlay.classList.add('hidden');
+                if (this.mobileSummaryBar) this.mobileSummaryBar.classList.add('hidden');
+                if (this.mobileSearchBar) this.mobileSearchBar.classList.remove('hidden');
+            }
         }
     }
 
-    updateRouteList(pathIds) {
+    updateRouteList(pathIds, hasError = false) {
         this.routeList.innerHTML = '';
+        if (hasError) {
+            this.routeList.innerHTML = `
+                <div class="route-error-card">
+                    <div class="route-error-icon">⚠️</div>
+                    <div class="route-error-title">経路を案内できません</div>
+                    <div class="route-error-desc">お選びいただいた地点間の経路が存在しないか、バリアフリーモードにより通行可能な経路がありません。</div>
+                </div>
+            `;
+            return;
+        }
+
         if (!pathIds || pathIds.length === 0) {
             this.routeList.innerHTML = '<div style="padding:20px; text-align:center; color:#95a5a6; font-size:14px;">出発地と目的地を選択してナビを開始</div>';
             return;
