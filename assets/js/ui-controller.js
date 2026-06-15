@@ -296,25 +296,80 @@ class UIController {
             });
         }
 
-        // Check for URL Params (Current Location)
+        // Check for URL Params (API & State Initialization)
         const params = new URLSearchParams(window.location.search);
-        const currentId = params.get('current');
-        if (currentId) {
-            // Delay slightly to ensure map is ready/drawn once? 
-            // loadAllData is awaited above, so safe.
-            this.engine.setCurrentLocation(currentId);
 
-            // Optional: Auto-set Start point to Current Location
-            if (this.startSelect) {
-                // We need to resolve the ID to a value in the select?
-                // The select values ARE the IDs.
-                this.startSelect.select(currentId, "現在地"); // "現在地" might not match the option Text. 
-                // Better to find the node name.
-                const node = this.engine.getNode(currentId);
-                if (node) {
-                    const title = node.eventName || node.name || "現在地";
-                    this.startSelect.select(currentId, title);
-                    this.engine.setStartMarker(currentId);
+        // 1. Accessibility & Auto-rotation Setting
+        const accessibleParam = params.get('accessible') || params.get('barrier_free') || params.get('accessibility');
+        if (accessibleParam !== null) {
+            const isAccessible = ['true', '1', 'yes', 'on'].includes(accessibleParam.toLowerCase());
+            this.engine.accessibilityMode = isAccessible;
+            const toggleAccessibility = document.getElementById('toggle-accessibility');
+            if (toggleAccessibility) toggleAccessibility.checked = isAccessible;
+        }
+
+        const autoRotateParam = params.get('auto_rotate') || params.get('rotate') || params.get('autorotate');
+        if (autoRotateParam !== null) {
+            const isAutoRotate = ['true', '1', 'yes', 'on'].includes(autoRotateParam.toLowerCase());
+            this.engine.enableAutoRotation = isAutoRotate;
+            const toggleRotation = document.getElementById('toggle-rotation');
+            if (toggleRotation) toggleRotation.checked = isAutoRotate;
+        }
+
+        // 2. Current Location
+        const currentQuery = params.get('current') || params.get('loc');
+        let currentResolved = null;
+        if (currentQuery) {
+            currentResolved = this.resolveNode(currentQuery);
+            if (currentResolved) {
+                this.engine.setCurrentLocation(currentResolved.id);
+            }
+        }
+
+        // 3. Start Point
+        const startQuery = params.get('start') || params.get('from') || params.get('src');
+        let startResolved = null;
+        if (startQuery) {
+            startResolved = this.resolveStart(startQuery);
+        }
+
+        // If start is not defined but current location is, set start to current location
+        if (!startResolved && currentResolved) {
+            startResolved = {
+                value: currentResolved.id,
+                title: currentResolved.eventName || currentResolved.name || '現在地'
+            };
+        }
+
+        // 4. End Point (Destination)
+        const endQuery = params.get('end') || params.get('goal') || params.get('dest') || params.get('to');
+        let endResolved = null;
+        if (endQuery) {
+            endResolved = this.resolveDestination(endQuery);
+        }
+
+        // 5. Apply navigation / selection state
+        if (startResolved && endResolved) {
+            if (this.startSelect) this.startSelect.select(startResolved.value, startResolved.title);
+            if (this.endSelect) this.endSelect.select(endResolved.value, endResolved.title);
+            this.engine.setStartMarker(startResolved.value);
+            this.calculateRoute();
+        } else if (startResolved) {
+            if (this.startSelect) this.startSelect.select(startResolved.value, startResolved.title);
+            this.engine.setStartMarker(startResolved.value);
+            this.engine.focusNode(startResolved.value);
+        } else if (endResolved) {
+            if (this.endSelect) this.endSelect.select(endResolved.value, endResolved.title);
+            if (!endResolved.value.startsWith('NEAREST_')) {
+                this.engine.focusNode(endResolved.value);
+            }
+        } else {
+            // Check floor query parameter if no routing or node focus is active
+            const floorParam = params.get('floor');
+            if (floorParam) {
+                const f = parseInt(floorParam);
+                if (!isNaN(f) && AppConfig.FLOORS.some(fl => fl.id === f)) {
+                    this.switchFloor(f);
                 }
             }
         }
@@ -333,7 +388,100 @@ class UIController {
         // In merged map, this just pans to the floor
         if (this.currentFloorId === floorId) return;
         this.currentFloorId = floorId;
-        this.engine.switchFloor(floorId);
+        
+        // Guard: Check if engine has loaded offsets
+        if (this.engine.floorOffsets && this.engine.floorOffsets[floorId] !== undefined) {
+            this.engine.switchFloor(floorId);
+        } else {
+            console.warn(`[UIController] switchFloor(${floorId}) deferred because map data is not fully loaded yet.`);
+        }
+    }
+
+    // Helper functions for parameter-based API/URL extensions
+    normalizeString(str) {
+        if (!str) return '';
+        return str.toString().trim().toLowerCase().normalize('NFKC');
+    }
+
+    resolveNode(query) {
+        if (!query) return null;
+        const normQuery = this.normalizeString(query);
+
+        // 1. Direct ID check (e.g. "1_101")
+        let node = this.engine.getNode(query) || this.engine.getNode(normQuery);
+        if (node) return node;
+
+        // 2. Exact match check (case-insensitive and normalized)
+        let exactMatches = this.engine.globalNodes.filter(n => {
+            const name = this.normalizeString(n.name);
+            const eventName = this.normalizeString(n.eventName);
+            const org = this.normalizeString(n.organization);
+            return name === normQuery || eventName === normQuery || org === normQuery;
+        });
+        if (exactMatches.length > 0) return exactMatches[0];
+
+        // 3. Partial match check (case-insensitive and normalized)
+        let partialMatches = this.engine.globalNodes.filter(n => {
+            const name = this.normalizeString(n.name);
+            const eventName = this.normalizeString(n.eventName);
+            const org = this.normalizeString(n.organization);
+            return name.includes(normQuery) || eventName.includes(normQuery) || org.includes(normQuery);
+        });
+        if (partialMatches.length > 0) return partialMatches[0];
+
+        // 4. Try matching floor local ID (originalId)
+        let origMatches = this.engine.globalNodes.filter(n => {
+            const origId = this.normalizeString(n.originalId);
+            return origId === normQuery;
+        });
+        if (origMatches.length > 0) return origMatches[0];
+
+        return null;
+    }
+
+    resolveStart(query) {
+        const node = this.resolveNode(query);
+        if (node) {
+            let title = node.eventName || node.name || '出発地';
+            if (node.type === 'stairs' || node.type === 'elevator') {
+                title += ` (${node.floorId}階)`;
+            }
+            return {
+                value: node.id,
+                title: title
+            };
+        }
+        return null;
+    }
+
+    resolveDestination(query) {
+        if (!query) return null;
+        const normQuery = this.normalizeString(query);
+
+        // Check for system auto options (e.g. NEAREST_MALE, NEAREST_FEMALE, NEAREST_VENDING)
+        if (normQuery === 'nearest_male' || normQuery === 'nearest-male' || normQuery.includes('男子トイレ') || normQuery.includes('男トイレ') || normQuery.includes('最寄りの男子トイレ')) {
+            return { value: 'NEAREST_MALE', title: '最寄りの男子トイレ' };
+        }
+        if (normQuery === 'nearest_female' || normQuery === 'nearest-female' || normQuery.includes('女子トイレ') || normQuery.includes('女トイレ') || normQuery.includes('最寄りの女子トイレ')) {
+            return { value: 'NEAREST_FEMALE', title: '最寄りの女子トイレ' };
+        }
+        if (normQuery === 'nearest_vending' || normQuery === 'nearest-vending' || normQuery === 'vending' || normQuery.includes('自販機') || normQuery.includes('最寄りの自販機')) {
+            return { value: 'NEAREST_VENDING', title: '最寄りの自販機' };
+        }
+
+        // Otherwise resolve to a node
+        const node = this.resolveNode(query);
+        if (node) {
+            let title = node.eventName || node.name || '目的地';
+            if (node.type === 'stairs' || node.type === 'elevator') {
+                title += ` (${node.floorId}階)`;
+            }
+            return {
+                value: node.id,
+                title: title
+            };
+        }
+        return null;
     }
 
     updateSelects() {
