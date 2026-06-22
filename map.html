@@ -231,6 +231,16 @@
         <div class="map-container" id="map-wrapper">
             <canvas id="mapCanvas"></canvas>
 
+            <!-- Navigation Safety Warning Banner -->
+            <div class="navigation-warning-banner hidden" id="navigation-warning-banner">
+                <div class="warning-banner-content">
+                    <svg class="warning-icon-svg" viewBox="0 0 24 24" width="20" height="20">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" fill="var(--accent-color)"/>
+                    </svg>
+                    <span class="warning-text">歩きスマホは大変危険です。立ち止まって周囲の安全を確認してください。</span>
+                </div>
+            </div>
+
             <!-- Controls -->
             <div class="map-controls">
                 <button class="control-btn" id="settings-btn" title="設定">
@@ -503,6 +513,20 @@
                     <button id="terms-agree-btn" class="terms-btn primary" disabled>同意して利用開始</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Walking Safety Warning Modal (Mobile Only) -->
+    <div id="safety-warning-modal" class="hidden">
+        <div class="safety-modal-content">
+            <div class="safety-modal-icon">
+                <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor">
+                    <path d="M12 2L1 21h22L12 2zm1 14h-2v-2h2v2zm0-4h-2V8h2v4z"/>
+                </svg>
+            </div>
+            <h3 class="safety-modal-title">歩きスマホ注意</h3>
+            <p class="safety-modal-text">歩きスマホは大変危険です。<br>立ち止まって周囲の安全を確認してください。</p>
+            <button id="safety-modal-close-btn" class="safety-modal-btn">確認しました</button>
         </div>
     </div>
 

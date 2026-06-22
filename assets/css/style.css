@@ -2342,3 +2342,230 @@ input:checked+.slider:before {
     from { opacity: 0; transform: translateY(5px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* =========================================
+   Navigation Safety Warning Banner & Item
+   ========================================= */
+.navigation-warning-banner {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1200;
+    width: 90%;
+    max-width: 460px;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 12px;
+    border-left: 5px solid var(--accent-color);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    animation: warningBannerSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-sizing: border-box;
+}
+
+/* Adjust position responsively */
+@media (min-width: 769px) {
+    .navigation-warning-banner {
+        top: 24px;
+    }
+}
+
+@media (max-width: 768px) {
+    .navigation-warning-banner {
+        top: calc(84px + env(safe-area-inset-top)); /* Sit below the top route summary bar */
+    }
+}
+
+.warning-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.warning-icon-svg {
+    flex-shrink: 0;
+}
+
+.warning-text {
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-main);
+    line-height: 1.4;
+}
+
+/* Warning item inside directions list */
+.route-warning-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: rgba(198, 40, 40, 0.06);
+    border: 1px solid rgba(198, 40, 40, 0.15);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 15px;
+    list-style: none;
+    box-sizing: border-box;
+}
+
+.warning-item-icon {
+    font-size: 20px;
+    line-height: 1;
+    margin-top: 2px;
+}
+
+.warning-item-content {
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: #b71c1c;
+    line-height: 1.5;
+    text-align: left;
+}
+
+.warning-item-content strong {
+    font-size: 13px;
+    color: var(--accent-color);
+}
+
+/* Make warning list item look correct in mobile dark-themed drawer */
+.mobile-route-list .route-warning-item {
+    background: rgba(198, 40, 40, 0.18);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: #ffebee;
+    margin-left: -15px; /* Offset parent list padding-left for a clean layout */
+    margin-right: 0;
+    width: calc(100% + 15px);
+}
+
+.mobile-route-list .warning-item-content {
+    color: #ffebee;
+}
+
+.mobile-route-list .warning-item-content strong {
+    color: #ff8a80;
+}
+
+@keyframes warningBannerSlideIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -15px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+/* Scaling and alignments for warning SVGs */
+.warning-item-icon svg,
+.route-error-icon svg {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    fill: currentColor;
+    vertical-align: middle;
+}
+
+/* Safety Warning Modal (Mobile Only Overlay) */
+#safety-warning-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    background: rgba(10, 15, 30, 0.6);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 6000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    pointer-events: auto;
+}
+
+#safety-warning-modal.hidden {
+    display: none !important;
+}
+
+.safety-modal-content {
+    background: white;
+    width: 85%;
+    max-width: 360px;
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+    padding: 28px 24px;
+    text-align: center;
+    animation: safetyModalScaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-sizing: border-box;
+}
+
+.safety-modal-icon {
+    color: var(--accent-color);
+    margin-bottom: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: rgba(198, 40, 40, 0.08);
+}
+
+.safety-modal-title {
+    margin: 0 0 12px 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-main);
+    font-family: var(--font-heading);
+}
+
+.safety-modal-text {
+    margin: 0 0 24px 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-sub);
+    font-family: var(--font-body);
+}
+
+.safety-modal-btn {
+    width: 100%;
+    padding: 12px;
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 14px;
+    font-family: var(--font-body);
+}
+
+.safety-modal-btn:hover {
+    background: #b71c1c;
+    transform: translateY(-1px);
+}
+
+.safety-modal-btn:active {
+    transform: translateY(0);
+}
+
+@keyframes safetyModalScaleIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}

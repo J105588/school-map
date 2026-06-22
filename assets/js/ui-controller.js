@@ -57,6 +57,12 @@ class UIController {
         // Show bottom search bar again
         if (this.mobileSearchBar) this.mobileSearchBar.classList.remove('hidden');
 
+        // Hide safety warning banner and modal
+        const warnBanner = document.getElementById('navigation-warning-banner');
+        if (warnBanner) warnBanner.classList.add('hidden');
+        const safetyModal = document.getElementById('safety-warning-modal');
+        if (safetyModal) safetyModal.classList.add('hidden');
+
         // Reset route list
         this.updateRouteList([]);
     }
@@ -296,6 +302,20 @@ class UIController {
             });
         }
 
+        // Safety warning modal close event (Mobile Only modal)
+        const safetyCloseBtn = document.getElementById('safety-modal-close-btn');
+        const safetyModal = document.getElementById('safety-warning-modal');
+        if (safetyCloseBtn && safetyModal) {
+            safetyCloseBtn.addEventListener('click', () => {
+                safetyModal.classList.add('hidden');
+            });
+            safetyModal.addEventListener('click', (e) => {
+                if (e.target === safetyModal) {
+                    safetyModal.classList.add('hidden');
+                }
+            });
+        }
+
         // Check for URL Params (API & State Initialization)
         const params = new URLSearchParams(window.location.search);
 
@@ -388,7 +408,7 @@ class UIController {
         // In merged map, this just pans to the floor
         if (this.currentFloorId === floorId) return;
         this.currentFloorId = floorId;
-        
+
         // Guard: Check if engine has loaded offsets
         if (this.engine.floorOffsets && this.engine.floorOffsets[floorId] !== undefined) {
             this.engine.switchFloor(floorId);
@@ -564,6 +584,12 @@ class UIController {
             // Hide mobile overlay if route is cleared
             if (this.mobileOverlay) this.mobileOverlay.classList.add('hidden');
             if (this.mobileSummaryBar) this.mobileSummaryBar.classList.add('hidden');
+
+            // Hide safety warning banner and modal
+            const warnBanner = document.getElementById('navigation-warning-banner');
+            if (warnBanner) warnBanner.classList.add('hidden');
+            const safetyModal = document.getElementById('safety-warning-modal');
+            if (safetyModal) safetyModal.classList.add('hidden');
             return;
         }
 
@@ -572,6 +598,22 @@ class UIController {
         // Auto-zoom to fit the entire path
         if (path && path.length > 0) {
             this.engine.fitToPath(path);
+
+            if (window.innerWidth <= 768) {
+                // Mobile: Show Modal, Hide Map Warning Banner
+                const safetyModal = document.getElementById('safety-warning-modal');
+                if (safetyModal) {
+                    safetyModal.classList.remove('hidden');
+                }
+                const warnBanner = document.getElementById('navigation-warning-banner');
+                if (warnBanner) warnBanner.classList.add('hidden');
+            } else {
+                // Desktop: Show Map Warning Banner, Hide Safety Modal
+                const warnBanner = document.getElementById('navigation-warning-banner');
+                if (warnBanner) warnBanner.classList.remove('hidden');
+                const safetyModal = document.getElementById('safety-warning-modal');
+                if (safetyModal) safetyModal.classList.add('hidden');
+            }
 
             // Mobile: Close Sidebar & Show Overlay
             if (window.innerWidth <= 768 && this.sidebar) {
@@ -585,10 +627,10 @@ class UIController {
             if (this.mobileSummaryBar && this.summaryStartName && this.summaryEndName) {
                 const sNode = this.engine.getNode(startVal);
                 const eNode = this.engine.getNode(endVal);
-                
+
                 let startText = sNode ? (sNode.eventName || sNode.name) : "出発地";
                 let endText = eNode ? (eNode.eventName || eNode.name) : "目的地";
-                
+
                 // Add floor info for extra clarity if nodes exist
                 if (sNode) {
                     let startDetail = `${sNode.floorId}F`;
@@ -615,7 +657,7 @@ class UIController {
                         endText = labelMap[endVal] || endText;
                     }
                 }
-                
+
                 this.summaryStartName.innerText = startText;
                 this.summaryEndName.innerText = endText;
                 this.mobileSummaryBar.classList.remove('hidden');
@@ -669,10 +711,10 @@ class UIController {
                 if (this.mobileSummaryBar && this.summaryStartName && this.summaryEndName) {
                     const sNode = this.engine.getNode(startVal);
                     const eNode = this.engine.getNode(endVal);
-                    
+
                     let startText = sNode ? (sNode.eventName || sNode.name) : "出発地";
                     let endText = eNode ? (eNode.eventName || eNode.name) : "目的地";
-                    
+
                     if (sNode) {
                         let startDetail = `${sNode.floorId}F`;
                         const sOrg = sNode.organization || (sNode.eventName ? sNode.name : '');
@@ -698,17 +740,27 @@ class UIController {
                             endText = labelMap[endVal] || endText;
                         }
                     }
-                    
+
                     this.summaryStartName.innerText = startText;
                     this.summaryEndName.innerText = endText;
                     this.mobileSummaryBar.classList.remove('hidden');
                 }
 
+                // Hide safety warning banner and modal since navigation is not active/available
+                const warnBanner = document.getElementById('navigation-warning-banner');
+                if (warnBanner) warnBanner.classList.add('hidden');
+                const safetyModal = document.getElementById('safety-warning-modal');
+                if (safetyModal) safetyModal.classList.add('hidden');
+
                 // Render mobile overlay with warning card
                 if (this.mobileOverlay && this.mobileRouteContent) {
                     this.mobileRouteContent.innerHTML = `
                         <div class="mobile-route-error-card">
-                            <div class="route-error-icon">⚠️</div>
+                            <div class="route-error-icon">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2L1 21h22L12 2zm1 14h-2v-2h2v2zm0-4h-2V8h2v4z"/>
+                                </svg>
+                            </div>
                             <div class="route-error-title">経路を案内できません</div>
                             <div class="route-error-desc">お選びいただいた地点間の経路が存在しないか、バリアフリーモードにより通行可能な経路がありません。</div>
                         </div>
@@ -720,6 +772,12 @@ class UIController {
                 if (this.mobileOverlay) this.mobileOverlay.classList.add('hidden');
                 if (this.mobileSummaryBar) this.mobileSummaryBar.classList.add('hidden');
                 if (this.mobileSearchBar) this.mobileSearchBar.classList.remove('hidden');
+
+                // Hide safety warning banner and modal
+                const warnBanner = document.getElementById('navigation-warning-banner');
+                if (warnBanner) warnBanner.classList.add('hidden');
+                const safetyModal = document.getElementById('safety-warning-modal');
+                if (safetyModal) safetyModal.classList.add('hidden');
             }
         }
     }
@@ -729,7 +787,11 @@ class UIController {
         if (hasError) {
             this.routeList.innerHTML = `
                 <div class="route-error-card">
-                    <div class="route-error-icon">⚠️</div>
+                    <div class="route-error-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2L1 21h22L12 2zm1 14h-2v-2h2v2zm0-4h-2V8h2v4z"/>
+                        </svg>
+                    </div>
                     <div class="route-error-title">経路を案内できません</div>
                     <div class="route-error-desc">お選びいただいた地点間の経路が存在しないか、バリアフリーモードにより通行可能な経路がありません。</div>
                 </div>
@@ -741,6 +803,22 @@ class UIController {
             this.routeList.innerHTML = '<div style="padding:20px; text-align:center; color:#95a5a6; font-size:14px;">出発地と目的地を選択してナビを開始</div>';
             return;
         }
+
+        // Add dynamic walking warning item at the top of the route list
+        const warningLi = document.createElement('li');
+        warningLi.className = 'route-warning-item';
+        warningLi.innerHTML = `
+            <div class="warning-item-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2L1 21h22L12 2zm1 14h-2v-2h2v2zm0-4h-2V8h2v4z"/>
+                </svg>
+            </div>
+            <div class="warning-item-content">
+                <strong>歩きスマホ注意</strong><br>
+                歩行中のスマホ操作は危険です。立ち止まって安全を確認した上で画面をご覧ください。
+            </div>
+        `;
+        this.routeList.appendChild(warningLi);
 
         pathIds.forEach((id, index) => {
             const node = this.engine.getNode(id);
