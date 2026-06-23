@@ -180,13 +180,25 @@ class UIController {
 
             // Init Custom Selects
             this.startSelect = new CustomSelect('custom-start-select', (val) => {
-                if (val && !this.endSelect.value) {
-                    this.engine.focusNode(val);
-                    this.engine.setStartMarker(val);
+                if (val) {
+                    const node = this.engine.getNode(val);
+                    if (node && node.type === 'exit_only') {
+                        this.showRestrictionWarning('exit_only');
+                    }
+                    if (!this.endSelect.value) {
+                        this.engine.focusNode(val);
+                        this.engine.setStartMarker(val);
+                    }
                 }
                 this.calculateRoute();
             });
             this.endSelect = new CustomSelect('custom-end-select', (val) => {
+                if (val) {
+                    const node = this.engine.getNode(val);
+                    if (node && node.type === 'entrance_only') {
+                        this.showRestrictionWarning('entrance_only');
+                    }
+                }
                 this.calculateRoute();
             });
 
@@ -312,6 +324,20 @@ class UIController {
             safetyModal.addEventListener('click', (e) => {
                 if (e.target === safetyModal) {
                     safetyModal.classList.add('hidden');
+                }
+            });
+        }
+
+        // Restriction warning modal close event
+        const restrictionCloseBtn = document.getElementById('restriction-modal-close-btn');
+        const restrictionModal = document.getElementById('restriction-warning-modal');
+        if (restrictionCloseBtn && restrictionModal) {
+            restrictionCloseBtn.addEventListener('click', () => {
+                restrictionModal.classList.add('hidden');
+            });
+            restrictionModal.addEventListener('click', (e) => {
+                if (e.target === restrictionModal) {
+                    restrictionModal.classList.add('hidden');
                 }
             });
         }
@@ -462,9 +488,8 @@ class UIController {
     resolveStart(query) {
         const node = this.resolveNode(query);
         if (node) {
-            if (node.type === 'entrance_only') {
-                alert("指定された場所は「入口専用」のため、出発地に設定できません。");
-                return null;
+            if (node.type === 'exit_only') {
+                this.showRestrictionWarning('exit_only');
             }
             let title = node.eventName || node.name || '出発地';
             if (node.type === 'stairs' || node.type === 'elevator') {
@@ -496,9 +521,8 @@ class UIController {
         // Otherwise resolve to a node
         const node = this.resolveNode(query);
         if (node) {
-            if (node.type === 'exit_only') {
-                alert("指定された場所は「出口専用」のため、目的地に設定できません。");
-                return null;
+            if (node.type === 'entrance_only') {
+                this.showRestrictionWarning('entrance_only');
             }
             let title = node.eventName || node.name || '目的地';
             if (node.type === 'stairs' || node.type === 'elevator') {
@@ -517,20 +541,63 @@ class UIController {
         console.log('[updateSelects] orderData:', this.engine.orderData);
 
         // Populate Custom Selects
-        const nodes = this.engine.globalNodes
-            .filter(n => n.name && n.type !== 'junction')
-            .sort((a, b) => {
-                // Sort by Floor first, then Name (Natural Sort)
-                if (a.floorId !== b.floorId) return a.floorId - b.floorId;
-                return a.name.localeCompare(b.name, 'ja', { numeric: true });
-            });
+        const activeNodes = this.engine.globalNodes.filter(n => n.name && n.type !== 'junction');
 
-        const options = nodes.map(n => {
+        // Helper to convert node to option format with custom sortIndex modifier
+        const toOption = (n, isStart) => {
             let title = n.eventName || n.name;
-            // Append Floor to Stairs/Elevator for clarity (requested by user)
             if (n.type === 'stairs' || n.type === 'elevator') {
                 title += ` (${n.floorId}階)`;
             }
+
+            // Determine sortIndex
+            const sortIndex = (() => {
+                const isRestricted = (isStart && n.type === 'exit_only') || (!isStart && n.type === 'entrance_only');
+                const isRestrictedPartner = (isStart && n.type === 'entrance_only') || (!isStart && n.type === 'exit_only');
+
+                if (!this.engine.orderData) {
+                    if (isRestricted) {
+                        return 9999.2;
+                    } else if (isRestrictedPartner) {
+                        return 9999.1;
+                    } else {
+                        return 9999;
+                    }
+                }
+
+                const fullName = `${n.eventName || ''} ${n.name || ''}`.trim();
+                const defaultPriority = this.engine.orderData.default || 9999;
+
+                // Collect all matched priorities from orderData.items
+                const matchedPriorities = [];
+                if (this.engine.orderData.items) {
+                    for (const [key, priority] of Object.entries(this.engine.orderData.items)) {
+                        if (key && fullName.includes(key)) {
+                            matchedPriorities.push(priority);
+                        }
+                    }
+                }
+
+                if (matchedPriorities.length > 0) {
+                    const basePriority = Math.min(...matchedPriorities);
+                    if (isRestricted) {
+                        return basePriority + 0.2;
+                    } else if (isRestrictedPartner) {
+                        return basePriority + 0.1;
+                    } else {
+                        return basePriority;
+                    }
+                } else {
+                    // No keyword matched
+                    if (isRestricted) {
+                        return defaultPriority + 0.2;
+                    } else if (isRestrictedPartner) {
+                        return defaultPriority + 0.1;
+                    } else {
+                        return defaultPriority;
+                    }
+                }
+            })();
 
             return {
                 value: n.id,
@@ -539,31 +606,20 @@ class UIController {
                 category: this.getTypeLabel(n.type),
                 type: n.type,
                 floor: n.floorId,
-                // Assign Custom Priority (Exact Match)
-                sortIndex: (() => {
-                    if (!this.engine.orderData) return 9999;
-
-                    // Use Name or EventName (Trimmed)
-                    const name = (n.eventName || n.name || '').trim();
-
-                    let minPriority = this.engine.orderData.default || 9999;
-
-                    // Check all keys in orderData.items via Partial Match
-                    if (this.engine.orderData.items) {
-                        for (const [key, priority] of Object.entries(this.engine.orderData.items)) {
-                            // If the Node Name includes the Key (e.g. "Main Entrance" includes "Entrance")
-                            if (name.includes(key)) {
-                                // console.log(`[Order] Match: "${name}" includes "${key}" -> ${priority}`);
-                                if (priority < minPriority) minPriority = priority;
-                            }
-                        }
-                    }
-                    return minPriority;
-                })(),
+                sortIndex: sortIndex,
                 // Sort Key: Priority to Organization, then Name. Ignore EventName.
                 sortKey: (n.organization || n.name || '').trim()
             };
+        };
+
+        // Sort initially by Floor and Name
+        const sortedActiveNodes = [...activeNodes].sort((a, b) => {
+            if (a.floorId !== b.floorId) return a.floorId - b.floorId;
+            return a.name.localeCompare(b.name, 'ja', { numeric: true });
         });
+
+        const startOptions = sortedActiveNodes.map(n => toOption(n, true));
+        const endOptions = sortedActiveNodes.map(n => toOption(n, false));
 
         // System Options
         const systemOptions = [
@@ -571,11 +627,6 @@ class UIController {
             { value: "NEAREST_FEMALE", title: "最寄りの女子トイレ", org: "System Auto", category: "AUTO", type: 'toilet', sortKey: 'ZZ_AUTO' },
             { value: "NEAREST_VENDING", title: "最寄りの自販機", org: "System Auto", category: "AUTO", type: 'vending', sortKey: 'ZZ_AUTO' }
         ];
-
-        // Filter startSelect: Exclude entrance_only nodes
-        const startOptions = options.filter(opt => opt.type !== 'entrance_only');
-        // Filter endSelect: Exclude exit_only nodes
-        const endOptions = options.filter(opt => opt.type !== 'exit_only');
 
         this.startSelect.setOptions(startOptions);
         this.endSelect.setOptions([...endOptions, ...systemOptions]);
@@ -1189,9 +1240,8 @@ class UIController {
                 // Check if node exists first
                 const node = this.engine.getNode(currentId);
                 if (node) {
-                    if (node.type === 'entrance_only') {
-                        alert("スキャンした場所は「入口専用」のため、現在地（出発地）として設定できません。");
-                        return;
+                    if (node.type === 'exit_only') {
+                        this.showRestrictionWarning('exit_only');
                     }
                     this.engine.setCurrentLocation(currentId);
 
@@ -1221,6 +1271,33 @@ class UIController {
         } catch (err) {
             console.error("[QR] Parse Error:", err);
             alert("QRコードの読み取りに失敗しました");
+        }
+    }
+
+    showRestrictionWarning(type) {
+        const modal = document.getElementById('restriction-warning-modal');
+        const titleEl = document.getElementById('restriction-modal-title');
+        const textEl = document.getElementById('restriction-modal-text');
+
+        if (modal && titleEl && textEl) {
+            if (type === 'entrance_only') {
+                titleEl.innerText = "【注意】入口専用の地点です";
+                textEl.innerHTML = `この地点は<strong>「入口専用」</strong>に指定されています。
+                    <div class="restriction-modal-info-box">
+                        <strong>■ なずな祭実行委員会からのお知らせ</strong><br>
+                        國枝記念国際ホール等の施設では、安全確保と混雑緩和のため、入口と出口が<strong>一方通行</strong>に設定されています。<br><br>
+                        現在、<strong>実際にこの場所（入口）にいなければ</strong>選択しないでください。
+                    </div>`;
+            } else if (type === 'exit_only') {
+                titleEl.innerText = "【注意】出口専用の地点です";
+                textEl.innerHTML = `この地点は<strong>「出口専用」</strong>に指定されています。
+                    <div class="restriction-modal-info-box">
+                        <strong>■ なずな祭実行委員会からのお知らせ</strong><br>
+                        國枝記念国際ホール等の施設では、安全確保と混雑緩和のため、入口と出口が<strong>一方通行</strong>に設定されています。<br><br>
+                        現在、<strong>実際にこの場所（出口）にいなければ</strong>選択しないでください。
+                    </div>`;
+            }
+            modal.classList.remove('hidden');
         }
     }
 }
