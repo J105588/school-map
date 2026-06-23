@@ -12,6 +12,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <!-- App Config -->
     <script src="assets/js/config.js"></script>
@@ -174,32 +175,19 @@
             margin-left: 3px;
         }
 
-        /* Layout Grid */
+        /* Layout Grid Redesign */
         .dashboard-container {
             display: grid;
-            grid-template-columns: 400px 1fr;
-            gap: 20px;
+            grid-template-columns: 360px 1fr;
+            gap: 24px;
             flex-grow: 1;
             min-height: 0;
+            height: calc(100vh - 120px);
+            box-sizing: border-box;
         }
 
-        .dashboard-col {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            min-height: 0;
-        }
-
-        .col-preview {
-            flex-shrink: 0;
-        }
-
-        .col-directory {
-            flex-grow: 1;
-        }
-
-        /* Cards */
-        .card {
+        /* Sidebar Styling */
+        .dashboard-sidebar {
             background: var(--panel-bg);
             border-radius: 12px;
             border: 1px solid var(--border-color);
@@ -207,32 +195,21 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            height: 100%;
             min-height: 0;
         }
 
-        .preview-card {
-            flex-grow: 1;
-        }
-
-        .bulk-card {
-            flex-shrink: 0;
-        }
-
-        .directory-card {
-            flex-grow: 1;
-            height: 100%;
-        }
-
-        .card-header {
-            padding: 15px 20px;
+        .sidebar-header-area {
+            padding: 16px 20px;
             border-bottom: 1px solid var(--border-color);
             background: #fafafa;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-shrink: 0;
         }
 
-        .card-title {
+        .sidebar-title {
             margin: 0;
             font-size: 14px;
             font-weight: 700;
@@ -244,7 +221,7 @@
             gap: 6px;
         }
 
-        .card-title::before {
+        .sidebar-title::before {
             content: '';
             display: block;
             width: 4px;
@@ -253,63 +230,200 @@
             border-radius: 2px;
         }
 
-        .card-body {
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
+        /* Workspace Styling */
+        .dashboard-workspace {
+            min-height: 0;
+            height: 100%;
+        }
+
+        .workspace-grid {
+            display: grid;
+            grid-template-columns: 440px 1fr;
+            gap: 24px;
+            height: 100%;
             min-height: 0;
         }
 
-        .card-description {
-            font-size: 12px;
-            color: var(--text-sub);
-            margin: 0 0 15px 0;
-            line-height: 1.6;
+        /* Preview Column Mockup Frame */
+        .workspace-preview-column {
+            background: var(--panel-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-soft);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            height: 100%;
+            min-height: 0;
         }
 
-        /* Tab Buttons Header */
-        .card-tabs {
+        .preview-frame-header {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border-color);
+            background: #fafafa;
             display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .preview-frame-title {
+            font-size: 11px;
+            color: var(--text-sub);
+            font-weight: 700;
+            margin-left: auto;
+            margin-right: auto;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .qr-preview-wrapper-large {
+            flex-grow: 1;
+            background: #eef2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            min-height: 0;
+            overflow: auto;
+        }
+
+        /* Control Panel Column */
+        .workspace-controls-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-height: 0;
+            height: 100%;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        /* Control Cards */
+        .control-card {
+            background: var(--panel-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-soft);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .control-card-header {
+            padding: 12px 20px;
             border-bottom: 1px solid var(--border-color);
             background: #fafafa;
             flex-shrink: 0;
         }
 
-        .tab-btn {
-            flex: 1;
-            padding: 15px;
-            border: none;
-            background: none;
-            font-family: var(--font-body);
+        .control-card-title {
+            margin: 0;
+            font-size: 12px;
             font-weight: 700;
-            color: var(--text-sub);
-            cursor: pointer;
-            transition: all 0.2s ease;
-            text-align: center;
-            font-size: 13px;
-            border-bottom: 3px solid transparent;
-        }
-
-        .tab-btn:hover {
             color: var(--primary-color);
-            background: rgba(26, 35, 126, 0.02);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
         }
 
-        .tab-btn.active {
-            color: var(--primary-color);
-            border-bottom-color: var(--primary-color);
-            background: white;
-        }
-
-        .tab-content {
-            flex-grow: 1;
+        .control-card-body {
+            padding: 20px;
             display: flex;
             flex-direction: column;
-            min-height: 0;
+            gap: 16px;
         }
 
-        .tab-content.hidden {
-            display: none;
+        .selected-node-details {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .selected-node-floor {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 12px;
+            color: white;
+            min-width: 32px;
+            text-align: center;
+        }
+
+        .selected-node-name {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .url-copy-box {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            border-top: 1px solid #f0f0f0;
+            padding-top: 16px;
+            margin-top: 4px;
+        }
+
+        .copy-box-label {
+            font-size: 11px;
+            color: var(--text-sub);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .bulk-desc {
+            margin: 0;
+            font-size: 12px;
+            color: var(--text-sub);
+            line-height: 1.5;
+        }
+
+        /* Console log panel inside control card */
+        .console-card {
+            flex-grow: 1;
+            min-height: 200px;
+            max-height: 350px;
+        }
+
+        .console-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .console-clear-btn {
+            background: none;
+            border: none;
+            color: var(--text-sub);
+            cursor: pointer;
+            font-family: var(--font-body);
+            font-size: 10px;
+            font-weight: 700;
+            transition: color 0.2s ease;
+            padding: 0;
+        }
+
+        .console-clear-btn:hover {
+            color: var(--accent-color);
+        }
+
+        .log-box-new {
+            flex-grow: 1;
+            font-family: 'Consolas', 'Courier New', Courier, monospace;
+            font-size: 11px;
+            line-height: 1.5;
+            overflow-y: auto;
+            background: #181b28;
+            color: #a5b0c7;
+            padding: 15px;
+            white-space: pre-wrap;
+            margin: 0;
+            height: 100%;
+            border-bottom-left-radius: 12px;
+            border-bottom-right-radius: 12px;
         }
 
         /* Buttons */
@@ -387,26 +501,17 @@
         }
 
         #qr-preview-container {
-            width: 200px;
-            height: 200px;
+            width: 400px;
+            height: 566px;
             display: flex;
             justify-content: center;
             align-items: center;
             background: white;
-            border-radius: 4px;
+            border-radius: 8px;
             box-shadow: var(--shadow-sharp);
             overflow: hidden;
-            border: 1px solid rgba(0, 0, 0, 0.05);
-        }
-
-        #qr-preview-container canvas,
-        #qr-preview-container img {
-            width: 100% !important;
-            height: 100% !important;
-            max-width: 200px;
-            max-height: 200px;
-            display: block;
-            object-fit: contain;
+            border: 1px solid var(--border-color);
+            position: relative;
         }
 
         .preview-placeholder {
@@ -745,7 +850,7 @@
         }
 
         /* Responsive Design */
-        @media (max-width: 900px) {
+        @media (max-width: 1100px) {
             body {
                 height: auto;
                 overflow: auto;
@@ -754,12 +859,377 @@
                 grid-template-columns: 1fr;
                 height: auto;
                 overflow: visible;
+                gap: 20px;
+            }
+            .dashboard-sidebar {
+                height: auto;
+                max-height: 500px;
             }
             .node-list-wrapper {
-                max-height: 400px;
+                max-height: 350px;
             }
-            .log-box {
+            .workspace-grid {
+                grid-template-columns: 1fr;
+                height: auto;
+                gap: 20px;
+            }
+            .workspace-preview-column {
+                height: 620px;
+            }
+            .console-card {
                 height: 300px;
+            }
+        }
+
+        /* Print Placard Styles */
+        #print-container-wrapper {
+            position: absolute;
+            left: -9999px;
+            top: -9999px;
+            width: 0;
+            height: 0;
+            overflow: hidden;
+        }
+
+        #print-container {
+            display: none;
+        }
+
+        /* Preview Scale Wrapper */
+        .preview-scale-wrapper {
+            width: 595px;
+            height: 842px;
+            transform: scale(0.67);
+            transform-origin: top left;
+            position: absolute;
+            top: 0.5px;
+            left: 1px;
+            pointer-events: none;
+            box-sizing: border-box;
+        }
+
+        /* Print page layout (A4 dimensions) */
+        .print-placard-page {
+            width: 210mm;
+            height: 296mm;
+            box-sizing: border-box;
+            padding: 12mm 10mm;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #ffffff;
+            page-break-after: always;
+            page-break-inside: avoid;
+            overflow: hidden;
+        }
+
+        .preview-scale-wrapper .print-placard-page {
+            width: 595px;
+            height: 842px;
+            padding: 20px 15px;
+        }
+
+        .print-placard-page:last-child {
+            page-break-after: avoid;
+        }
+
+        .print-placard {
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+            box-sizing: border-box;
+            color: var(--primary-color);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .placard-border {
+            border: 3px double var(--secondary-color);
+            border-radius: 16px;
+            padding: 45px 35px;
+            background: #ffffff;
+            box-shadow: 0 4px 20px rgba(26, 35, 126, 0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+        }
+
+        .placard-top-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        .placard-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 6px;
+        }
+
+        .placard-logo {
+            flex-shrink: 0;
+        }
+
+        .placard-app-title {
+            font-family: var(--font-heading);
+            font-size: 38px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: var(--primary-color);
+        }
+
+        .placard-subtitle {
+            font-family: var(--font-body);
+            font-size: 16px;
+            color: var(--text-sub);
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            margin-bottom: 25px;
+            font-weight: 500;
+        }
+
+        .placard-qr-container {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            background: white;
+            padding: 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+            margin-bottom: 20px;
+        }
+
+        .placard-qr-container canvas,
+        .placard-qr-container img {
+            display: block;
+            width: 320px !important;
+            height: 320px !important;
+            max-width: 320px;
+            max-height: 320px;
+        }
+
+        .placard-location-info {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        .placard-floor-badge {
+            display: inline-block;
+            background-color: var(--primary-color);
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 16px;
+            padding: 6px 20px;
+            border-radius: 20px;
+            margin-bottom: 12px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .placard-floor-badge.badge-1f, .placard-floor-badge.badge-1f-jp { background-color: #1a237e; }
+        .placard-floor-badge.badge-2f, .placard-floor-badge.badge-2f-jp { background-color: #6a1b9a; }
+        .placard-floor-badge.badge-3f, .placard-floor-badge.badge-3f-jp { background-color: #2e7d32; }
+        .placard-floor-badge.badge-4f, .placard-floor-badge.badge-4f-jp { background-color: #00838f; }
+
+        .placard-node-name {
+            font-family: var(--font-body);
+            font-size: 44px;
+            font-weight: 700;
+            color: var(--text-main);
+            margin: 0;
+            line-height: 1.3;
+        }
+
+        .placard-event-name {
+            font-family: var(--font-heading);
+            font-size: 52px;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin: 5px 0 0 0;
+            line-height: 1.2;
+            text-align: center;
+        }
+
+        .placard-room-name-small {
+            font-family: var(--font-body);
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-sub);
+            margin: 0;
+            line-height: 1.2;
+            text-align: center;
+            letter-spacing: 2px;
+        }
+
+        .placard-divider {
+            width: 80%;
+            height: 1px;
+            background: linear-gradient(to right, transparent, var(--secondary-color) 30%, var(--secondary-color) 70%, transparent);
+            margin: 20px 0;
+        }
+
+        .placard-instructions {
+            text-align: left;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 22px 28px;
+            margin-bottom: 25px;
+            border-left: 4px solid var(--secondary-color);
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .instruction-title {
+            font-weight: 700;
+            font-size: 15px;
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .placard-instructions ol {
+            margin: 0;
+            padding-left: 20px;
+            font-size: 13px;
+            color: var(--text-main);
+            line-height: 1.7;
+        }
+
+        .placard-instructions li {
+            margin-bottom: 6px;
+        }
+
+        .placard-instructions li:last-child {
+            margin-bottom: 0;
+        }
+
+        .placard-footer {
+            font-family: var(--font-body);
+            font-size: 11px;
+            color: var(--text-sub);
+            letter-spacing: 1px;
+            margin-top: auto;
+        }
+
+        /* Specific adjustments for on-screen scaled preview to ensure fit inside 842px height */
+        .preview-scale-wrapper .placard-border {
+            padding: 35px 25px;
+        }
+        .preview-scale-wrapper .placard-app-title {
+            font-size: 36px;
+        }
+        .preview-scale-wrapper .placard-subtitle {
+            margin-bottom: 20px;
+            font-size: 15px;
+        }
+        .preview-scale-wrapper .placard-qr-container {
+            margin-bottom: 15px;
+        }
+        .preview-scale-wrapper .placard-qr-container canvas,
+        .preview-scale-wrapper .placard-qr-container img {
+            width: 260px !important;
+            height: 260px !important;
+        }
+        .preview-scale-wrapper .placard-floor-badge {
+            font-size: 15px;
+            padding: 5px 18px;
+            margin-bottom: 10px;
+        }
+        .preview-scale-wrapper .placard-node-name {
+            font-size: 40px;
+        }
+        .preview-scale-wrapper .placard-event-name {
+            font-size: 46px;
+        }
+        .preview-scale-wrapper .placard-room-name-small {
+            font-size: 20px;
+        }
+        .preview-scale-wrapper .placard-divider {
+            margin: 15px 0;
+        }
+        .preview-scale-wrapper .placard-instructions {
+            padding: 16px 22px;
+            margin-bottom: 15px;
+        }
+
+        /* Print Media Styles */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 0;
+            }
+            body {
+                background: #ffffff !important;
+                color: #000000 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+            
+            body > *:not(#print-container) {
+                display: none !important;
+            }
+            
+            #print-container {
+                display: block !important;
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                margin: 0;
+                padding: 0;
+            }
+
+            .print-placard-page {
+                width: 210mm;
+                height: 296mm;
+                padding: 12mm 10mm;
+                box-sizing: border-box;
+                display: flex !important;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                page-break-after: always;
+                page-break-inside: avoid;
+                background: #ffffff;
+                overflow: hidden;
+            }
+
+            .print-placard-page:last-child {
+                page-break-after: avoid;
+            }
+
+            .print-placard {
+                max-width: 100% !important;
+                width: 100% !important;
+                box-shadow: none !important;
+                border: none !important;
+                padding: 0 !important;
+            }
+
+            .placard-border {
+                box-shadow: none !important;
+                width: 100% !important;
+                height: 100% !important;
+                padding: 45px 35px;
             }
         }
     </style>
@@ -791,132 +1261,154 @@
     </header>
 
     <div class="dashboard-container">
-        <!-- Left Column: Controls & Preview -->
-        <div class="dashboard-col col-preview">
-            <!-- QR Code Preview Card -->
-            <div class="card preview-card">
-                <div class="card-header">
-                    <h3 class="card-title">QRコードプレビュー</h3>
+        <!-- Sidebar: Location list directory & Filters -->
+        <aside class="dashboard-sidebar">
+            <div class="sidebar-header-area">
+                <h3 class="sidebar-title">地点選択</h3>
+                <span class="stat-badge">対象: <span id="header-total-nodes">0</span>地点</span>
+            </div>
+            
+            <div class="filter-controls">
+                <div class="search-box">
+                    <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="text" id="search-input" class="search-input" placeholder="地点名で検索..." oninput="filterNodes()">
                 </div>
-                <div class="card-body">
-                    <div class="qr-preview-wrapper">
+                
+                <div class="floor-filters" id="floor-filter-container">
+                    <button class="filter-pill active" id="pill-all" onclick="filterFloor('all')">すべて</button>
+                </div>
+            </div>
+            
+            <div class="node-list-wrapper">
+                <div class="node-list" id="node-list-container">
+                    <!-- Node elements will be populated here -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace: Large placard preview & Control Panel -->
+        <main class="dashboard-workspace">
+            <div class="workspace-grid">
+                
+                <!-- Center column: A4 Placard Poster Preview -->
+                <section class="workspace-preview-column">
+                    <div class="preview-frame-header">
+                        <span class="preview-frame-title">印刷プレビュー (A4縦)</span>
+                    </div>
+                    <div class="qr-preview-wrapper-large">
                         <div id="qr-preview-container">
                             <div class="preview-placeholder">地点を選択してください</div>
                         </div>
                     </div>
-                    
-                    <div class="node-info-table">
-                        <div class="info-row">
-                            <span class="info-label">地点名</span>
-                            <span class="info-value" id="node-name">-</span>
+                </section>
+                
+                <!-- Right column: Selected Node controls, Bulk controls, Console Logs -->
+                <section class="workspace-controls-column">
+                    <!-- Card 1: Selected Node Actions -->
+                    <div class="control-card">
+                        <div class="control-card-header">
+                            <h4 class="control-card-title">選択中の地点</h4>
                         </div>
-                        <div class="info-row">
-                            <span class="info-label">階層</span>
-                            <span class="info-value" id="node-floor">-</span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">ID</span>
-                            <span class="info-value code-font" id="node-id">-</span>
-                        </div>
-                        <div class="info-row vertical-row">
-                            <span class="info-label">QRリンクURL</span>
-                            <div class="url-input-group">
-                                <input type="text" id="node-url" readonly value="">
-                                <button onclick="copyUrl()" class="icon-btn-text" id="copy-btn">コピー</button>
+                        <div class="control-card-body">
+                            <div class="selected-node-details">
+                                <span class="selected-node-floor" id="node-floor-badge">-</span>
+                                <div style="display: flex; flex-direction: column;">
+                                    <span id="node-room-label" style="font-size: 11px; color: var(--text-sub); font-weight: bold; margin-bottom: 2px; display: none;"></span>
+                                    <h2 class="selected-node-name" id="node-name-label">地点を選択してください</h2>
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+                                <button onclick="downloadSingle()" id="download-single-btn" class="btn btn-primary" disabled>
+                                    <svg class="btn-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                                        <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+                                    </svg>
+                                    現在のQR（PNG）を保存
+                                </button>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                    <button onclick="downloadSinglePDF()" id="download-single-pdf-btn" class="btn btn-secondary" disabled>
+                                        PDFをダウンロード
+                                    </button>
+                                    <button onclick="printSingle()" id="print-single-btn" class="btn btn-secondary" style="background-color: #5d668c;" disabled>
+                                        印刷する
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="url-copy-box">
+                                <span class="copy-box-label">QRコードリンクURL</span>
+                                <div class="url-input-group" style="display: flex; width: 100%; gap: 6px; box-sizing: border-box;">
+                                    <input type="text" id="node-url" readonly value="" style="flex-grow: 1; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: #f8f9fa; font-family: monospace; font-size: 11px; outline: none; color: var(--text-sub); text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">
+                                    <button onclick="copyUrl()" class="icon-btn-text" id="copy-btn">コピー</button>
+                                </div>
                             </div>
                         </div>
                     </div>
                     
-                    <button onclick="downloadSingle()" id="download-single-btn" class="btn btn-primary" disabled>
-                        <svg class="btn-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                            <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
-                        </svg>
-                        現在のQRを保存
-                    </button>
-                </div>
-            </div>
-
-            <!-- Bulk Export Card -->
-            <div class="card bulk-card">
-                <div class="card-header">
-                    <h3 class="card-title">一括エクスポート</h3>
-                </div>
-                <div class="card-body">
-                    <p class="card-description">
-                        システム内のすべての名前付き地点のQRコードを一括生成し、ZIPアーカイブで保存します。
-                    </p>
-                    
-                    <div class="progress-section">
-                        <div class="progress-meta">
-                            <span class="progress-status" id="status-text">データ読み込み中...</span>
-                            <span class="progress-percent" id="progress-percent">0%</span>
+                    <!-- Card 2: Bulk Operations -->
+                    <div class="control-card">
+                        <div class="control-card-header">
+                            <h4 class="control-card-title">一括エクスポート</h4>
                         </div>
-                        <div class="progress-bar">
-                            <div id="progress" class="progress-fill"></div>
+                        <div class="control-card-body">
+                            <p class="bulk-desc">すべての地点のポスターを一括で生成し、ZIPまたはPDFで保存します。</p>
+                            
+                            <div class="progress-section">
+                                <div class="progress-meta">
+                                    <span class="progress-status" id="status-text">待機中</span>
+                                    <span class="progress-percent" id="progress-percent">0%</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div id="progress" class="progress-fill"></div>
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                <button onclick="generateAll()" id="genBtn" class="btn btn-secondary">
+                                    <svg class="btn-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                                        <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-3h4v3h3.5L12 17.5zM5.12 5l.82-1h12.06l.82 1H5.12z"/>
+                                    </svg>
+                                    一括生成とZIP保存 (PNG)
+                                </button>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                    <button onclick="generateAllPDF()" id="genPdfBtn" class="btn btn-primary">
+                                        全地点をPDF保存
+                                    </button>
+                                    <button onclick="printAll()" id="printAllBtn" class="btn btn-secondary" style="background-color: #5d668c;">
+                                        全地点を一括印刷
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
-                    <button onclick="generateAll()" id="genBtn" class="btn btn-secondary">
-                        <svg class="btn-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                            <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-3h4v3h3.5L12 17.5zM5.12 5l.82-1h12.06l.82 1H5.12z"/>
-                        </svg>
-                        一括生成とZIP保存
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Right Column: Interactive Directory & Logs -->
-        <div class="dashboard-col col-directory">
-            <div class="card directory-card">
-                <div class="card-tabs">
-                    <button onclick="switchTab('nodes')" id="tab-nodes" class="tab-btn active">
-                        地点ディレクトリ
-                    </button>
-                    <button onclick="switchTab('logs')" id="tab-logs" class="tab-btn">
-                        システムログ
-                    </button>
-                </div>
+                    <!-- Card 3: Console Logs -->
+                    <div class="control-card console-card">
+                        <div class="control-card-header console-card-header">
+                            <h4 class="control-card-title console-title">システムログ</h4>
+                            <button onclick="clearLogs()" class="console-clear-btn">クリア</button>
+                        </div>
+                        <div id="console" class="log-box-new"></div>
+                    </div>
+                </section>
                 
-                <div class="card-body tab-content" id="content-nodes">
-                    <!-- Search and Filter Controls -->
-                    <div class="filter-controls">
-                        <div class="search-box">
-                            <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="11" cy="11" r="8"></circle>
-                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                            </svg>
-                            <input type="text" id="search-input" class="search-input" placeholder="地点名で検索..." oninput="filterNodes()">
-                        </div>
-                        
-                        <div class="floor-filters" id="floor-filter-container">
-                            <button class="filter-pill active" id="pill-all" onclick="filterFloor('all')">すべて</button>
-                        </div>
-                    </div>
-                    
-                    <!-- Node List Container -->
-                    <div class="node-list-wrapper">
-                        <div class="node-list" id="node-list-container">
-                            <!-- Node elements will be populated here -->
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card-body tab-content hidden" id="content-logs">
-                    <div class="console-wrapper">
-                        <div class="console-header">
-                            <span class="console-title">コンソール出力</span>
-                            <button onclick="clearLogs()" class="console-clear-btn">ログをクリア</button>
-                        </div>
-                        <div id="console" class="log-box"></div>
-                    </div>
-                </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- Hidden container for QR generation -->
     <div id="qr-target" style="display:none;"></div>
+
+    <!-- Off-screen container for rendering placards (for html2pdf / html2canvas) -->
+    <div id="print-container-wrapper">
+        <div id="print-canvas-target"></div>
+    </div>
+
+    <!-- Native print container (shown only during browser print) -->
+    <div id="print-container"></div>
 
     <script>
         // Logger without emojis
@@ -1087,7 +1579,7 @@
                     <div class="node-item-main">
                         <span class="floor-badge ${badgeClass}">${node.floorName}</span>
                         <div style="display: flex; flex-direction: column;">
-                            <span class="node-item-name">${node.name}</span>
+                            <span class="node-item-name">${node.eventName ? node.eventName + ' <span style="font-size:11px;font-weight:normal;color:var(--text-sub);">(' + node.name + ')</span>' : node.name}</span>
                             <span class="node-item-meta">ID: ${node.fullId}</span>
                         </div>
                     </div>
@@ -1115,29 +1607,48 @@
                 }
             });
             
-            // Update node details UI
-            document.getElementById('node-name').innerText = node.name;
-            document.getElementById('node-floor').innerText = `${node.floorName} (${node.floorId}階)`;
-            document.getElementById('node-id').innerText = node.fullId;
-            
+            // Update details on control card
+            document.getElementById('node-name-label').innerText = node.eventName ? node.eventName : node.name;
+            const roomLabel = document.getElementById('node-room-label');
+            if (node.eventName) {
+                roomLabel.innerText = node.name;
+                roomLabel.style.display = 'block';
+            } else {
+                roomLabel.style.display = 'none';
+            }
+            const floorBadge = document.getElementById('node-floor-badge');
+            floorBadge.innerText = node.floorName;
+            floorBadge.className = `selected-node-floor badge-${node.floorName.toLowerCase()}`;
+
             const baseUrl = window.location.href.split('?')[0].replace(/qr\.html$/, 'map.html');
             const qrUrl = `${baseUrl}?current=${node.fullId}`;
             document.getElementById('node-url').value = qrUrl;
             
-            // Render QR Code in Preview Area
+            // Render Scaled Placard in Preview Area
             const previewContainer = document.getElementById('qr-preview-container');
             previewContainer.innerHTML = '';
             
-            new QRCode(previewContainer, {
-                text: qrUrl,
-                width: 512,
-                height: 512,
-                colorDark: "#000000",
-                colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.M
-            });
+            const scaleWrapper = document.createElement('div');
+            scaleWrapper.className = 'preview-scale-wrapper';
+            scaleWrapper.innerHTML = buildPlacardHTML(node, 'preview');
+            previewContainer.appendChild(scaleWrapper);
+            
+            // Render QR Code inside preview wrapper placard
+            const qrHolder = document.getElementById('qr-holder-preview');
+            if (qrHolder) {
+                new QRCode(qrHolder, {
+                    text: qrUrl,
+                    width: 512,
+                    height: 512,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.M
+                });
+            }
             
             document.getElementById('download-single-btn').disabled = false;
+            document.getElementById('download-single-pdf-btn').disabled = false;
+            document.getElementById('print-single-btn').disabled = false;
         }
 
         // Robust Clipboard Helper
@@ -1237,24 +1748,9 @@
             }
         }
 
-        // Tab switches handler
+        // Tab switches handler (deprecated)
         function switchTab(tab) {
-            const tabNodes = document.getElementById('tab-nodes');
-            const tabLogs = document.getElementById('tab-logs');
-            const contentNodes = document.getElementById('content-nodes');
-            const contentLogs = document.getElementById('content-logs');
-            
-            if (tab === 'nodes') {
-                tabNodes.classList.add('active');
-                tabLogs.classList.remove('active');
-                contentNodes.classList.remove('hidden');
-                contentLogs.classList.add('hidden');
-            } else {
-                tabNodes.classList.remove('active');
-                tabLogs.classList.add('active');
-                contentNodes.classList.add('hidden');
-                contentLogs.classList.remove('hidden');
-            }
+            // Logs are now shown inline on screen, no tab switching required.
         }
 
         // Bulk Zip Export Generator
@@ -1351,6 +1847,261 @@
             if (selectedNode) {
                 selectNode(selectedNode);
             }
+        }
+
+        // Build Printable Placard HTML
+        function buildPlacardHTML(node, printTargetId) {
+            const badgeClass = `badge-${node.floorName.toLowerCase()}`;
+            return `
+                <div class="print-placard-page">
+                    <div class="print-placard">
+                        <div class="placard-border">
+                            <div class="placard-top-section">
+                                <div class="placard-header">
+                                    <svg class="placard-logo" viewBox="0 0 24 24" width="36" height="36">
+                                        <circle cx="12" cy="12" r="10" stroke="var(--secondary-color)" stroke-width="1.5" fill="none"></circle>
+                                        <polygon points="12,3 15,12 12,12" fill="var(--accent-color)"></polygon>
+                                        <polygon points="12,3 9,12 12,12" fill="#ff5252"></polygon>
+                                        <polygon points="12,21 15,12 12,12" fill="var(--secondary-color)"></polygon>
+                                        <polygon points="12,21 9,12 12,12" fill="#e5c158"></polygon>
+                                        <circle cx="12" cy="12" r="1.5" fill="white"></circle>
+                                    </svg>
+                                    <span class="placard-app-title">I-Compass</span>
+                                </div>
+                                <div class="placard-subtitle">校内マップ・案内サービス</div>
+                                
+                                <div class="placard-qr-container" id="qr-holder-${printTargetId}">
+                                    <!-- QR code will be generated here -->
+                                </div>
+                            </div>
+                            
+                            <div class="placard-location-info">
+                                <span class="placard-floor-badge ${badgeClass}">${node.floorName}</span>
+                                ${node.eventName 
+                                    ? `<h2 class="placard-room-name-small">${node.name}</h2>
+                                       <h1 class="placard-event-name">${node.eventName}</h1>`
+                                    : `<h1 class="placard-node-name">${node.name}</h1>`
+                                }
+                            </div>
+                            
+                            <div class="placard-divider"></div>
+                            
+                            <div class="placard-instructions">
+                                <div class="instruction-title">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                                    </svg>
+                                    <span>ご利用方法</span>
+                                </div>
+                                <ol>
+                                    <li>スマートフォンのカメラでQRコードを読み取ります。</li>
+                                    <li>表示されたリンクをタップして校内マップを開きます。</li>
+                                    <li>マップ上に現在地が表示され、目的地までのルート検索ができます。</li>
+                                </ol>
+                            </div>
+                            
+                            <div class="placard-footer">
+                                © 2026 市川学園 & Junxiang Jin. All rights reserved.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Generate QR code inside placard placeholder
+        async function generateQRForPlacard(node, targetId, baseUrl) {
+            const qrUrl = `${baseUrl}?current=${node.fullId}`;
+            const container = document.getElementById(`qr-holder-${targetId}`);
+            if (!container) return;
+            container.innerHTML = '';
+            new QRCode(container, {
+                text: qrUrl,
+                width: 512,
+                height: 512,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.M
+            });
+            // Yield a tiny bit to allow rendering
+            await new Promise(r => setTimeout(r, 60));
+        }
+
+        // Download single placard PDF
+        async function downloadSinglePDF() {
+            if (!selectedNode) return;
+            
+            const target = document.getElementById('print-canvas-target');
+            target.innerHTML = '';
+            
+            const uniqueId = `single-pdf-${Date.now()}`;
+            target.innerHTML = buildPlacardHTML(selectedNode, uniqueId);
+            
+            const baseUrl = window.location.href.split('?')[0].replace(/qr\.html$/, 'map.html');
+            await generateQRForPlacard(selectedNode, uniqueId, baseUrl);
+            
+            const safeName = selectedNode.name.replace(/[\/\\:*?"<>|]/g, '_');
+            const fileName = `Placard_${selectedNode.floorId}F_${safeName}.pdf`;
+            
+            const opt = {
+                margin:       0,
+                filename:     fileName,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak:    { mode: ['css', 'legacy'] }
+            };
+            
+            log(`PDF生成を開始します: ${fileName}`, 'info');
+            try {
+                await html2pdf().set(opt).from(target).save();
+                log(`PDFのダウンロードを開始しました: ${fileName}`, 'success');
+            } catch (err) {
+                log(`PDF生成中にエラーが発生しました: ${err.message}`, 'error');
+                alert("PDF生成に失敗しました。");
+            } finally {
+                target.innerHTML = '';
+            }
+        }
+
+        // Print single placard
+        async function printSingle() {
+            if (!selectedNode) return;
+            
+            const target = document.getElementById('print-container');
+            target.innerHTML = '';
+            
+            const uniqueId = `single-print-${Date.now()}`;
+            target.innerHTML = buildPlacardHTML(selectedNode, uniqueId);
+            
+            const baseUrl = window.location.href.split('?')[0].replace(/qr\.html$/, 'map.html');
+            await generateQRForPlacard(selectedNode, uniqueId, baseUrl);
+            
+            log(`印刷ダイアログを開きます: ${selectedNode.name}`, 'info');
+            window.print();
+            target.innerHTML = '';
+        }
+
+        // Generate and download all placards as a single PDF file
+        async function generateAllPDF() {
+            if (allNodes.length === 0) await loadData();
+            if (allNodes.length === 0) {
+                alert("有効な地点データが見つかりません。");
+                return;
+            }
+
+            const btn = document.getElementById('genPdfBtn');
+            const origHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `準備中...`;
+            
+            switchTab('logs');
+
+            const target = document.getElementById('print-canvas-target');
+            target.innerHTML = '';
+
+            log(`全地点の一括PDF生成を開始します。対象件数: ${allNodes.length}件`, 'info');
+            const total = allNodes.length;
+            const baseUrl = window.location.href.split('?')[0].replace(/qr\.html$/, 'map.html');
+            
+            let htmlContent = '';
+            allNodes.forEach((node, index) => {
+                htmlContent += buildPlacardHTML(node, `bulk-pdf-${index}`);
+            });
+            target.innerHTML = htmlContent;
+
+            for (let i = 0; i < total; i++) {
+                const node = allNodes[i];
+                const pct = Math.floor(((i + 1) / total) * 100);
+                
+                document.getElementById('progress').style.width = `${pct}%`;
+                document.getElementById('progress-percent').innerText = `${pct}%`;
+                document.getElementById('status-text').innerText = `PDF用QRコード生成中 ${i+1}/${total}: ${node.name}`;
+                
+                await generateQRForPlacard(node, `bulk-pdf-${i}`, baseUrl);
+                log(`QR生成完了 (${i+1}/${total}): ${node.name}`, 'info');
+            }
+
+            document.getElementById('status-text').innerText = "PDFファイル構築中...";
+            log("全てのQRコード生成が完了しました。PDFファイルのレンダリングと構築を開始します...", 'info');
+
+            const opt = {
+                margin:       0,
+                filename:     'I-Compass_Placards_All.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak:    { mode: ['css', 'legacy'] }
+            };
+
+            try {
+                await html2pdf().set(opt).from(target).save();
+                log("PDFファイルの構築が完了し、ダウンロードが開始されました。", 'success');
+                document.getElementById('status-text').innerText = "PDFダウンロード完了";
+            } catch (err) {
+                log(`PDF生成中にエラーが発生しました: ${err.message}`, 'error');
+                document.getElementById('status-text').innerText = "PDFエラー";
+                alert("PDFの生成に失敗しました。");
+            } finally {
+                target.innerHTML = '';
+                btn.disabled = false;
+                btn.innerHTML = origHTML;
+            }
+        }
+
+        // Print all placards directly
+        async function printAll() {
+            if (allNodes.length === 0) await loadData();
+            if (allNodes.length === 0) {
+                alert("有効な地点データが見つかりません。");
+                return;
+            }
+
+            const btn = document.getElementById('printAllBtn');
+            const origHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `準備中...`;
+            
+            switchTab('logs');
+
+            const target = document.getElementById('print-container');
+            target.innerHTML = '';
+
+            log(`全地点の一括印刷準備を開始します。件数: ${allNodes.length}件`, 'info');
+            const total = allNodes.length;
+            const baseUrl = window.location.href.split('?')[0].replace(/qr\.html$/, 'map.html');
+            
+            let htmlContent = '';
+            allNodes.forEach((node, index) => {
+                htmlContent += buildPlacardHTML(node, `bulk-print-${index}`);
+            });
+            target.innerHTML = htmlContent;
+
+            for (let i = 0; i < total; i++) {
+                const node = allNodes[i];
+                const pct = Math.floor(((i + 1) / total) * 100);
+                
+                document.getElementById('progress').style.width = `${pct}%`;
+                document.getElementById('progress-percent').innerText = `${pct}%`;
+                document.getElementById('status-text').innerText = `印刷用QRコード生成中 ${i+1}/${total}: ${node.name}`;
+                
+                await generateQRForPlacard(node, `bulk-print-${i}`, baseUrl);
+                log(`印刷用QR生成完了 (${i+1}/${total}): ${node.name}`, 'info');
+            }
+
+            document.getElementById('status-text').innerText = "印刷ダイアログ表示中";
+            log("印刷の準備が整いました。ブラウザの印刷ダイアログを開きます...", 'success');
+            
+            await new Promise(r => setTimeout(r, 100));
+            
+            window.print();
+            
+            target.innerHTML = '';
+            btn.disabled = false;
+            btn.innerHTML = origHTML;
+            document.getElementById('status-text').innerText = "準備完了";
         }
 
         // Init
