@@ -61,7 +61,18 @@ class MapEngine {
 
 
         this.resize();
-        window.addEventListener('resize', () => this.resize());
+
+        // Use ResizeObserver for reliable container size tracking
+        // (fires on layout changes like sidebar toggle, not just window resize)
+        if (typeof ResizeObserver !== 'undefined') {
+            this._resizeObserver = new ResizeObserver(() => {
+                this.resize();
+            });
+            this._resizeObserver.observe(this.container);
+        } else {
+            // Fallback for older browsers
+            window.addEventListener('resize', () => this.resize());
+        }
 
         // --- INPUT HANDLING ---
         // Unified input handling utilizing PointerEvents if supported, otherwise falling back.
@@ -319,8 +330,19 @@ class MapEngine {
     resize() {
         if (!this.container) return; // Guard
         const rect = this.container.getBoundingClientRect();
-        this.canvas.width = rect.width;
-        this.canvas.height = rect.height;
+
+        // Guard: Skip resize if container has no dimensions (e.g. hidden, mid-transition)
+        if (rect.width <= 0 || rect.height <= 0) return;
+
+        // Round to prevent sub-pixel issues
+        const w = Math.round(rect.width);
+        const h = Math.round(rect.height);
+
+        // Skip if dimensions haven't actually changed (prevent unnecessary redraws)
+        if (this.canvas.width === w && this.canvas.height === h) return;
+
+        this.canvas.width = w;
+        this.canvas.height = h;
         this.draw();
     }
 

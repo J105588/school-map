@@ -600,10 +600,17 @@ class UIController {
             this.engine.fitToPath(path);
 
             if (window.innerWidth <= 768) {
-                // Mobile: Show Modal, Hide Map Warning Banner
-                const safetyModal = document.getElementById('safety-warning-modal');
-                if (safetyModal) {
-                    safetyModal.classList.remove('hidden');
+                // Mobile: Show Modal only if cooldown period (30 minutes) has passed
+                const lastWarnTimeStr = localStorage.getItem('last_safety_warning_time');
+                const lastWarnTime = lastWarnTimeStr ? parseFloat(lastWarnTimeStr) : 0;
+                const COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
+
+                if (Date.now() - lastWarnTime > COOLDOWN_MS) {
+                    const safetyModal = document.getElementById('safety-warning-modal');
+                    if (safetyModal) {
+                        safetyModal.classList.remove('hidden');
+                        localStorage.setItem('last_safety_warning_time', Date.now().toString());
+                    }
                 }
                 const warnBanner = document.getElementById('navigation-warning-banner');
                 if (warnBanner) warnBanner.classList.add('hidden');
@@ -763,6 +770,7 @@ class UIController {
                             </div>
                             <div class="route-error-title">経路を案内できません</div>
                             <div class="route-error-desc">お選びいただいた地点間の経路が存在しないか、バリアフリーモードにより通行可能な経路がありません。</div>
+                            <div class="route-error-contact">お近くの<strong>スタッフにお気軽にお問い合わせください。</strong></div>
                         </div>
                     `;
                     this.mobileOverlay.classList.remove('hidden');
@@ -794,6 +802,7 @@ class UIController {
                     </div>
                     <div class="route-error-title">経路を案内できません</div>
                     <div class="route-error-desc">お選びいただいた地点間の経路が存在しないか、バリアフリーモードにより通行可能な経路がありません。</div>
+                    <div class="route-error-contact">お近くの<strong>スタッフにお気軽にお問い合わせください。</strong></div>
                 </div>
             `;
             return;

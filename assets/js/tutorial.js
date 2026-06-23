@@ -370,6 +370,15 @@ function initTermsConsent() {
             localStorage.setItem('terms_accepted', 'true');
             hideTermsModal();
             hideBlockedOverlay();
+            
+            // Show safety warning modal immediately on mobile after terms acceptance
+            if (window.innerWidth <= 768) {
+                const safetyModal = document.getElementById('safety-warning-modal');
+                if (safetyModal) {
+                    safetyModal.classList.remove('hidden');
+                    localStorage.setItem('last_safety_warning_time', Date.now().toString());
+                }
+            }
         });
     }
 
