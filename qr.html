@@ -2003,40 +2003,51 @@
             log(`全地点の一括PDF生成を開始します。対象件数: ${allNodes.length}件`, 'info');
             const total = allNodes.length;
             const baseUrl = window.location.href.split('?')[0].replace(/qr\.html$/, 'map.html');
-            
-            let htmlContent = '';
-            allNodes.forEach((node, index) => {
-                htmlContent += buildPlacardHTML(node, `bulk-pdf-${index}`);
-            });
-            target.innerHTML = htmlContent;
-
-            for (let i = 0; i < total; i++) {
-                const node = allNodes[i];
-                const pct = Math.floor(((i + 1) / total) * 100);
-                
-                document.getElementById('progress').style.width = `${pct}%`;
-                document.getElementById('progress-percent').innerText = `${pct}%`;
-                document.getElementById('status-text').innerText = `PDF用QRコード生成中 ${i+1}/${total}: ${node.name}`;
-                
-                await generateQRForPlacard(node, `bulk-pdf-${i}`, baseUrl);
-                log(`QR生成完了 (${i+1}/${total}): ${node.name}`, 'info');
-            }
-
-            document.getElementById('status-text').innerText = "PDFファイル構築中...";
-            log("全てのQRコード生成が完了しました。PDFファイルのレンダリングと構築を開始します...", 'info');
 
             const opt = {
                 margin:       0,
                 filename:     'I-Compass_Placards_All.pdf',
                 image:        { type: 'jpeg', quality: 0.98 },
                 html2canvas:  { scale: 2, useCORS: true, logging: false },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak:    { mode: ['css', 'legacy'] }
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
 
             try {
-                await html2pdf().set(opt).from(target).save();
-                log("PDFファイルの構築が完了し、ダウンロードが開始されました。", 'success');
+                let worker = html2pdf().set(opt);
+
+                for (let i = 0; i < total; i++) {
+                    const node = allNodes[i];
+                    const pct = Math.floor(((i + 1) / total) * 100);
+                    
+                    document.getElementById('progress').style.width = `${pct}%`;
+                    document.getElementById('progress-percent').innerText = `${pct}%`;
+                    document.getElementById('status-text').innerText = `PDF構築中 ${i+1}/${total}: ${node.name}`;
+                    
+                    // 1ページ分だけDOMにセット
+                    target.innerHTML = buildPlacardHTML(node, `bulk-pdf-${i}`);
+                    await generateQRForPlacard(node, `bulk-pdf-${i}`, baseUrl);
+                    
+                    // PDFに追加
+                    if (i === 0) {
+                        worker = worker.from(target).toPdf();
+                    } else {
+                        worker = worker.get('pdf').then(pdf => {
+                            pdf.addPage();
+                        }).from(target).toContainer().toCanvas().toPdf();
+                    }
+                    
+                    // レンダリング完了を待機してから次の要素へ（DOM書き換えによる描画崩れ防止）
+                    await worker;
+                    
+                    log(`ページ追加完了 (${i+1}/${total}): ${node.name}`, 'info');
+                }
+
+                document.getElementById('status-text').innerText = "PDFファイル保存中...";
+                log("全ページの構築が完了しました。ダウンロードを開始します...", 'info');
+                
+                await worker.save();
+                
+                log("PDFのダウンロードが完了しました。", 'success');
                 document.getElementById('status-text').innerText = "PDFダウンロード完了";
             } catch (err) {
                 log(`PDF生成中にエラーが発生しました: ${err.message}`, 'error');
