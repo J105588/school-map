@@ -462,6 +462,10 @@ class UIController {
     resolveStart(query) {
         const node = this.resolveNode(query);
         if (node) {
+            if (node.type === 'entrance_only') {
+                alert("指定された場所は「入口専用」のため、出発地に設定できません。");
+                return null;
+            }
             let title = node.eventName || node.name || '出発地';
             if (node.type === 'stairs' || node.type === 'elevator') {
                 title += ` (${node.floorId}階)`;
@@ -492,6 +496,10 @@ class UIController {
         // Otherwise resolve to a node
         const node = this.resolveNode(query);
         if (node) {
+            if (node.type === 'exit_only') {
+                alert("指定された場所は「出口専用」のため、目的地に設定できません。");
+                return null;
+            }
             let title = node.eventName || node.name || '目的地';
             if (node.type === 'stairs' || node.type === 'elevator') {
                 title += ` (${node.floorId}階)`;
@@ -564,14 +572,20 @@ class UIController {
             { value: "NEAREST_VENDING", title: "最寄りの自販機", org: "System Auto", category: "AUTO", type: 'vending', sortKey: 'ZZ_AUTO' }
         ];
 
-        this.startSelect.setOptions(options);
-        this.endSelect.setOptions([...options, ...systemOptions]);
+        // Filter startSelect: Exclude entrance_only nodes
+        const startOptions = options.filter(opt => opt.type !== 'entrance_only');
+        // Filter endSelect: Exclude exit_only nodes
+        const endOptions = options.filter(opt => opt.type !== 'exit_only');
+
+        this.startSelect.setOptions(startOptions);
+        this.endSelect.setOptions([...endOptions, ...systemOptions]);
     }
 
     getTypeLabel(type) {
         const map = {
             'room': '教室', 'toilet': 'トイレ', 'stairs': '階段', 'elevator': 'EV',
-            'entrance': '入口', 'vending': '自販機', 'area': 'エリア'
+            'entrance': '入口', 'entrance_only': '入口専用', 'exit_only': '出口専用',
+            'vending': '自販機', 'area': 'エリア'
         };
         return map[type] || 'Others';
     }
@@ -1175,6 +1189,10 @@ class UIController {
                 // Check if node exists first
                 const node = this.engine.getNode(currentId);
                 if (node) {
+                    if (node.type === 'entrance_only') {
+                        alert("スキャンした場所は「入口専用」のため、現在地（出発地）として設定できません。");
+                        return;
+                    }
                     this.engine.setCurrentLocation(currentId);
 
                     // Update Start Select if exists

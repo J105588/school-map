@@ -475,6 +475,16 @@ button, a, select, input, [role="button"],
     color: #00695c;
 }
 
+.tag-entrance_only {
+    background: #ffe0b2;
+    color: #e65100;
+}
+
+.tag-exit_only {
+    background: #ffccbc;
+    color: #d84315;
+}
+
 .tag-area {
     background: #f3e5f5;
     color: #7b1fa2;
