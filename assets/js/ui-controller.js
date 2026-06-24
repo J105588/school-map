@@ -1420,24 +1420,30 @@ class CustomSelect {
             if (!isAutoA && isAutoB) return 1;
 
             if (this.sortBy === 'default') {
+                const defaultPriority = (window.ui && window.ui.engine && window.ui.engine.orderData && window.ui.engine.orderData.default) || 9999;
+
                 // Priority from JSON
                 const pA = a.sortIndex !== undefined ? a.sortIndex : 9999;
                 const pB = b.sortIndex !== undefined ? b.sortIndex : 9999;
 
-                // Debug: Log first few comparisons
-                if (Math.random() < 0.01) { // Log ~1% to avoid spam
-                    // console.log(`[Sort] Comparing: "${a.title}" (${pA}) vs "${b.title}" (${pB})`);
+                const inOrderA = Math.floor(pA) < defaultPriority;
+                const inOrderB = Math.floor(pB) < defaultPriority;
+
+                // 1. If one is in order and the other is not, the one in order goes first
+                if (inOrderA && !inOrderB) return -1;
+                if (!inOrderA && inOrderB) return 1;
+
+                // 2. If both are NOT in order, sort by Type Priority first
+                if (!inOrderA && !inOrderB) {
+                    const tA = typeOrder[a.type] || 99;
+                    const tB = typeOrder[b.type] || 99;
+                    if (tA !== tB) return tA - tB;
                 }
 
+                // 3. Compare their sortIndex values (priority order or restriction penalty)
                 if (pA !== pB) return pA - pB;
 
-                // Removed Type Priority for Default Mode as per user request
-                // "Sort everything by exhibition group (1-1 etc)"
-                // const tA = typeOrder[a.type] || 99;
-                // const tB = typeOrder[b.type] || 99;
-                // if (tA !== tB) return tA - tB;
-
-                // Sort by the stable 'sortKey' (Org or Name), ignoring the display title (Event Name)
+                // 4. Sort by the stable 'sortKey' (Org or Name)
                 return a.sortKey.localeCompare(b.sortKey, 'ja', { numeric: true });
             }
             else if (this.sortBy === 'floor') {
