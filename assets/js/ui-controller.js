@@ -182,8 +182,8 @@ class UIController {
             this.startSelect = new CustomSelect('custom-start-select', (val) => {
                 if (val) {
                     const node = this.engine.getNode(val);
-                    if (node && node.type === 'exit_only') {
-                        this.showRestrictionWarning('exit_only');
+                    if (node && node.type === 'entrance_only') {
+                        this.showRestrictionWarning('entrance_only');
                     }
                     if (!this.endSelect.value) {
                         this.engine.focusNode(val);
@@ -195,8 +195,8 @@ class UIController {
             this.endSelect = new CustomSelect('custom-end-select', (val) => {
                 if (val) {
                     const node = this.engine.getNode(val);
-                    if (node && node.type === 'entrance_only') {
-                        this.showRestrictionWarning('entrance_only');
+                    if (node && node.type === 'exit_only') {
+                        this.showRestrictionWarning('exit_only');
                     }
                 }
                 this.calculateRoute();
@@ -488,8 +488,8 @@ class UIController {
     resolveStart(query) {
         const node = this.resolveNode(query);
         if (node) {
-            if (node.type === 'exit_only') {
-                this.showRestrictionWarning('exit_only');
+            if (node.type === 'entrance_only') {
+                this.showRestrictionWarning('entrance_only');
             }
             let title = node.eventName || node.name || '出発地';
             if (node.type === 'stairs' || node.type === 'elevator') {
@@ -521,8 +521,8 @@ class UIController {
         // Otherwise resolve to a node
         const node = this.resolveNode(query);
         if (node) {
-            if (node.type === 'entrance_only') {
-                this.showRestrictionWarning('entrance_only');
+            if (node.type === 'exit_only') {
+                this.showRestrictionWarning('exit_only');
             }
             let title = node.eventName || node.name || '目的地';
             if (node.type === 'stairs' || node.type === 'elevator') {
@@ -635,7 +635,7 @@ class UIController {
     getTypeLabel(type) {
         const map = {
             'room': '教室', 'toilet': 'トイレ', 'stairs': '階段', 'elevator': 'EV',
-            'entrance': '入口', 'entrance_only': '入口専用', 'exit_only': '出口専用',
+            'entrance': '出入口', 'entrance_only': '入口専用', 'exit_only': '出口専用',
             'vending': '自販機', 'area': 'エリア'
         };
         return map[type] || 'Others';
@@ -1240,8 +1240,8 @@ class UIController {
                 // Check if node exists first
                 const node = this.engine.getNode(currentId);
                 if (node) {
-                    if (node.type === 'exit_only') {
-                        this.showRestrictionWarning('exit_only');
+                    if (node.type === 'entrance_only') {
+                        this.showRestrictionWarning('entrance_only');
                     }
                     this.engine.setCurrentLocation(currentId);
 

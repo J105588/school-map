@@ -536,6 +536,67 @@ class MapEngine {
             this.adj[e.to].push({ to: e.from, dist: e.dist, type: e.type });
         });
         console.log(`Global Graph Finalized: ${this.globalNodes.length} nodes, ${this.globalEdges.length} edges`);
+        
+        // Build Inside/Outside node cache
+        this.buildInsideCache();
+    }
+
+    buildInsideCache() {
+        this.insideCache = {};
+        this.globalNodes.forEach(n => {
+            this.insideCache[n.id] = this.computeIsInside(n.id);
+        });
+        console.log(`Inside Cache Built: ${Object.keys(this.insideCache).length} nodes cached.`);
+    }
+
+    computeIsInside(nodeId) {
+        const startNode = this.getNode(nodeId);
+        if (!startNode) return false;
+        
+        if (['room', 'toilet', 'stairs', 'elevator'].includes(startNode.type)) {
+            return true;
+        }
+        if (['entrance', 'entrance_only', 'exit_only'].includes(startNode.type)) {
+            return false;
+        }
+
+        // BFS to see if we can reach a room, toilet, stairs, or elevator without passing through doors
+        const visited = new Set();
+        const queue = [nodeId];
+        visited.add(nodeId);
+
+        while (queue.length > 0) {
+            const currId = queue.shift();
+            const currNode = this.getNode(currId);
+            if (!currNode) continue;
+
+            if (['room', 'toilet', 'stairs', 'elevator'].includes(currNode.type)) {
+                return true;
+            }
+
+            if (this.adj[currId]) {
+                for (const edge of this.adj[currId]) {
+                    if (!visited.has(edge.to)) {
+                        const neighbor = this.getNode(edge.to);
+                        if (neighbor) {
+                            if (['entrance', 'entrance_only', 'exit_only'].includes(neighbor.type)) {
+                                continue;
+                            }
+                            visited.add(edge.to);
+                            queue.push(edge.to);
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    isInsideNode(nodeId) {
+        if (this.insideCache && this.insideCache[nodeId] !== undefined) {
+            return this.insideCache[nodeId];
+        }
+        return this.computeIsInside(nodeId);
     }
 
     // --- Drawing ---
@@ -1645,6 +1706,24 @@ class MapEngine {
 
             if (this.adj[minId]) {
                 for (const edge of this.adj[minId]) {
+                    // Check Entrance/Exit restrictions
+                    const fromNode = this.getNode(minId);
+                    const toNode = this.getNode(edge.to);
+                    if (fromNode && toNode) {
+                        if (fromNode.type === 'entrance_only' && !this.isInsideNode(edge.to)) {
+                            continue;
+                        }
+                        if (fromNode.type === 'exit_only' && this.isInsideNode(edge.to)) {
+                            continue;
+                        }
+                        if (toNode.type === 'entrance_only' && this.isInsideNode(minId)) {
+                            continue;
+                        }
+                        if (toNode.type === 'exit_only' && !this.isInsideNode(minId)) {
+                            continue;
+                        }
+                    }
+
                     let weight = edge.dist;
 
                     // ACCESSIBILITY LOGIC
@@ -1654,10 +1733,8 @@ class MapEngine {
                         if (edge.barrierFreeBlocked) continue; // Skip blocked edges
 
                         // Blocked Nodes
-                        const toNode = this.getNode(edge.to);
                         if (toNode && toNode.barrierFreeBlocked) continue;
 
-                        const fromNode = this.getNode(minId);
                         if (fromNode && fromNode.barrierFreeBlocked) continue;
 
                         if (edge.type === 'elevator') {
