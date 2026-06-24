@@ -21,15 +21,21 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:wght@400;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
 
-        *, *::before, *::after {
+        *,
+        *::before,
+        *::after {
             box-sizing: border-box;
         }
 
         :root {
-            --primary-color: #1a237e;      /* Deep Navy */
-            --secondary-color: #c5a059;    /* Brass/Gold */
-            --accent-color: #c62828;       /* Compass Needle Red */
-            --bg-color: #f5f5f7;           /* Off-white Map Paper */
+            --primary-color: #1a237e;
+            /* Deep Navy */
+            --secondary-color: #c5a059;
+            /* Brass/Gold */
+            --accent-color: #c62828;
+            /* Compass Needle Red */
+            --bg-color: #f5f5f7;
+            /* Off-white Map Paper */
             --panel-bg: #ffffff;
             --text-main: #2c3e50;
             --text-sub: #7f8c8d;
@@ -45,13 +51,16 @@
             width: 6px;
             height: 6px;
         }
+
         ::-webkit-scrollbar-track {
             background: transparent;
         }
+
         ::-webkit-scrollbar-thumb {
             background: rgba(0, 0, 0, 0.15);
             border-radius: 3px;
         }
+
         ::-webkit-scrollbar-thumb:hover {
             background: rgba(0, 0, 0, 0.3);
         }
@@ -483,8 +492,13 @@
         }
 
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         /* QR Preview Styling */
@@ -774,10 +788,21 @@
             text-align: center;
         }
 
-        .badge-1f { background-color: #1a237e; }
-        .badge-2f { background-color: #6a1b9a; }
-        .badge-3f { background-color: #2e7d32; }
-        .badge-4f { background-color: #00838f; }
+        .badge-1f {
+            background-color: #1a237e;
+        }
+
+        .badge-2f {
+            background-color: #6a1b9a;
+        }
+
+        .badge-3f {
+            background-color: #2e7d32;
+        }
+
+        .badge-4f {
+            background-color: #00838f;
+        }
 
         .node-item-name {
             font-size: 13px;
@@ -855,27 +880,33 @@
                 height: auto;
                 overflow: auto;
             }
+
             .dashboard-container {
                 grid-template-columns: 1fr;
                 height: auto;
                 overflow: visible;
                 gap: 20px;
             }
+
             .dashboard-sidebar {
                 height: auto;
                 max-height: 500px;
             }
+
             .node-list-wrapper {
                 max-height: 350px;
             }
+
             .workspace-grid {
                 grid-template-columns: 1fr;
                 height: auto;
                 gap: 20px;
             }
+
             .workspace-preview-column {
                 height: 620px;
             }
+
             .console-card {
                 height: 300px;
             }
@@ -1039,10 +1070,25 @@
             text-transform: uppercase;
         }
 
-        .placard-floor-badge.badge-1f, .placard-floor-badge.badge-1f-jp { background-color: #1a237e; }
-        .placard-floor-badge.badge-2f, .placard-floor-badge.badge-2f-jp { background-color: #6a1b9a; }
-        .placard-floor-badge.badge-3f, .placard-floor-badge.badge-3f-jp { background-color: #2e7d32; }
-        .placard-floor-badge.badge-4f, .placard-floor-badge.badge-4f-jp { background-color: #00838f; }
+        .placard-floor-badge.badge-1f,
+        .placard-floor-badge.badge-1f-jp {
+            background-color: #1a237e;
+        }
+
+        .placard-floor-badge.badge-2f,
+        .placard-floor-badge.badge-2f-jp {
+            background-color: #6a1b9a;
+        }
+
+        .placard-floor-badge.badge-3f,
+        .placard-floor-badge.badge-3f-jp {
+            background-color: #2e7d32;
+        }
+
+        .placard-floor-badge.badge-4f,
+        .placard-floor-badge.badge-4f-jp {
+            background-color: #00838f;
+        }
 
         .placard-node-name {
             font-family: var(--font-body);
@@ -1130,38 +1176,48 @@
         .preview-scale-wrapper .placard-border {
             padding: 35px 25px;
         }
+
         .preview-scale-wrapper .placard-app-title {
             font-size: 36px;
         }
+
         .preview-scale-wrapper .placard-subtitle {
             margin-bottom: 20px;
             font-size: 15px;
         }
+
         .preview-scale-wrapper .placard-qr-container {
             margin-bottom: 15px;
         }
+
         .preview-scale-wrapper .placard-qr-container canvas,
         .preview-scale-wrapper .placard-qr-container img {
             width: 260px !important;
             height: 260px !important;
         }
+
         .preview-scale-wrapper .placard-floor-badge {
             font-size: 15px;
             padding: 5px 18px;
             margin-bottom: 10px;
         }
+
         .preview-scale-wrapper .placard-node-name {
             font-size: 40px;
         }
+
         .preview-scale-wrapper .placard-event-name {
             font-size: 46px;
         }
+
         .preview-scale-wrapper .placard-room-name-small {
             font-size: 20px;
         }
+
         .preview-scale-wrapper .placard-divider {
             margin: 15px 0;
         }
+
         .preview-scale-wrapper .placard-instructions {
             padding: 16px 22px;
             margin-bottom: 15px;
@@ -1173,6 +1229,7 @@
                 size: A4 portrait;
                 margin: 0;
             }
+
             body {
                 background: #ffffff !important;
                 color: #000000 !important;
@@ -1181,11 +1238,11 @@
                 height: auto !important;
                 overflow: visible !important;
             }
-            
-            body > *:not(#print-container) {
+
+            body>*:not(#print-container) {
                 display: none !important;
             }
-            
+
             #print-container {
                 display: block !important;
                 position: absolute;
@@ -1239,7 +1296,8 @@
         <div class="header-container">
             <div class="logo-area">
                 <svg class="logo-icon" viewBox="0 0 24 24" width="32" height="32">
-                    <circle cx="12" cy="12" r="10" stroke="var(--secondary-color)" stroke-width="1.5" fill="none"></circle>
+                    <circle cx="12" cy="12" r="10" stroke="var(--secondary-color)" stroke-width="1.5" fill="none">
+                    </circle>
                     <polygon points="12,3 15,12 12,12" fill="var(--accent-color)"></polygon>
                     <polygon points="12,3 9,12 12,12" fill="#ff5252"></polygon>
                     <polygon points="12,21 15,12 12,12" fill="var(--secondary-color)"></polygon>
@@ -1261,25 +1319,22 @@
     <div class="dashboard-container">
         <!-- Sidebar: Location list directory & Filters -->
         <aside class="dashboard-sidebar">
-            <div class="sidebar-header-area">
-                <h3 class="sidebar-title">地点選択</h3>
-                <span class="stat-badge">対象: <span id="header-total-nodes">0</span>地点</span>
-            </div>
-            
             <div class="filter-controls">
                 <div class="search-box">
-                    <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="11" cy="11" r="8"></circle>
                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                     </svg>
-                    <input type="text" id="search-input" class="search-input" placeholder="地点名で検索..." oninput="filterNodes()">
+                    <input type="text" id="search-input" class="search-input" placeholder="地点名で検索..."
+                        oninput="filterNodes()">
                 </div>
-                
+
                 <div class="floor-filters" id="floor-filter-container">
                     <button class="filter-pill active" id="pill-all" onclick="filterFloor('all')">すべて</button>
                 </div>
             </div>
-            
+
             <div class="node-list-wrapper">
                 <div class="node-list" id="node-list-container">
                     <!-- Node elements will be populated here -->
@@ -1290,7 +1345,7 @@
         <!-- Main Workspace: Large placard preview & Control Panel -->
         <main class="dashboard-workspace">
             <div class="workspace-grid">
-                
+
                 <!-- Center column: A4 Placard Poster Preview -->
                 <section class="workspace-preview-column">
                     <div class="preview-frame-header">
@@ -1302,7 +1357,7 @@
                         </div>
                     </div>
                 </section>
-                
+
                 <!-- Right column: Selected Node controls, Bulk controls, Console Logs -->
                 <section class="workspace-controls-column">
                     <!-- Card 1: Selected Node Actions -->
@@ -1314,38 +1369,46 @@
                             <div class="selected-node-details">
                                 <span class="selected-node-floor" id="node-floor-badge">-</span>
                                 <div style="display: flex; flex-direction: column;">
-                                    <span id="node-room-label" style="font-size: 11px; color: var(--text-sub); font-weight: bold; margin-bottom: 2px; display: none;"></span>
+                                    <span id="node-room-label"
+                                        style="font-size: 11px; color: var(--text-sub); font-weight: bold; margin-bottom: 2px; display: none;"></span>
                                     <h2 class="selected-node-name" id="node-name-label">地点を選択してください</h2>
                                 </div>
                             </div>
-                            
+
                             <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
-                                <button onclick="downloadSingle()" id="download-single-btn" class="btn btn-primary" disabled>
-                                    <svg class="btn-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                                        <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+                                <button onclick="downloadSingle()" id="download-single-btn" class="btn btn-primary"
+                                    disabled>
+                                    <svg class="btn-icon" viewBox="0 0 24 24" width="18" height="18"
+                                        fill="currentColor">
+                                        <path
+                                            d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z" />
                                     </svg>
                                     現在のQR（PNG）を保存
                                 </button>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                                    <button onclick="downloadSinglePDF()" id="download-single-pdf-btn" class="btn btn-secondary" disabled>
+                                    <button onclick="downloadSinglePDF()" id="download-single-pdf-btn"
+                                        class="btn btn-secondary" disabled>
                                         PDFをダウンロード
                                     </button>
-                                    <button onclick="printSingle()" id="print-single-btn" class="btn btn-secondary" style="background-color: #5d668c;" disabled>
+                                    <button onclick="printSingle()" id="print-single-btn" class="btn btn-secondary"
+                                        style="background-color: #5d668c;" disabled>
                                         印刷する
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <div class="url-copy-box">
                                 <span class="copy-box-label">QRコードリンクURL</span>
-                                <div class="url-input-group" style="display: flex; width: 100%; gap: 6px; box-sizing: border-box;">
-                                    <input type="text" id="node-url" readonly value="" style="flex-grow: 1; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: #f8f9fa; font-family: monospace; font-size: 11px; outline: none; color: var(--text-sub); text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">
+                                <div class="url-input-group"
+                                    style="display: flex; width: 100%; gap: 6px; box-sizing: border-box;">
+                                    <input type="text" id="node-url" readonly value=""
+                                        style="flex-grow: 1; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: #f8f9fa; font-family: monospace; font-size: 11px; outline: none; color: var(--text-sub); text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">
                                     <button onclick="copyUrl()" class="icon-btn-text" id="copy-btn">コピー</button>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Card 2: Bulk Operations -->
                     <div class="control-card">
                         <div class="control-card-header">
@@ -1353,7 +1416,7 @@
                         </div>
                         <div class="control-card-body">
                             <p class="bulk-desc">すべての地点のポスターを一括で生成し、ZIPまたはPDFで保存します。</p>
-                            
+
                             <div class="progress-section">
                                 <div class="progress-meta">
                                     <span class="progress-status" id="status-text">待機中</span>
@@ -1363,11 +1426,13 @@
                                     <div id="progress" class="progress-fill"></div>
                                 </div>
                             </div>
-                            
+
                             <div style="display: flex; flex-direction: column; gap: 8px;">
                                 <button onclick="generateAll()" id="genBtn" class="btn btn-secondary">
-                                    <svg class="btn-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                                        <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-3h4v3h3.5L12 17.5zM5.12 5l.82-1h12.06l.82 1H5.12z"/>
+                                    <svg class="btn-icon" viewBox="0 0 24 24" width="18" height="18"
+                                        fill="currentColor">
+                                        <path
+                                            d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-3h4v3h3.5L12 17.5zM5.12 5l.82-1h12.06l.82 1H5.12z" />
                                     </svg>
                                     一括生成とZIP保存 (PNG)
                                 </button>
@@ -1375,14 +1440,15 @@
                                     <button onclick="generateAllPDF()" id="genPdfBtn" class="btn btn-primary">
                                         全地点をPDF保存
                                     </button>
-                                    <button onclick="printAll()" id="printAllBtn" class="btn btn-secondary" style="background-color: #5d668c;">
+                                    <button onclick="printAll()" id="printAllBtn" class="btn btn-secondary"
+                                        style="background-color: #5d668c;">
                                         全地点を一括印刷
                                     </button>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Card 3: Console Logs -->
                     <div class="control-card console-card">
                         <div class="control-card-header console-card-header">
@@ -1392,7 +1458,7 @@
                         <div id="console" class="log-box-new"></div>
                     </div>
                 </section>
-                
+
             </div>
         </main>
     </div>
@@ -1414,12 +1480,12 @@
             const el = document.getElementById('console');
             const now = new Date();
             const timeStr = now.toTimeString().split(' ')[0];
-            
+
             let color = '#a5b0c7';
             if (type === 'success') color = '#4caf50';
             else if (type === 'error') color = '#f44336';
             else if (type === 'warning') color = '#ffeb3b';
-            
+
             const line = document.createElement('div');
             line.style.marginBottom = '4px';
             line.innerHTML = `<span style="color: #5d668c;">[${timeStr}]</span> <span style="color: ${color};">> ${msg}</span>`;
@@ -1471,22 +1537,22 @@
                     log(`フロア ${floor.name} のロード中にエラーが発生しました: ${e.message}`, 'error');
                 }
             }
-            
+
             // Filter target nodes (Must have name and not be junction)
             allNodes = allNodes.filter(n => n.name && n.type !== 'junction');
             log(`全フロアのロードが完了しました。対象地点数: ${allNodes.length}`, 'success');
-            
+
             // Update total badge in header
             document.getElementById('header-total-nodes').innerText = allNodes.length;
             document.getElementById('status-text').innerText = `準備完了 (${allNodes.length} 地点)`;
-            
+
             // Initialize floor filter pills
             populateFloorFilters();
-            
+
             // Reset filtered list
             filteredNodes = [...allNodes];
             renderNodeList();
-            
+
             // Auto-select first node if available
             if (allNodes.length > 0) {
                 selectNode(allNodes[0]);
@@ -1497,7 +1563,7 @@
         function populateFloorFilters() {
             const container = document.getElementById('floor-filter-container');
             container.innerHTML = `<button class="filter-pill active" id="pill-all" onclick="filterFloor('all')">すべて</button>`;
-            
+
             AppConfig.FLOORS.forEach(floor => {
                 const btn = document.createElement('button');
                 btn.className = 'filter-pill';
@@ -1511,17 +1577,17 @@
         // Floor filter switch handler
         function filterFloor(floorId) {
             activeFloorFilter = floorId;
-            
+
             const pills = document.querySelectorAll('.filter-pill');
             pills.forEach(p => p.classList.remove('active'));
-            
+
             if (floorId === 'all') {
                 document.getElementById('pill-all').classList.add('active');
             } else {
                 const activePill = document.getElementById(`pill-${floorId}`);
                 if (activePill) activePill.classList.add('active');
             }
-            
+
             applyFilter();
         }
 
@@ -1538,7 +1604,7 @@
                 const matchesSearch = node.name.toLowerCase().includes(searchQuery) || node.fullId.toLowerCase().includes(searchQuery);
                 return matchesFloor && matchesSearch;
             });
-            
+
             renderNodeList();
         }
 
@@ -1546,7 +1612,7 @@
         function renderNodeList() {
             const container = document.getElementById('node-list-container');
             container.innerHTML = '';
-            
+
             if (filteredNodes.length === 0) {
                 const emptyMsg = document.createElement('div');
                 emptyMsg.className = 'preview-placeholder';
@@ -1555,24 +1621,24 @@
                 container.appendChild(emptyMsg);
                 return;
             }
-            
+
             filteredNodes.forEach(node => {
                 const item = document.createElement('div');
                 item.className = 'node-item';
                 if (selectedNode && selectedNode.fullId === node.fullId) {
                     item.classList.add('active');
                 }
-                
+
                 item.onclick = () => {
                     const items = document.querySelectorAll('.node-item');
                     items.forEach(i => i.classList.remove('active'));
                     item.classList.add('active');
-                    
+
                     selectNode(node);
                 };
-                
+
                 const badgeClass = `badge-${node.floorName.toLowerCase()}`;
-                
+
                 item.innerHTML = `
                     <div class="node-item-main">
                         <span class="floor-badge ${badgeClass}">${node.floorName}</span>
@@ -1585,7 +1651,7 @@
                         <polyline points="9 18 15 12 9 6"></polyline>
                     </svg>
                 `;
-                
+
                 container.appendChild(item);
             });
         }
@@ -1593,7 +1659,7 @@
         // Interactive QR Code Selection
         function selectNode(node) {
             selectedNode = node;
-            
+
             // Update selected indicator in list
             const nodeItems = document.querySelectorAll('.node-item');
             nodeItems.forEach((item, idx) => {
@@ -1604,7 +1670,7 @@
                     item.classList.remove('active');
                 }
             });
-            
+
             // Update details on control card
             document.getElementById('node-name-label').innerText = node.eventName ? node.eventName : node.name;
             const roomLabel = document.getElementById('node-room-label');
@@ -1621,16 +1687,16 @@
             const baseUrl = window.location.href.split('?')[0].replace(/qr\.html$/, 'map.html');
             const qrUrl = `${baseUrl}?current=${node.fullId}`;
             document.getElementById('node-url').value = qrUrl;
-            
+
             // Render Scaled Placard in Preview Area
             const previewContainer = document.getElementById('qr-preview-container');
             previewContainer.innerHTML = '';
-            
+
             const scaleWrapper = document.createElement('div');
             scaleWrapper.className = 'preview-scale-wrapper';
             scaleWrapper.innerHTML = buildPlacardHTML(node, 'preview');
             previewContainer.appendChild(scaleWrapper);
-            
+
             // Render QR Code inside preview wrapper placard
             const qrHolder = document.getElementById('qr-holder-preview');
             if (qrHolder) {
@@ -1643,7 +1709,7 @@
                     correctLevel: QRCode.CorrectLevel.M
                 });
             }
-            
+
             document.getElementById('download-single-btn').disabled = false;
             document.getElementById('download-single-pdf-btn').disabled = false;
             document.getElementById('print-single-btn').disabled = false;
@@ -1681,7 +1747,7 @@
             const copyText = document.getElementById("node-url");
             copyText.select();
             copyText.setSelectionRange(0, 99999);
-            
+
             copyToClipboard(copyText.value)
                 .then(() => {
                     const btn = document.getElementById('copy-btn');
@@ -1703,22 +1769,22 @@
         // Download Single QR Code (PNG)
         function downloadSingle() {
             if (!selectedNode) return;
-            
+
             const previewContainer = document.getElementById('qr-preview-container');
             const canvas = previewContainer.querySelector('canvas');
             let dataUrl = null;
-            
+
             if (canvas) {
                 dataUrl = canvas.toDataURL("image/png");
             } else {
                 const img = previewContainer.querySelector('img');
                 if (img) dataUrl = img.src;
             }
-            
+
             if (dataUrl) {
                 const safeName = selectedNode.name.replace(/[\/\\:*?"<>|]/g, '_');
                 const fileName = `${selectedNode.floorId}F_${safeName}.png`;
-                
+
                 try {
                     // Try parsing DataURL into Blob for FileSaver
                     const parts = dataUrl.split(',');
@@ -1729,7 +1795,7 @@
                     for (let i = 0; i < byteString.length; i++) {
                         ia[i] = byteString.charCodeAt(i);
                     }
-                    const blob = new Blob([ab], {type: mimeString});
+                    const blob = new Blob([ab], { type: mimeString });
                     saveAs(blob, fileName);
                 } catch (e) {
                     // Fallback to traditional anchor tag click
@@ -1767,7 +1833,7 @@
                 </svg>
                 生成中...
             `;
-            
+
             // Switch tabs to show logs visually during bulk export
             switchTab('logs');
 
@@ -1840,7 +1906,7 @@
                 </svg>
                 一括生成とZIP保存
             `;
-            
+
             // Restore selection state
             if (selectedNode) {
                 selectNode(selectedNode);
@@ -1875,11 +1941,11 @@
                             
                             <div class="placard-location-info">
                                 <span class="placard-floor-badge ${badgeClass}">${node.floorName}</span>
-                                ${node.eventName 
-                                    ? `<h2 class="placard-room-name-small">${node.name}</h2>
+                                ${node.eventName
+                    ? `<h2 class="placard-room-name-small">${node.name}</h2>
                                        <h1 class="placard-event-name">${node.eventName}</h1>`
-                                    : `<h1 class="placard-node-name">${node.name}</h1>`
-                                }
+                    : `<h1 class="placard-node-name">${node.name}</h1>`
+                }
                             </div>
                             
                             <div class="placard-divider"></div>
@@ -1930,28 +1996,28 @@
         // Download single placard PDF
         async function downloadSinglePDF() {
             if (!selectedNode) return;
-            
+
             const target = document.getElementById('print-canvas-target');
             target.innerHTML = '';
-            
+
             const uniqueId = `single-pdf-${Date.now()}`;
             target.innerHTML = buildPlacardHTML(selectedNode, uniqueId);
-            
+
             const baseUrl = window.location.href.split('?')[0].replace(/qr\.html$/, 'map.html');
             await generateQRForPlacard(selectedNode, uniqueId, baseUrl);
-            
+
             const safeName = selectedNode.name.replace(/[\/\\:*?"<>|]/g, '_');
             const fileName = `Placard_${selectedNode.floorId}F_${safeName}.pdf`;
-            
+
             const opt = {
-                margin:       0,
-                filename:     fileName,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, logging: false },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak:    { mode: ['css', 'legacy'] }
+                margin: 0,
+                filename: fileName,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, logging: false },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak: { mode: ['css', 'legacy'] }
             };
-            
+
             log(`PDF生成を開始します: ${fileName}`, 'info');
             try {
                 await html2pdf().set(opt).from(target).save();
@@ -1967,16 +2033,16 @@
         // Print single placard
         async function printSingle() {
             if (!selectedNode) return;
-            
+
             const target = document.getElementById('print-container');
             target.innerHTML = '';
-            
+
             const uniqueId = `single-print-${Date.now()}`;
             target.innerHTML = buildPlacardHTML(selectedNode, uniqueId);
-            
+
             const baseUrl = window.location.href.split('?')[0].replace(/qr\.html$/, 'map.html');
             await generateQRForPlacard(selectedNode, uniqueId, baseUrl);
-            
+
             log(`印刷ダイアログを開きます: ${selectedNode.name}`, 'info');
             window.print();
             target.innerHTML = '';
@@ -1994,7 +2060,7 @@
             const origHTML = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = `準備中...`;
-            
+
             switchTab('logs');
 
             const target = document.getElementById('print-canvas-target');
@@ -2005,11 +2071,11 @@
             const baseUrl = window.location.href.split('?')[0].replace(/qr\.html$/, 'map.html');
 
             const opt = {
-                margin:       0,
-                filename:     'I-Compass_Placards_All.pdf',
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, logging: false },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                margin: 0,
+                filename: 'I-Compass_Placards_All.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, logging: false },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
 
             try {
@@ -2018,15 +2084,15 @@
                 for (let i = 0; i < total; i++) {
                     const node = allNodes[i];
                     const pct = Math.floor(((i + 1) / total) * 100);
-                    
+
                     document.getElementById('progress').style.width = `${pct}%`;
                     document.getElementById('progress-percent').innerText = `${pct}%`;
-                    document.getElementById('status-text').innerText = `PDF構築中 ${i+1}/${total}: ${node.name}`;
-                    
+                    document.getElementById('status-text').innerText = `PDF構築中 ${i + 1}/${total}: ${node.name}`;
+
                     // 1ページ分だけDOMにセット
                     target.innerHTML = buildPlacardHTML(node, `bulk-pdf-${i}`);
                     await generateQRForPlacard(node, `bulk-pdf-${i}`, baseUrl);
-                    
+
                     // PDFに追加
                     if (i === 0) {
                         worker = worker.from(target).toPdf();
@@ -2035,18 +2101,18 @@
                             pdf.addPage();
                         }).from(target).toContainer().toCanvas().toPdf();
                     }
-                    
+
                     // レンダリング完了を待機してから次の要素へ（DOM書き換えによる描画崩れ防止）
                     await worker;
-                    
-                    log(`ページ追加完了 (${i+1}/${total}): ${node.name}`, 'info');
+
+                    log(`ページ追加完了 (${i + 1}/${total}): ${node.name}`, 'info');
                 }
 
                 document.getElementById('status-text').innerText = "PDFファイル保存中...";
                 log("全ページの構築が完了しました。ダウンロードを開始します...", 'info');
-                
+
                 await worker.save();
-                
+
                 log("PDFのダウンロードが完了しました。", 'success');
                 document.getElementById('status-text').innerText = "PDFダウンロード完了";
             } catch (err) {
@@ -2072,7 +2138,7 @@
             const origHTML = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = `準備中...`;
-            
+
             switchTab('logs');
 
             const target = document.getElementById('print-container');
@@ -2081,7 +2147,7 @@
             log(`全地点の一括印刷準備を開始します。件数: ${allNodes.length}件`, 'info');
             const total = allNodes.length;
             const baseUrl = window.location.href.split('?')[0].replace(/qr\.html$/, 'map.html');
-            
+
             let htmlContent = '';
             allNodes.forEach((node, index) => {
                 htmlContent += buildPlacardHTML(node, `bulk-print-${index}`);
@@ -2091,22 +2157,22 @@
             for (let i = 0; i < total; i++) {
                 const node = allNodes[i];
                 const pct = Math.floor(((i + 1) / total) * 100);
-                
+
                 document.getElementById('progress').style.width = `${pct}%`;
                 document.getElementById('progress-percent').innerText = `${pct}%`;
-                document.getElementById('status-text').innerText = `印刷用QRコード生成中 ${i+1}/${total}: ${node.name}`;
-                
+                document.getElementById('status-text').innerText = `印刷用QRコード生成中 ${i + 1}/${total}: ${node.name}`;
+
                 await generateQRForPlacard(node, `bulk-print-${i}`, baseUrl);
-                log(`印刷用QR生成完了 (${i+1}/${total}): ${node.name}`, 'info');
+                log(`印刷用QR生成完了 (${i + 1}/${total}): ${node.name}`, 'info');
             }
 
             document.getElementById('status-text').innerText = "印刷ダイアログ表示中";
             log("印刷の準備が整いました。ブラウザの印刷ダイアログを開きます...", 'success');
-            
+
             await new Promise(r => setTimeout(r, 100));
-            
+
             window.print();
-            
+
             target.innerHTML = '';
             btn.disabled = false;
             btn.innerHTML = origHTML;
