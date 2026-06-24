@@ -552,8 +552,8 @@ class UIController {
 
             // Determine sortIndex
             const sortIndex = (() => {
-                const isRestricted = (isStart && n.type === 'exit_only') || (!isStart && n.type === 'entrance_only');
-                const isRestrictedPartner = (isStart && n.type === 'entrance_only') || (!isStart && n.type === 'exit_only');
+                const isRestricted = (isStart && n.type === 'entrance_only') || (!isStart && n.type === 'exit_only');
+                const isRestrictedPartner = (isStart && n.type === 'exit_only') || (!isStart && n.type === 'entrance_only');
 
                 if (!this.engine.orderData) {
                     if (isRestricted) {
@@ -835,7 +835,7 @@ class UIController {
                             </div>
                             <div class="route-error-title">経路を案内できません</div>
                             <div class="route-error-desc">お選びいただいた地点間の経路が存在しないか、バリアフリーモードにより通行可能な経路がありません。</div>
-                            <div class="route-error-contact">お近くの<strong>スタッフにお気軽にお問い合わせください。</strong></div>
+                            <div class="route-error-contact">お近くの<strong>スタッフにお問い合わせください。</strong></div>
                         </div>
                     `;
                     this.mobileOverlay.classList.remove('hidden');
@@ -867,7 +867,7 @@ class UIController {
                     </div>
                     <div class="route-error-title">経路を案内できません</div>
                     <div class="route-error-desc">お選びいただいた地点間の経路が存在しないか、バリアフリーモードにより通行可能な経路がありません。</div>
-                    <div class="route-error-contact">お近くの<strong>スタッフにお気軽にお問い合わせください。</strong></div>
+                    <div class="route-error-contact">お近くの<strong>スタッフにお問い合わせください。</strong></div>
                 </div>
             `;
             return;
