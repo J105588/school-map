@@ -473,54 +473,54 @@ class MapEngine {
         // We already have globalNodes and globalEdges from loadAllData.
         // Link nodes based on NAME for Stairs and Elevators.
 
-        const connectionMap = {}; // { connectionKey: [nodeId, ...] }
+        const connectionMap = {}; // { shaftKey: [node, ...] }
 
         this.globalNodes.forEach(n => {
-            // User requested linking by Name for Stairs/EV
-            // Also linking Identical Names for 'entrance' or others if useful?
-            // Mainly Stairs and Elevators.
-            if (n.name && (n.type === 'stairs' || n.type === 'elevator')) {
-                // Key is Name. 
-                // Potential issue: "Stairs 1" on Floor 1 vs "Stairs 1" on Floor 3 with no Floor 2 connection?
-                // Graph logic handles it (clique).
-                const key = n.name;
-                if (!connectionMap[key]) connectionMap[key] = [];
-                connectionMap[key].push(n);
-            }
-            // Fallback to connectionId if present (legacy support)
-            else if (n.connectionId) {
-                if (!connectionMap[n.connectionId]) connectionMap[n.connectionId] = [];
-                connectionMap[n.connectionId].push(n);
+            if (n.type === 'stairs' || n.type === 'elevator' || n.connectionId || (n.code && (n.code.startsWith('ST') || n.code.startsWith('E')))) {
+                // Key Priority: code (Location ID) > connectionId > name
+                let shaftKey = null;
+                if (n.code && n.code.trim() !== '') {
+                    shaftKey = `CODE:${n.code.trim().toUpperCase()}`;
+                } else if (n.connectionId && n.connectionId.trim() !== '') {
+                    shaftKey = `CONN:${n.connectionId.trim().toLowerCase()}`;
+                } else if (n.name && (n.type === 'stairs' || n.type === 'elevator')) {
+                    shaftKey = `NAME:${n.name.trim()}`;
+                }
+
+                if (shaftKey) {
+                    if (!connectionMap[shaftKey]) connectionMap[shaftKey] = [];
+                    connectionMap[shaftKey].push(n);
+                }
             }
         });
 
-        // Create Inter-floor edges
-        Object.values(connectionMap).forEach(nodes => {
-            if (nodes.length > 1) {
-                // Connect all nodes with same Name/ID to each other
-                for (let i = 0; i < nodes.length; i++) {
-                    for (let j = i + 1; j < nodes.length; j++) {
-                        const n1 = nodes[i];
-                        const n2 = nodes[j];
+        // Create Inter-floor edges (Adjacent floors only for natural multi-floor navigation)
+        Object.values(connectionMap).forEach(shaftNodes => {
+            if (shaftNodes.length > 1) {
+                // Sort shaft nodes by floorId ascending
+                const sorted = [...shaftNodes].sort((a, b) => Number(a.floorId) - Number(b.floorId));
 
-                        // Add virtual edge
-                        // Dist based on floor difference to prevent illogical skipping (e.g. 1->3->2)
-                        // and prefer direct 1->2
-                        const f1 = AppConfig.FLOORS.find(f => f.id == n1.floorId);
-                        const f2 = AppConfig.FLOORS.find(f => f.id == n2.floorId);
-                        const floorDist = (f1 && f2) ? Math.abs(f1.id - f2.id) : 1;
+                for (let i = 0; i < sorted.length - 1; i++) {
+                    const n1 = sorted[i];
+                    const n2 = sorted[i + 1];
 
-                        let transferType = 'transfer';
-                        if (n1.type === 'elevator' && n2.type === 'elevator') transferType = 'elevator';
-                        else if (n1.type === 'stairs' && n2.type === 'stairs') transferType = 'stairs';
+                    // Skip if on the exact same floor
+                    if (Number(n1.floorId) === Number(n2.floorId)) continue;
 
-                        this.globalEdges.push({
-                            from: n1.id,
-                            to: n2.id,
-                            dist: floorDist * 150,
-                            type: transferType
-                        });
-                    }
+                    const floorDist = Math.abs(Number(n2.floorId) - Number(n1.floorId));
+                    let transferType = 'transfer';
+                    if (n1.type === 'elevator' && n2.type === 'elevator') transferType = 'elevator';
+                    else if (n1.type === 'stairs' && n2.type === 'stairs') transferType = 'stairs';
+
+                    // Distance weight: floorDist * 120 + 30 (entry/waiting penalty)
+                    const distWeight = floorDist * 120 + 30;
+
+                    this.globalEdges.push({
+                        from: n1.id,
+                        to: n2.id,
+                        dist: distWeight,
+                        type: transferType
+                    });
                 }
             }
         });

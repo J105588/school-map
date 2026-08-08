@@ -362,8 +362,9 @@ class UIController {
             if (toggleRotation) toggleRotation.checked = isAutoRotate;
         }
 
-        // 2. Current Location
-        const currentQuery = params.get('current') || params.get('loc');
+        // 2. Current Location & Location Code Params
+        const codeParam = params.get('code') || params.get('location_id') || params.get('locationId');
+        const currentQuery = codeParam || params.get('current') || params.get('loc');
         let currentResolved = null;
         if (currentQuery) {
             currentResolved = this.resolveNode(currentQuery);
@@ -392,6 +393,12 @@ class UIController {
         let endResolved = null;
         if (endQuery) {
             endResolved = this.resolveDestination(endQuery);
+        }
+
+        // Check for unregistered location code / query warning
+        const unmappedQuery = codeParam || (currentQuery && !currentResolved ? currentQuery : null) || (startQuery && !startResolved ? startQuery : null);
+        if (unmappedQuery && !currentResolved && !startResolved) {
+            this.showNotificationToast(`指定されたロケーションID (${unmappedQuery}) は登録されていません`, 'warning');
         }
 
         // 5. Apply navigation / selection state
@@ -453,29 +460,37 @@ class UIController {
         if (!query) return null;
         const normQuery = this.normalizeString(query);
 
-        // 1. Direct ID check (e.g. "1_101")
+        // 1. Direct Location ID (code) check (e.g. "N204", "KH101")
+        let codeMatches = this.engine.globalNodes.filter(n => {
+            return n.code && this.normalizeString(n.code) === normQuery;
+        });
+        if (codeMatches.length > 0) return codeMatches[0];
+
+        // 2. Direct ID check (e.g. "1_101")
         let node = this.engine.getNode(query) || this.engine.getNode(normQuery);
         if (node) return node;
 
-        // 2. Exact match check (case-insensitive and normalized)
+        // 3. Exact match check (case-insensitive and normalized)
         let exactMatches = this.engine.globalNodes.filter(n => {
             const name = this.normalizeString(n.name);
             const eventName = this.normalizeString(n.eventName);
             const org = this.normalizeString(n.organization);
-            return name === normQuery || eventName === normQuery || org === normQuery;
+            const code = this.normalizeString(n.code);
+            return name === normQuery || eventName === normQuery || org === normQuery || code === normQuery;
         });
         if (exactMatches.length > 0) return exactMatches[0];
 
-        // 3. Partial match check (case-insensitive and normalized)
+        // 4. Partial match check (case-insensitive and normalized)
         let partialMatches = this.engine.globalNodes.filter(n => {
             const name = this.normalizeString(n.name);
             const eventName = this.normalizeString(n.eventName);
             const org = this.normalizeString(n.organization);
-            return name.includes(normQuery) || eventName.includes(normQuery) || org.includes(normQuery);
+            const code = this.normalizeString(n.code);
+            return name.includes(normQuery) || eventName.includes(normQuery) || org.includes(normQuery) || code.includes(normQuery);
         });
         if (partialMatches.length > 0) return partialMatches[0];
 
-        // 4. Try matching floor local ID (originalId)
+        // 5. Try matching floor local ID (originalId)
         let origMatches = this.engine.globalNodes.filter(n => {
             const origId = this.normalizeString(n.originalId);
             return origId === normQuery;
@@ -536,6 +551,74 @@ class UIController {
         return null;
     }
 
+    showNotificationToast(message, type = 'warning', durationMs = 6000) {
+        let container = document.getElementById('ui-toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'ui-toast-container';
+            container.style.cssText = `
+                position: fixed;
+                top: 75px;
+                left: 50%;
+                transform: translateX(-50%);
+                z-index: 10000;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                max-width: 90%;
+                width: 400px;
+                pointer-events: none;
+            `;
+            document.body.appendChild(container);
+        }
+
+        const toast = document.createElement('div');
+        const borderColor = type === 'error' ? '#dc3545' : (type === 'success' ? '#28a745' : '#e65100');
+        const bgColor = type === 'error' ? '#fff5f5' : (type === 'success' ? '#f6ffed' : '#fffbe6');
+        const textColor = type === 'error' ? '#c62828' : (type === 'success' ? '#276749' : '#b78103');
+
+        toast.style.cssText = `
+            background: ${bgColor};
+            border: 1px solid ${borderColor};
+            border-left: 4px solid ${borderColor};
+            color: ${textColor};
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: bold;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            pointer-events: auto;
+            animation: fadeInDown 0.3s ease;
+        `;
+
+        toast.innerHTML = `
+            <div style="display:flex; align-items:center; gap:8px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <span>${message}</span>
+            </div>
+            <button style="background:none; border:none; color:inherit; cursor:pointer; padding:0 4px; font-size:16px; font-weight:bold;" onclick="this.parentElement.remove()">✕</button>
+        `;
+
+        container.appendChild(toast);
+
+        if (durationMs > 0) {
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.style.opacity = '0';
+                    toast.style.transition = 'opacity 0.3s';
+                    setTimeout(() => toast.remove(), 300);
+                }
+            }, durationMs);
+        }
+    }
+
     updateSelects() {
         // Debug: Check if orderData is available
         console.log('[updateSelects] orderData:', this.engine.orderData);
@@ -545,7 +628,7 @@ class UIController {
 
         // Helper to convert node to option format with custom sortIndex modifier
         const toOption = (n, isStart) => {
-            let title = n.eventName || n.name;
+            let title = n.eventName ? `${n.name} (${n.eventName})` : n.name;
             if (n.type === 'stairs' || n.type === 'elevator') {
                 title += ` (${n.floorId}階)`;
             }

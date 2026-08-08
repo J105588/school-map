@@ -590,6 +590,76 @@
             display: none !important;
         }
 
+        /* Floating Unassigned Panel Styling */
+        .floating-panel {
+            position: absolute;
+            left: 20px;
+            top: 20px;
+            width: 290px;
+            max-height: calc(100% - 40px);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+            border: 1px solid var(--border-color);
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .floating-panel-header {
+            background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
+            color: white;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .floating-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .floating-badge {
+            background: #ff5252;
+            color: white;
+            font-size: 11px;
+            padding: 2px 7px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+
+        .floating-close-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0 4px;
+            opacity: 0.85;
+        }
+
+        .floating-close-btn:hover {
+            opacity: 1;
+        }
+
+        .floating-panel-body {
+            padding: 12px;
+            overflow-y: auto;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
         /* Responsive Design for smaller screens */
         @media (max-width: 900px) {
             body {
@@ -645,6 +715,31 @@
                 <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:currentColor;"></span>
                 <span id="warning-status-text">自動接続警告 0件</span>
             </div>
+            <!-- 重複コード警告バッジ (デフォルト非表示) -->
+            <div class="status-badge warning hidden" id="duplicate-code-status" style="background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; cursor: pointer; margin-right: 8px;" onclick="toggleFloatingDuplicateWindow()">
+                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#dc3545;"></span>
+                <span id="duplicate-status-text">ID重複 0件</span>
+            </div>
+            <!-- 未設定ID浮遊ウィンドウ起動バッジ -->
+            <div class="status-badge warning" id="floating-unassigned-header-btn" style="background-color: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; cursor: pointer; margin-right: 8px;" onclick="toggleFloatingUnassignedWindow()">
+                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#1976d2;"></span>
+                <span id="floating-header-btn-text">ID未設定 0件</span>
+            </div>
+            <!-- 館・フロア別IDカウンターボタン -->
+            <div class="status-badge" id="location-counter-header-btn" style="background-color: #e0f2f1; color: #00695c; border: 1px solid #b2dfdb; cursor: pointer; margin-right: 8px;" onclick="toggleLocationCounterWindow()">
+                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#00796b;"></span>
+                <span>採番状況</span>
+            </div>
+            <!-- 全フロア対応表・CSVダウンロードボタン -->
+            <div class="status-badge" id="location-mapping-header-btn" style="background-color: #fff3e0; color: #e65100; border: 1px solid #ffe0b2; cursor: pointer; margin-right: 8px;" onclick="openLocationMappingModal()" title="全フロアのマップノード・ロケーションID一覧表を表示・検索し、CSVファイルとしてエクスポートします">
+                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#f57c00;"></span>
+                <span>対応表・CSV</span>
+            </div>
+            <!-- EV・階段全自動一括修正ボタン -->
+            <div class="status-badge" style="background-color: #f3e5f5; color: #7b1fa2; border: 1px solid #e1bee7; cursor: pointer; margin-right: 8px;" onclick="runFixAllStairsAndElevators()" title="全フロアのエレベーター・階段のタイプ、接続ID、表示名、ロケーションID(EN, STN等)をすべて一括で完全補正・修正します">
+                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#ab47bc;"></span>
+                <span>EV・階段を全自動修正</span>
+            </div>
             <div class="status-badge saved" id="modified-status">
                 <span
                     style="display:inline-block; width:8px; height:8px; border-radius:50%; background:currentColor;"></span>
@@ -658,6 +753,56 @@
         <!-- Canvas Wrapper -->
         <div id="canvas-container">
             <canvas id="mapCanvas"></canvas>
+
+            <!-- Floating Unassigned Location Code Window -->
+            <div id="floating-unassigned-window" class="floating-panel hidden">
+                <div class="floating-panel-header">
+                    <div class="floating-title">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <span>ID未設定の施設</span>
+                        <span id="floating-unassigned-count-badge" class="floating-badge">0</span>
+                    </div>
+                    <div class="floating-controls">
+                        <button onclick="toggleFloatingUnassignedWindow()" title="閉じる" class="floating-close-btn">&times;</button>
+                    </div>
+                </div>
+                <div id="floating-unassigned-body" class="floating-panel-body">
+                    <!-- Dynamic unassigned items populated by JS -->
+                </div>
+            </div>
+
+            <!-- Floating Duplicate Location Code Window -->
+            <div id="floating-duplicate-window" class="floating-panel hidden" style="left: 20px; top: 20px; width: 330px;">
+                <div class="floating-panel-header" style="background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%);">
+                    <div class="floating-title">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        <span>ロケーションID 重複解決</span>
+                        <span id="floating-duplicate-count-badge" class="floating-badge" style="background:#ffcdd2; color:#b71c1c;">0</span>
+                    </div>
+                    <div class="floating-controls">
+                        <button onclick="toggleFloatingDuplicateWindow()" title="閉じる" class="floating-close-btn">&times;</button>
+                    </div>
+                </div>
+                <div id="floating-duplicate-body" class="floating-panel-body">
+                    <!-- Dynamic duplicate resolution cards populated by JS -->
+                </div>
+            </div>
+
+            <!-- Floating Location ID Counter Status Window -->
+            <div id="location-counter-window" class="floating-panel hidden" style="right: 20px; left: auto; top: 20px; width: 310px;">
+                <div class="floating-panel-header" style="background: linear-gradient(135deg, #00695c 0%, #004d40 100%);">
+                    <div class="floating-title">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                        <span>館・フロア別 採番カウンター</span>
+                    </div>
+                    <div class="floating-controls">
+                        <button onclick="toggleLocationCounterWindow()" title="閉じる" class="floating-close-btn">&times;</button>
+                    </div>
+                </div>
+                <div id="location-counter-body" class="floating-panel-body">
+                    <!-- Dynamically populated stats -->
+                </div>
+            </div>
 
             <!-- Floating Tool Menu -->
             <div class="canvas-toolbar">
@@ -780,6 +925,29 @@
                                         oninput="saveSelectedNodeProperties()">
                                 </div>
                                 <div class="form-field">
+                                    <label>ロケーションID (例: N204, KH101)</label>
+                                    <input type="text" id="nodeCode" placeholder="ロケーションIDを入力"
+                                        oninput="saveSelectedNodeProperties()">
+                                    <div id="nodeCodeDuplicateWarning" class="hidden" style="margin-top: 6px; padding: 8px 10px; background: #fff5f5; border: 1px solid #ffcdd2; border-radius: 6px; font-size: 11px; color: #b71c1c;">
+                                        <div style="font-weight: bold; display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                            <span>ロケーションIDが重複しています</span>
+                                        </div>
+                                        <div id="nodeCodeDuplicateMsg" style="margin-bottom: 4px;"></div>
+                                        <div id="nodeCodeDuplicateJumpContainer"></div>
+                                    </div>
+                                    <div style="display: flex; gap: 6px; margin-top: 6px;">
+                                        <button type="button" class="btn btn-secondary" onclick="jumpToPreviousUnassignedNode()" style="flex: 1; padding: 6px 8px; font-size: 11px; background: #f8f9fa; border-color: #cbd5e1; color: var(--text-main); display: flex; align-items: center; justify-content: center; gap: 4px;" title="前の編集ノードまたは未設定ノードに戻る">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                                            戻る (前へ)
+                                        </button>
+                                        <button type="button" class="btn btn-secondary" onclick="jumpToNextUnassignedNode()" style="flex: 1; padding: 6px 8px; font-size: 11px; background: #eef2f5; border-color: #cbd5e1; color: var(--primary-color); display: flex; align-items: center; justify-content: center; gap: 4px;" title="次の未設定ノードへ移動">
+                                            次へ (未設定)
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="form-field">
                                     <label>企画展示名 (例: お化け屋敷, 喫茶店)</label>
                                     <input type="text" id="nodeEventName" placeholder="企画展示名を入力"
                                         oninput="saveSelectedNodeProperties()">
@@ -867,6 +1035,8 @@
                         <div class="form-field" style="margin-bottom:12px;">
                             <select id="list-filter" onchange="updateList()" style="padding:6px; font-size:12px;">
                                 <option value="all">すべての施設 (廊下を除く)</option>
+                                <option value="unassigned_code">ロケーションID未設定の施設</option>
+                                <option value="duplicate_code">ロケーションID重複ありの施設</option>
                                 <option value="room">部屋</option>
                                 <option value="toilet">トイレ</option>
                                 <option value="stairs">階段</option>
@@ -1795,15 +1965,18 @@
             document.getElementById('inspector-edge').classList.add('hidden');
             document.getElementById('inspector-node').classList.remove('hidden');
 
-            const n = nodes.find(node => node.id === id);
+            const n = nodes.find(node => node.id == id || String(node.id) === String(id));
             if (n) {
                 document.getElementById('nodeId').value = n.id;
                 document.getElementById('nodeType').value = n.type;
                 document.getElementById('nodeName').value = n.name || '';
+                document.getElementById('nodeCode').value = n.code || '';
                 document.getElementById('nodeEventName').value = n.eventName || '';
                 document.getElementById('nodeX').value = n.x;
                 document.getElementById('nodeY').value = n.y;
                 document.getElementById('nodeBarrierFreeBlocked').checked = !!n.barrierFreeBlocked;
+
+                updateInspectorDuplicateWarning();
 
                 const connGroup = document.getElementById('connectionIdGroup');
                 if (n.type === 'stairs' || n.type === 'elevator') {
@@ -1857,12 +2030,20 @@
 
         function saveSelectedNodeProperties(recalcCoords = false) {
             if (selectedNodeId === null) return;
-            const n = nodes.find(node => node.id === selectedNodeId);
+            const n = nodes.find(node => node.id == selectedNodeId || String(node.id) === String(selectedNodeId));
             if (!n) return;
 
             n.type = document.getElementById('nodeType').value;
             n.name = document.getElementById('nodeName').value.trim();
             n.eventName = document.getElementById('nodeEventName').value.trim();
+            
+            const rawCode = document.getElementById('nodeCode').value.trim();
+            if (rawCode) {
+                n.code = rawCode.toUpperCase();
+            } else {
+                delete n.code;
+            }
+
             n.barrierFreeBlocked = document.getElementById('nodeBarrierFreeBlocked').checked;
 
             const connGroup = document.getElementById('connectionIdGroup');
@@ -1875,6 +2056,9 @@
                 delete n.connectionId;
             }
             validateAllConnections();
+            validateDuplicateLocationCodes();
+            renderFloatingUnassignedList();
+            renderLocationCounterList();
 
             if (recalcCoords) {
                 n.x = Math.round(Number(document.getElementById('nodeX').value));
@@ -1910,7 +2094,7 @@
 
         function deleteSelectedNode() {
             if (selectedNodeId === null) return;
-            const n = nodes.find(node => node.id === selectedNodeId);
+            const n = nodes.find(node => node.id == selectedNodeId || String(node.id) === String(selectedNodeId));
             const label = n.name || n.id;
 
             if (!confirm(`ノード「${label}」を削除しますか？\n（前後の点同士は自動的に再接続されます）`)) return;
@@ -1957,6 +2141,9 @@
 
         // --- Sidebar facilities list searchable view ---
         function updateList() {
+            validateDuplicateLocationCodes();
+            collectAllUnassignedNodes();
+
             const list = document.getElementById('dataList');
             list.innerHTML = '';
 
@@ -1966,21 +2153,32 @@
             const filteredNodes = nodes.filter(n => {
                 if (n.type === 'junction') return false;
 
-                if (filterType !== 'all' && n.type !== filterType) return false;
+                if (filterType === 'unassigned_code') {
+                    if (n.code && n.code.trim() !== '') return false;
+                } else if (filterType === 'duplicate_code') {
+                    if (!n.code || !duplicateCodeMap[n.code.trim().toUpperCase()]) return false;
+                } else if (filterType !== 'all' && n.type !== filterType) {
+                    return false;
+                }
 
                 if (query) {
                     const name = (n.name || '').toLowerCase().includes(query);
                     const event = (n.eventName || '').toLowerCase().includes(query);
+                    const code = (n.code || '').toLowerCase().includes(query);
                     const type = translateType(n.type).toLowerCase().includes(query);
-                    return name || event || type;
+                    return name || event || code || type;
                 }
                 return true;
             });
 
-            filteredNodes.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'));
+            filteredNodes.sort((a, b) => {
+                const keyA = a.name || a.eventName || a.code || '';
+                const keyB = b.name || b.eventName || b.code || '';
+                return keyA.localeCompare(keyB, 'ja', { numeric: true, sensitivity: 'base' });
+            });
 
             if (filteredNodes.length === 0) {
-                list.innerHTML = '<div style="padding:15px; text-align:center; font-size:12px; color:var(--text-sub);">登録施設がありません</div>';
+                list.innerHTML = '<div style="padding:15px; text-align:center; font-size:12px; color:var(--text-sub);">条件に一致する施設がありません</div>';
                 return;
             }
 
@@ -1991,12 +2189,20 @@
                 const color = getColorForType(n.type);
                 const typeText = translateType(n.type);
 
+                const normCode = n.code ? n.code.trim().toUpperCase() : '';
+                const isDuplicate = normCode && duplicateCodeMap[normCode];
+                const isUnassigned = !normCode;
+
                 item.innerHTML = `
                     <div style="display:flex; flex-direction:column; gap:2px; overflow:hidden;">
-                        <b style="font-size:13px; color:var(--text-main);">${n.name || '(無名ポイント)'}</b>
+                        <b style="font-size:13px; color:var(--text-main);">${n.name || '(無名ポイント)'} ${n.code ? `<span style="font-size:11px; color:#17a2b8; font-weight:normal;">[${n.code}]</span>` : ''}</b>
                         ${n.eventName ? `<span style="font-size:11px; color:var(--secondary-color); font-weight:500;">${n.eventName}</span>` : ''}
                     </div>
-                    <span style="font-size:10px; padding:2px 6px; border-radius:10px; color:white; background:${color}; white-space:nowrap; flex-shrink:0;">${typeText}</span>
+                    <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+                        ${isDuplicate ? `<span style="font-size:10px; padding:2px 6px; border-radius:10px; color:white; background:#dc3545; white-space:nowrap;">重複</span>` : ''}
+                        ${isUnassigned ? `<span style="font-size:10px; padding:2px 6px; border-radius:10px; color:#856404; background:#fff3cd; border:1px solid #ffeeba; white-space:nowrap;">未設定</span>` : ''}
+                        <span style="font-size:10px; padding:2px 6px; border-radius:10px; color:white; background:${color}; white-space:nowrap;">${typeText}</span>
+                    </div>
                 `;
 
                 item.onclick = () => {
@@ -2015,7 +2221,12 @@
         }
 
         function focusOnNode(n) {
-            if (zoom < 1.0) zoom = 1.2;
+            if (!n || n.x === undefined || n.y === undefined) return;
+
+            // Zoom in closely (at least 2.0x) to clearly highlight and focus the facility point
+            if (zoom < 1.8) {
+                zoom = 2.0;
+            }
 
             const cx = canvasWrapper.clientWidth / 2;
             const cy = canvasWrapper.clientHeight / 2;
@@ -2023,6 +2234,7 @@
             panX = cx - n.x * zoom;
             panY = cy - n.y * zoom;
 
+            updateStatusZoom();
             draw();
         }
 
@@ -2223,6 +2435,20 @@
                     ctx.fillStyle = getColorForType(n.type);
                     ctx.strokeStyle = (isSelected || isStartNode) ? '#000000' : '#ffffff';
                     ctx.lineWidth = 2 / Math.sqrt(zoom);
+                }
+
+                const normCode = n.code ? n.code.trim().toUpperCase() : '';
+                const isDuplicate = normCode && duplicateCodeMap[normCode];
+
+                if (isDuplicate) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(n.x, n.y, r + (5 / Math.sqrt(zoom)), 0, Math.PI * 2);
+                    ctx.strokeStyle = '#dc3545';
+                    ctx.lineWidth = 3 / Math.sqrt(zoom);
+                    ctx.setLineDash([4, 4]);
+                    ctx.stroke();
+                    ctx.restore();
                 }
 
                 if (isSelected) {
@@ -2764,10 +2990,12 @@
             globalNodes.forEach(n => {
                 if (n.type === 'stairs' || n.type === 'elevator') {
                     let key = null;
-                    if (n.name) {
-                        key = n.name;
-                    } else if (n.connectionId) {
-                        key = n.connectionId;
+                    if (n.code && n.code.trim() !== '') {
+                        key = n.code.trim().toUpperCase();
+                    } else if (n.connectionId && n.connectionId.trim() !== '') {
+                        key = n.connectionId.trim();
+                    } else if (n.name && n.name.trim() !== '') {
+                        key = n.name.trim();
                     }
 
                     if (key) {
@@ -2780,10 +3008,10 @@
             Object.keys(connectionMap).forEach(key => {
                 const list = connectionMap[key];
                 const floors = list.map(n => n.floorId);
-                const uniqueFloors = new Set(floors);
+                const uniqueFloors = Array.from(new Set(floors)).sort((a, b) => a - b);
 
-                // 1. 同一フロア内重複
-                if (floors.length !== uniqueFloors.size) {
+                // 1. Same floor duplicate
+                if (floors.length !== uniqueFloors.length) {
                     const counts = {};
                     floors.forEach(f => counts[f] = (counts[f] || 0) + 1);
                     const dupFloors = Object.keys(counts).filter(f => counts[f] > 1);
@@ -2792,22 +3020,41 @@
                             type: 'duplicate',
                             key: key,
                             floorId: f,
-                            message: `${f}F において「${key}」が重複して登録されています（経路探索時のバグ原因になります）。`
+                            message: `${f}階 において「${key}」が重複して登録されています（経路探索バグの原因となります）。`
                         });
                     });
                 }
 
-                // 2. 孤立
+                // 2. Isolated node
                 if (list.length === 1) {
                     activeWarnings.push({
                         type: 'isolated',
                         key: key,
                         floorId: list[0].floorId,
-                        message: `${list[0].floorId}F の「${key}」は、他フロアに同じ名前/接続IDの接続相手が見つかりません。`
+                        message: `${list[0].floorId}階 の「${key}」は、他フロアに同じID/名前の接続相手が存在しません。`
                     });
                 }
 
-                // 3. タイプ混在
+                // 3. Intermediate floor gap
+                if (uniqueFloors.length > 1) {
+                    const minF = uniqueFloors[0];
+                    const maxF = uniqueFloors[uniqueFloors.length - 1];
+                    const missingFloors = [];
+                    for (let f = minF + 1; f < maxF; f++) {
+                        if (!uniqueFloors.includes(f)) {
+                            missingFloors.push(f);
+                        }
+                    }
+                    if (missingFloors.length > 0) {
+                        activeWarnings.push({
+                            type: 'gap',
+                            key: key,
+                            message: `「${key}」のシャフトは ${minF}階〜${maxF}階 の間で ${missingFloors.join(', ')}階 の接続相手が欠損しています。`
+                        });
+                    }
+                }
+
+                // 4. Type mismatch
                 const types = new Set(list.map(n => n.type));
                 if (types.size > 1) {
                     activeWarnings.push({
@@ -2828,6 +3075,9 @@
                     warningBadge.classList.add('hidden');
                 }
             }
+
+            validateDuplicateLocationCodes();
+            collectAllUnassignedNodes();
         }
 
         function showConnectionWarnings() {
@@ -3019,7 +3269,1143 @@
                 showToast("保存に失敗しました: " + e.message, "error");
             }
         }
+
+        // --- Duplicate Location Code Validation Engine ---
+        let duplicateCodeMap = {}; // { normalizedCode: [ { floorId, floorLabel, node } ] }
+
+        function validateDuplicateLocationCodes() {
+            duplicateCodeMap = {};
+            const codeToNodes = {};
+
+            // Collect all nodes across all floors in floorsData
+            for (let fId in floorsData) {
+                const fData = floorsData[fId];
+                if (fData && fData.nodes) {
+                    const nodeArr = (Number(fId) === Number(currentFloorId)) ? nodes : fData.nodes;
+                    nodeArr.forEach(n => {
+                        if (n.code && n.code.trim() !== '') {
+                            const normCode = n.code.trim().toUpperCase();
+                            if (!codeToNodes[normCode]) codeToNodes[normCode] = [];
+                            codeToNodes[normCode].push({
+                                floorId: Number(fId),
+                                floorLabel: AppConfig.FLOORS.find(f => f.id == fId)?.label || `${fId}階`,
+                                node: n
+                            });
+                        }
+                    });
+                }
+            }
+
+            // Also check current floor nodes if currentFloorId is not in floorsData yet
+            if (nodes && (!floorsData[currentFloorId] || !floorsData[currentFloorId].nodes)) {
+                nodes.forEach(n => {
+                    if (n.code && n.code.trim() !== '') {
+                        const normCode = n.code.trim().toUpperCase();
+                        if (!codeToNodes[normCode]) codeToNodes[normCode] = [];
+                        const exists = codeToNodes[normCode].some(item => item.floorId == currentFloorId && item.node.id == n.id);
+                        if (!exists) {
+                            codeToNodes[normCode].push({
+                                floorId: Number(currentFloorId),
+                                floorLabel: AppConfig.FLOORS.find(f => f.id == currentFloorId)?.label || `${currentFloorId}階`,
+                                node: n
+                            });
+                        }
+                    }
+                });
+            }
+
+            // Filter actual invalid duplicates
+            let totalDuplicateCodesCount = 0;
+            for (let code in codeToNodes) {
+                const group = codeToNodes[code];
+                if (group.length > 1) {
+                    const isElevatorOrStairs = group.every(item => item.node.type === 'elevator' || item.node.type === 'stairs' || code.startsWith('E') || code.startsWith('ST'));
+
+                    if (isElevatorOrStairs) {
+                        // For Elevators and Stairs, it's valid to share the same ID across different floors.
+                        // Flag as duplicate ONLY if two different nodes on the SAME floor share the code!
+                        const floorCountMap = {};
+                        let hasSameFloorDuplicate = false;
+                        group.forEach(item => {
+                            floorCountMap[item.floorId] = (floorCountMap[item.floorId] || 0) + 1;
+                            if (floorCountMap[item.floorId] > 1) {
+                                hasSameFloorDuplicate = true;
+                            }
+                        });
+
+                        if (hasSameFloorDuplicate) {
+                            duplicateCodeMap[code] = group;
+                            totalDuplicateCodesCount++;
+                        }
+                    } else {
+                        // Normal room/facility code: any duplicate across any floor is an error
+                        duplicateCodeMap[code] = group;
+                        totalDuplicateCodesCount++;
+                    }
+                }
+            }
+
+            // Update Header Status Badge
+            const badge = document.getElementById('duplicate-code-status');
+            const text = document.getElementById('duplicate-status-text');
+            if (badge && text) {
+                if (totalDuplicateCodesCount > 0) {
+                    badge.classList.remove('hidden');
+                    text.innerText = `ID重複 ${totalDuplicateCodesCount}件`;
+                } else {
+                    badge.classList.add('hidden');
+                }
+            }
+
+            // Update Inspector Warning if a node is currently selected
+            updateInspectorDuplicateWarning();
+        }
+
+        function updateInspectorDuplicateWarning() {
+            const warningBox = document.getElementById('nodeCodeDuplicateWarning');
+            const warningMsg = document.getElementById('nodeCodeDuplicateMsg');
+            const jumpContainer = document.getElementById('nodeCodeDuplicateJumpContainer');
+            if (!warningBox || !warningMsg) return;
+
+            if (selectedNodeId === null) {
+                warningBox.classList.add('hidden');
+                return;
+            }
+
+            const n = nodes.find(node => node.id == selectedNodeId || String(node.id) === String(selectedNodeId));
+            if (!n || !n.code || n.code.trim() === '') {
+                warningBox.classList.add('hidden');
+                return;
+            }
+
+            const normCode = n.code.trim().toUpperCase();
+            const duplicates = duplicateCodeMap[normCode];
+
+            if (duplicates && duplicates.length > 1) {
+                const others = duplicates.filter(item => !(item.floorId == currentFloorId && String(item.node.id) === String(n.id)));
+                if (others.length > 0) {
+                    warningMsg.innerText = `ID「${normCode}」は他の ${others.length} 箇所と重複しています。`;
+                    
+                    if (jumpContainer) {
+                        jumpContainer.innerHTML = others.map(item => {
+                            const roomName = item.node.name || item.node.eventName || '(無名ポイント)';
+                            const safeNodeId = (typeof item.node.id === 'string' && isNaN(Number(item.node.id))) ? `'${item.node.id}'` : item.node.id;
+                            return `
+                                <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 8px; background:white; border:1px solid #ffcdd2; border-radius:4px; margin-top:4px; font-size:11px;">
+                                    <span><strong>${item.floorLabel}</strong>: ${roomName}</span>
+                                    <button type="button" style="font-size:10px; font-weight:bold; color:#b71c1c; background:#ffebee; border:1px solid #ffcdd2; padding:2px 6px; border-radius:3px; cursor:pointer;" onclick="jumpToDuplicateNode(${item.floorId}, ${safeNodeId})">
+                                        移動して修正
+                                    </button>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+
+                    warningBox.classList.remove('hidden');
+                    return;
+                }
+            }
+            warningBox.classList.add('hidden');
+        }
+
+        function toggleFloatingDuplicateWindow() {
+            const win = document.getElementById('floating-duplicate-window');
+            if (!win) return;
+            if (win.classList.contains('hidden')) {
+                renderFloatingDuplicateList();
+                win.classList.remove('hidden');
+            } else {
+                win.classList.add('hidden');
+            }
+        }
+
+        function renderFloatingDuplicateList() {
+            const container = document.getElementById('floating-duplicate-body');
+            const badge = document.getElementById('floating-duplicate-count-badge');
+            if (!container) return;
+
+            container.innerHTML = '';
+            validateDuplicateLocationCodes();
+
+            const codes = Object.keys(duplicateCodeMap);
+            if (badge) badge.innerText = codes.length;
+
+            if (codes.length === 0) {
+                container.innerHTML = '<div style="padding:15px; text-align:center; font-size:12px; color:var(--success-color); font-weight:bold;">重複しているIDはありません</div>';
+                return;
+            }
+
+            codes.forEach(code => {
+                const group = duplicateCodeMap[code];
+                const card = document.createElement('div');
+                card.style.cssText = 'background:white; border:1px solid #ffcdd2; border-radius:8px; padding:10px; margin-bottom:8px; box-shadow:0 1px 3px rgba(0,0,0,0.05);';
+
+                let itemsHtml = group.map(item => {
+                    const roomName = item.node.name || item.node.eventName || '(無名ポイント)';
+                    const isSelected = (item.floorId == currentFloorId && String(item.node.id) === String(selectedNodeId));
+                    const safeNodeId = (typeof item.node.id === 'string' && isNaN(Number(item.node.id))) ? `'${item.node.id}'` : item.node.id;
+
+                    return `
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; background:${isSelected ? '#ffebee' : '#fafafa'}; border:${isSelected ? '1px solid #e53935' : '1px solid #eee'}; border-radius:6px; margin-top:4px; font-size:11px;">
+                            <div>
+                                <span style="font-weight:bold; color:#c62828;">${item.floorLabel}</span>
+                                <span style="margin-left:6px; font-weight:bold; color:var(--text-main);">${roomName}</span>
+                                ${item.node.eventName ? `<span style="font-size:10px; color:var(--secondary-color); margin-left:4px;">${item.node.eventName}</span>` : ''}
+                            </div>
+                            <button type="button" style="font-size:10px; font-weight:bold; color:#c62828; background:#ffebee; border:1px solid #ffcdd2; padding:2px 8px; border-radius:4px; cursor:pointer;" onclick="jumpToDuplicateNode(${item.floorId}, ${safeNodeId})">
+                                選択・移動
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+
+                card.innerHTML = `
+                    <div style="font-size:12px; font-weight:bold; color:#b71c1c; margin-bottom:4px; display:flex; align-items:center; justify-content:space-between;">
+                        <span>重複ID: 「${code}」</span>
+                        <span style="font-size:10px; background:#ffebee; padding:2px 6px; border-radius:10px;">${group.length}箇所で重複</span>
+                    </div>
+                    ${itemsHtml}
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function showDuplicateCodeWarnings() {
+            toggleFloatingDuplicateWindow();
+        }
+
+        function closeDuplicateCodeModal() {
+            const win = document.getElementById('floating-duplicate-window');
+            if (win) win.classList.add('hidden');
+        }
+
+        async function jumpToDuplicateNode(floorId, nodeId) {
+            selectNodeForFloatingEdit(floorId, nodeId, true);
+            showToast("重複箇所のノードを選択・拡大表示しました。属性編集から修正してください。", "info");
+        }
+
+        // --- Rapid Unassigned Location Code Management Engine ---
+        let allUnassignedNodesList = []; // [ { floorId, floorLabel, node } ]
+
+        function collectAllUnassignedNodes() {
+            allUnassignedNodesList = [];
+
+            // Scan all floors in floorsData
+            for (let fId in floorsData) {
+                const fData = floorsData[fId];
+                if (fData && fData.nodes) {
+                    const nodeArr = (Number(fId) === Number(currentFloorId)) ? nodes : fData.nodes;
+                    nodeArr.forEach(n => {
+                        if (n.type !== 'junction' && (!n.code || n.code.trim() === '')) {
+                            allUnassignedNodesList.push({
+                                floorId: Number(fId),
+                                floorLabel: AppConfig.FLOORS.find(f => f.id == fId)?.label || `${fId}階`,
+                                node: n
+                            });
+                        }
+                    });
+                }
+            }
+
+            // Also check current floor nodes if currentFloorId is not in floorsData yet
+            if (nodes && (!floorsData[currentFloorId] || !floorsData[currentFloorId].nodes)) {
+                nodes.forEach(n => {
+                    if (n.type !== 'junction' && (!n.code || n.code.trim() === '')) {
+                        const exists = allUnassignedNodesList.some(item => item.floorId == currentFloorId && item.node.id == n.id);
+                        if (!exists) {
+                            allUnassignedNodesList.push({
+                                floorId: Number(currentFloorId),
+                                floorLabel: AppConfig.FLOORS.find(f => f.id == currentFloorId)?.label || `${currentFloorId}階`,
+                                node: n
+                            });
+                        }
+                    }
+                });
+            }
+
+            // Sort unassigned nodes by FloorId ascending, then Name in Natural Order (6-2 before 6-10)
+            allUnassignedNodesList.sort((a, b) => {
+                if (a.floorId !== b.floorId) return a.floorId - b.floorId;
+                const keyA = a.node.name || a.node.eventName || a.node.code || '';
+                const keyB = b.node.name || b.node.eventName || b.node.code || '';
+                return keyA.localeCompare(keyB, 'ja', { numeric: true, sensitivity: 'base' });
+            });
+
+            // Update UI count badges
+            const countDiv = document.getElementById('unassigned-summary-count');
+            if (countDiv) {
+                countDiv.innerText = `全フロア: ${allUnassignedNodesList.length}件の未設定あり`;
+            }
+            const headerBtnText = document.getElementById('floating-header-btn-text');
+            if (headerBtnText) {
+                headerBtnText.innerText = `ID未設定 ${allUnassignedNodesList.length}件`;
+            }
+            const badge = document.getElementById('floating-unassigned-count-badge');
+            if (badge) {
+                badge.innerText = allUnassignedNodesList.length;
+            }
+        }
+
+        function toggleAllUnassignedPanel() {
+            const container = document.getElementById('all-unassigned-container');
+            const btnText = document.getElementById('all-unassigned-toggle-text');
+            if (!container) return;
+
+            if (container.classList.contains('hidden')) {
+                renderAllUnassignedList();
+                container.classList.remove('hidden');
+                if (btnText) btnText.innerText = '閉じる';
+            } else {
+                container.classList.add('hidden');
+                if (btnText) btnText.innerText = '全フロア未設定を表示';
+            }
+        }
+
+        function renderAllUnassignedList() {
+            collectAllUnassignedNodes();
+            const container = document.getElementById('all-unassigned-container');
+            if (!container) return;
+
+            container.innerHTML = '';
+
+            if (allUnassignedNodesList.length === 0) {
+                container.innerHTML = '<div style="padding:10px; text-align:center; font-size:12px; color:var(--success-color); font-weight:bold;">すべての施設にロケーションIDが設定されています！</div>';
+                return;
+            }
+
+            // Group by floor
+            const grouped = {};
+            allUnassignedNodesList.forEach(item => {
+                if (!grouped[item.floorLabel]) grouped[item.floorLabel] = [];
+                grouped[item.floorLabel].push(item);
+            });
+
+            for (let fLabel in grouped) {
+                const groupItems = grouped[fLabel];
+                const groupDiv = document.createElement('div');
+                groupDiv.style.cssText = 'margin-bottom: 8px;';
+
+                let itemsHtml = groupItems.map(item => {
+                    const roomName = item.node.name || item.node.eventName || '(無名ポイント)';
+                    return `
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; background:white; border-radius:4px; margin-top:4px; cursor:pointer; border:1px solid #ffeeba;" onclick="selectAndEditUnassignedNode(${item.floorId}, '${item.node.id}')">
+                            <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                <strong style="font-size:12px; color:var(--text-main);">${roomName}</strong>
+                                ${item.node.eventName ? `<span style="font-size:10px; color:var(--secondary-color); margin-left:4px;">${item.node.eventName}</span>` : ''}
+                            </div>
+                            <span style="font-size:10px; color:var(--primary-color); background:#eef2f5; padding:2px 6px; border-radius:4px; flex-shrink:0; font-weight:bold;">入力</span>
+                        </div>
+                    `;
+                }).join('');
+
+                groupDiv.innerHTML = `
+                    <div style="font-size:11px; font-weight:bold; color:#856404; margin-bottom:2px;">${fLabel} (${groupItems.length}件)</div>
+                    ${itemsHtml}
+                `;
+                container.appendChild(groupDiv);
+            }
+        }
+
+        async function selectAndEditUnassignedNode(floorId, nodeId) {
+            // 1. Switch floor if needed
+            if (currentFloorId !== floorId) {
+                await switchFloor(floorId);
+            }
+
+            // 2. Focus and select node
+            setTimeout(() => {
+                selectNode(nodeId);
+                const n = nodes.find(node => node.id === nodeId);
+                if (n) focusOnNode(n);
+
+                // 3. Switch to Inspector tab
+                switchSidebarTab('inspector');
+
+                // 4. Focus directly into nodeCode input field for immediate typing
+                setTimeout(() => {
+                    const codeInput = document.getElementById('nodeCode');
+                    if (codeInput) {
+                        codeInput.focus();
+                        codeInput.select();
+                    }
+                }, 100);
+            }, 100);
+        }
+
+        function jumpToNextUnassignedNode() {
+            collectAllUnassignedNodes();
+            if (allUnassignedNodesList.length === 0) {
+                showToast("すべての施設にロケーションIDが設定されています", "success");
+                return;
+            }
+
+            // Find next unassigned node after current selection, or first if none
+            let currentIndex = -1;
+            if (selectedNodeId !== null) {
+                currentIndex = allUnassignedNodesList.findIndex(item => item.floorId == currentFloorId && item.node.id == selectedNodeId);
+            }
+
+            let nextIndex = 0;
+            if (currentIndex !== -1 && currentIndex + 1 < allUnassignedNodesList.length) {
+                nextIndex = currentIndex + 1;
+            }
+
+            const target = allUnassignedNodesList[nextIndex];
+            selectNodeForFloatingEdit(target.floorId, target.node.id);
+        }
+
+        // --- Floating Unassigned Location Code Panel Engine ---
+        function toggleFloatingUnassignedWindow() {
+            const win = document.getElementById('floating-unassigned-window');
+            if (!win) return;
+            if (win.classList.contains('hidden')) {
+                renderFloatingUnassignedList();
+                win.classList.remove('hidden');
+            } else {
+                win.classList.add('hidden');
+            }
+        }
+
+        function renderFloatingUnassignedList() {
+            collectAllUnassignedNodes();
+            const container = document.getElementById('floating-unassigned-body');
+            const badge = document.getElementById('floating-unassigned-count-badge');
+            const headerBtnText = document.getElementById('floating-header-btn-text');
+
+            if (badge) badge.innerText = allUnassignedNodesList.length;
+            if (headerBtnText) headerBtnText.innerText = `ID未設定 ${allUnassignedNodesList.length}件`;
+
+            if (!container) return;
+            container.innerHTML = '';
+
+            if (allUnassignedNodesList.length === 0) {
+                container.innerHTML = '<div style="padding:15px; text-align:center; font-size:12px; color:var(--success-color); font-weight:bold;">すべての施設にロケーションIDが設定されています！</div>';
+                return;
+            }
+
+            // Group by floor
+            const grouped = {};
+            allUnassignedNodesList.forEach(item => {
+                if (!grouped[item.floorLabel]) grouped[item.floorLabel] = [];
+                grouped[item.floorLabel].push(item);
+            });
+
+            for (let fLabel in grouped) {
+                const groupItems = grouped[fLabel];
+                const groupDiv = document.createElement('div');
+                groupDiv.style.cssText = 'margin-bottom: 6px;';
+
+                let itemsHtml = groupItems.map(item => {
+                    const roomName = item.node.name || item.node.eventName || '(無名ポイント)';
+                    const isCurrentSelected = (item.floorId == currentFloorId && String(item.node.id) === String(selectedNodeId));
+                    const safeNodeId = (typeof item.node.id === 'string' && isNaN(Number(item.node.id))) ? `'${item.node.id}'` : item.node.id;
+                    return `
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; background:${isCurrentSelected ? '#e3f2fd' : 'white'}; border:${isCurrentSelected ? '1px solid #2196f3' : '1px solid var(--border-color)'}; border-radius:6px; margin-top:4px; cursor:pointer; transition:all 0.15s;" onclick="selectNodeForFloatingEdit(${item.floorId}, ${safeNodeId})">
+                            <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
+                                <strong style="font-size:12px; color:var(--text-main);">${roomName}</strong>
+                                ${item.node.eventName ? `<span style="font-size:10px; color:var(--secondary-color); margin-left:4px;">${item.node.eventName}</span>` : ''}
+                            </div>
+                            <span style="font-size:10px; color:${isCurrentSelected ? '#1565c0' : 'var(--primary-color)'}; background:${isCurrentSelected ? '#bbdefb' : '#f1f3f5'}; padding:2px 6px; border-radius:4px; flex-shrink:0; font-weight:bold; margin-left:6px;">入力</span>
+                        </div>
+                    `;
+                }).join('');
+
+                groupDiv.innerHTML = `
+                    <div style="font-size:11px; font-weight:bold; color:var(--primary-color); padding:2px 4px;">${fLabel} (${groupItems.length}件)</div>
+                    ${itemsHtml}
+                `;
+                container.appendChild(groupDiv);
+            }
+        }
+
+        let editHistoryStack = []; // History stack of [ { floorId, nodeId } ] for "戻る" button navigation!
+
+        async function selectNodeForFloatingEdit(floorId, nodeId, pushHistory = true) {
+            if (pushHistory && selectedNodeId !== null && (currentFloorId != floorId || String(selectedNodeId) !== String(nodeId))) {
+                editHistoryStack.push({ floorId: currentFloorId, nodeId: selectedNodeId });
+            }
+
+            // 1. Switch floor if needed
+            if (currentFloorId != floorId) {
+                await switchFloor(floorId);
+            }
+
+            // 2. Select & focus node on canvas
+            setTimeout(() => {
+                selectNode(nodeId);
+                const n = nodes.find(node => node.id == nodeId || String(node.id) === String(nodeId));
+                if (n) {
+                    focusOnNode(n);
+                }
+
+                // Make sure sidebar is on inspector tab WITHOUT closing floating window
+                if (document.getElementById('tab-inspector').classList.contains('hidden')) {
+                    switchSidebarTab('inspector');
+                }
+
+                // 3. Focus directly into nodeCode input box immediately
+                setTimeout(() => {
+                    const codeInput = document.getElementById('nodeCode');
+                    if (codeInput) {
+                        codeInput.focus();
+                        codeInput.select();
+                    }
+                }, 80);
+
+                // Re-render floating window to highlight selected item
+                renderFloatingUnassignedList();
+            }, 100);
+        }
+
+        function jumpToNextUnassignedNode() {
+            collectAllUnassignedNodes();
+            if (allUnassignedNodesList.length === 0) {
+                showToast("すべての施設にロケーションIDが設定されています", "success");
+                return;
+            }
+
+            // Find next unassigned node after current selection, or first if none
+            let currentIndex = -1;
+            if (selectedNodeId !== null) {
+                currentIndex = allUnassignedNodesList.findIndex(item => item.floorId == currentFloorId && String(item.node.id) === String(selectedNodeId));
+            }
+
+            let nextIndex = 0;
+            if (currentIndex !== -1 && currentIndex + 1 < allUnassignedNodesList.length) {
+                nextIndex = currentIndex + 1;
+            }
+
+            const target = allUnassignedNodesList[nextIndex];
+            selectNodeForFloatingEdit(target.floorId, target.node.id, true);
+        }
+
+        function jumpToPreviousUnassignedNode() {
+            if (editHistoryStack.length > 0) {
+                const prevTarget = editHistoryStack.pop();
+                selectNodeForFloatingEdit(prevTarget.floorId, prevTarget.nodeId, false);
+                return;
+            }
+
+            // Fallback if history stack is empty: find previous unassigned node in list
+            collectAllUnassignedNodes();
+            if (allUnassignedNodesList.length === 0) {
+                showToast("未設定の施設はありません", "info");
+                return;
+            }
+
+            let currentIndex = -1;
+            if (selectedNodeId !== null) {
+                currentIndex = allUnassignedNodesList.findIndex(item => item.floorId == currentFloorId && String(item.node.id) === String(selectedNodeId));
+            }
+
+            let prevIndex = allUnassignedNodesList.length - 1;
+            if (currentIndex > 0) {
+                prevIndex = currentIndex - 1;
+            }
+
+            const target = allUnassignedNodesList[prevIndex];
+            selectNodeForFloatingEdit(target.floorId, target.node.id, false);
+        }
+
+        // --- Building / Floor Location ID Counter Window Engine ---
+        const BUILDING_NAME_MAP = {
+            'N': '北館 (N)',
+            'S': '南館 (S)',
+            'M': '本館 (M)',
+            'KH': '國枝記念国際ホール (KH)',
+            'KA': '古賀記念アリーナ (KA)',
+            'U': '施設外 (U)'
+        };
+
+        function parseLocationCode(code) {
+            if (!code) return null;
+            const clean = code.trim().toUpperCase();
+            const match = clean.match(/^([A-Z]+)(\d)(\d+)$/);
+            if (match) {
+                return {
+                    prefix: match[1],
+                    floor: parseInt(match[2]),
+                    number: parseInt(match[3]),
+                    numDigits: match[3].length,
+                    code: clean
+                };
+            }
+            return null;
+        }
+
+        function calculateLocationCodeStats() {
+            const stats = {};
+
+            const processNode = (n, fId) => {
+                if (n.code) {
+                    const parsed = parseLocationCode(n.code);
+                    if (parsed) {
+                        const { prefix, floor, number, numDigits, code } = parsed;
+                        if (!stats[prefix]) stats[prefix] = {};
+                        if (!stats[prefix][floor]) {
+                            stats[prefix][floor] = { maxNum: number, maxCode: code, numDigits };
+                        } else if (number > stats[prefix][floor].maxNum) {
+                            stats[prefix][floor].maxNum = number;
+                            stats[prefix][floor].maxCode = code;
+                            stats[prefix][floor].numDigits = Math.max(stats[prefix][floor].numDigits, numDigits);
+                        }
+                    }
+                }
+            };
+
+            for (let fId in floorsData) {
+                const fData = floorsData[fId];
+                if (fData && fData.nodes) {
+                    const nodeArr = (Number(fId) === Number(currentFloorId)) ? nodes : fData.nodes;
+                    nodeArr.forEach(n => processNode(n, fId));
+                }
+            }
+
+            if (nodes && (!floorsData[currentFloorId] || !floorsData[currentFloorId].nodes)) {
+                nodes.forEach(n => processNode(n, currentFloorId));
+            }
+
+            return stats;
+        }
+
+        function toggleLocationCounterWindow() {
+            const win = document.getElementById('location-counter-window');
+            if (!win) return;
+            if (win.classList.contains('hidden')) {
+                renderLocationCounterList();
+                win.classList.remove('hidden');
+            } else {
+                win.classList.add('hidden');
+            }
+        }
+
+        function renderLocationCounterList() {
+            const container = document.getElementById('location-counter-body');
+            if (!container) return;
+            container.innerHTML = '';
+
+            const stats = calculateLocationCodeStats();
+            const prefixes = ['N', 'S', 'M', 'KH', 'KA', 'U'];
+            
+            Object.keys(stats).forEach(p => {
+                if (!prefixes.includes(p)) prefixes.push(p);
+            });
+
+            prefixes.forEach(prefix => {
+                const bName = BUILDING_NAME_MAP[prefix] || `${prefix}館`;
+                const prefStats = stats[prefix] || {};
+
+                const card = document.createElement('div');
+                card.style.cssText = 'background:white; border:1px solid var(--border-color); border-radius:8px; padding:10px; margin-bottom:6px; box-shadow:0 1px 3px rgba(0,0,0,0.05);';
+
+                let floorsHtml = '';
+                for (let f = 1; f <= 4; f++) {
+                    const fStat = prefStats[f];
+                    let maxStr = '未使用';
+                    let nextCode = `${prefix}${f}01`;
+
+                    if (fStat) {
+                        maxStr = fStat.maxCode;
+                        const nextNumStr = String(fStat.maxNum + 1).padStart(fStat.numDigits, '0');
+                        nextCode = `${prefix}${f}${nextNumStr}`;
+                    }
+
+                    floorsHtml += `
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 0; border-bottom:1px dashed #eee; font-size:12px;">
+                            <span style="color:var(--text-sub); font-weight:bold;">${f}階</span>
+                            <div style="display:flex; align-items:center; gap:6px;">
+                                <span style="font-size:11px; color:#555; background:#f5f5f5; padding:1px 6px; border-radius:4px;">最大: <strong>${maxStr}</strong></span>
+                                <button type="button" style="font-size:11px; font-weight:bold; color:#00695c; background:#e0f2f1; border:1px solid #b2dfdb; padding:2px 8px; border-radius:4px; cursor:pointer; transition:all 0.15s;" onclick="applyRecommendedLocationCode('${nextCode}')" title="クリックで選択中ノードに入力">
+                                    + ${nextCode}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                card.innerHTML = `
+                    <div style="font-size:12px; font-weight:bold; color:#004d40; margin-bottom:6px; display:flex; align-items:center; gap:4px;">
+                        <span style="width:8px; height:8px; border-radius:50%; background:#00796b; display:inline-block;"></span>
+                        ${bName}
+                    </div>
+                    ${floorsHtml}
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function applyRecommendedLocationCode(recommendedCode) {
+            if (selectedNodeId === null) {
+                collectAllUnassignedNodes();
+                if (allUnassignedNodesList.length === 0) {
+                    showToast("すべての施設にロケーションIDが設定されています", "success");
+                    return;
+                }
+                const firstTarget = allUnassignedNodesList[0];
+                selectNodeForFloatingEdit(firstTarget.floorId, firstTarget.node.id);
+                setTimeout(() => applyRecommendedLocationCode(recommendedCode), 200);
+                return;
+            }
+
+            const codeInput = document.getElementById('nodeCode');
+            if (codeInput) {
+                codeInput.value = recommendedCode;
+                saveSelectedNodeProperties();
+                renderLocationCounterList();
+                showToast(`ID「${recommendedCode}」を割当完了。次の未設定へ自動ジャンプします。`, "success");
+
+                // Auto-jump to the next unassigned node automatically!
+                setTimeout(() => {
+                    jumpToNextUnassignedNode();
+                }, 150);
+            }
+        }
+
+        // --- Comprehensive Elevator & Stairs Shaft Clustering & Auto-Fix Engine ---
+        function fixAllStairsAndElevators() {
+            let fixedCount = 0;
+
+            const getBuildingInfo = (connId, name, x) => {
+                const s = ((connId || '') + ' ' + (name || '')).toLowerCase();
+                if (s.includes('north') || s.includes('北')) return { code: 'N', name: '北館' };
+                if (s.includes('south') || s.includes('南')) return { code: 'S', name: '南館' };
+                if (s.includes('main') || s.includes('本') || s.includes('吹き抜け')) return { code: 'M', name: '本館' };
+                if (s.includes('kunieda') || s.includes('國枝') || s.includes('国際') || s.includes('kh')) return { code: 'KH', name: '国際ホール' };
+                if (s.includes('koga') || s.includes('古賀') || s.includes('アリーナ') || s.includes('ka')) return { code: 'KA', name: 'アリーナ' };
+                if (s.includes('outdoor') || s.includes('施設外')) return { code: 'U', name: '施設外' };
+                if (x !== undefined) {
+                    if (x < 400) return { code: 'S', name: '南館' };
+                    if (x > 950) return { code: 'N', name: '北館' };
+                }
+                return { code: 'M', name: '本館' };
+            };
+
+            const allTargetNodes = [];
+
+            // Sync current active editor nodes into floorsData cache
+            if (floorsData[currentFloorId]) {
+                floorsData[currentFloorId].nodes = nodes;
+                floorsData[currentFloorId].edges = edges;
+            }
+
+            const collectFromFloor = (fId) => {
+                const fData = floorsData[fId];
+                if (!fData || !fData.nodes) return;
+
+                fData.nodes.forEach(n => {
+                    const isEv = n.type === 'elevator';
+                    const isStairs = n.type === 'stairs';
+
+                    if (isEv || isStairs) {
+                        allTargetNodes.push({
+                            node: n,
+                            floorId: Number(fId),
+                            type: isEv ? 'elevator' : 'stairs',
+                            bInfo: getBuildingInfo(n.connectionId, n.name, n.x)
+                        });
+                    }
+                });
+            };
+
+            for (let fId in floorsData) {
+                collectFromFloor(fId);
+            }
+
+            // Cluster into vertical shafts ensuring NO SAME-FLOOR CONFLICTS in a single shaft
+            const shafts = [];
+
+            allTargetNodes.forEach(item => {
+                const { node, floorId, type, bInfo } = item;
+
+                let targetShaft = shafts.find(s => {
+                    if (s.type !== type || s.bInfo.code !== bInfo.code) return false;
+                    if (s.nodes.some(existing => existing.floorId === floorId)) return false;
+
+                    if (node.connectionId && s.connId && node.connectionId === s.connId) return true;
+
+                    const avgX = s.nodes.reduce((sum, el) => sum + el.node.x, 0) / s.nodes.length;
+                    return Math.abs(node.x - avgX) < 150;
+                });
+
+                if (!targetShaft) {
+                    const shaftIndex = shafts.filter(s => s.type === type && s.bInfo.code === bInfo.code).length + 1;
+                    const connId = node.connectionId || `${type}_${bInfo.code.toLowerCase()}_${shaftIndex}`;
+                    targetShaft = {
+                        type,
+                        bInfo,
+                        connId,
+                        shaftIndex,
+                        nodes: []
+                    };
+                    shafts.push(targetShaft);
+                }
+
+                targetShaft.nodes.push({ node, floorId });
+            });
+
+            // Count shafts per base code
+            const shaftTypeCounts = {};
+
+            shafts.forEach(shaft => {
+                const typePrefix = (shaft.type === 'elevator') ? 'E' : 'ST';
+                const baseCode = `${typePrefix}${shaft.bInfo.code}`;
+
+                shaftTypeCounts[baseCode] = (shaftTypeCounts[baseCode] || 0) + 1;
+                shaft.seq = shaftTypeCounts[baseCode];
+            });
+
+            // Fill missing/blank/default values without destroying custom manual edits
+            shafts.forEach(shaft => {
+                const typePrefix = (shaft.type === 'elevator') ? 'E' : 'ST';
+                const baseCode = `${typePrefix}${shaft.bInfo.code}`;
+                const totalForBase = shaftTypeCounts[baseCode];
+
+                shaft.sharedCode = (totalForBase > 1) ? `${baseCode}-${shaft.seq}` : baseCode;
+                const connId = `${shaft.type}_${shaft.bInfo.code.toLowerCase()}_${shaft.seq}`;
+                const typeLabel = (shaft.type === 'elevator') ? 'エレベーター' : '階段';
+                const stdName = (totalForBase > 1) ? `${shaft.bInfo.name}${typeLabel}${shaft.seq}` : `${shaft.bInfo.name}${typeLabel}`;
+
+                shaft.nodes.forEach(item => {
+                    const n = item.node;
+                    let changed = false;
+
+                    if (!n.code || n.code.trim() === '') { n.code = shaft.sharedCode; changed = true; }
+                    if (!n.connectionId || n.connectionId.trim() === '') { n.connectionId = connId; changed = true; }
+                    if (!n.name || n.name.trim() === '' || n.name === 'EV' || n.name === '階段') { n.name = stdName; changed = true; }
+
+                    if (changed) fixedCount++;
+                });
+            });
+
+            return fixedCount;
+        }
+
+        function runFixAllStairsAndElevators() {
+            const count = fixAllStairsAndElevators();
+            validateAllConnections();
+            validateDuplicateLocationCodes();
+            renderFloatingUnassignedList();
+            renderLocationCounterList();
+            markAsModified();
+            draw();
+            showToast(`全フロアのエレベーター・階段 ${count}項目の属性（Type, 接続ID, 表示名, ID）を完全統一・修正しました！`, "success");
+        }
+
+        // --- Duplicate Location Code Modal Utilities ---
+        function openDuplicateCodeModal() {
+            renderDuplicateCodeModalList();
+            const modal = document.getElementById('duplicate-code-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('open');
+            }
+        }
+
+        function closeDuplicateCodeModal() {
+            const modal = document.getElementById('duplicate-code-modal');
+            if (modal) {
+                modal.classList.remove('open');
+                modal.classList.add('hidden');
+            }
+        }
+
+        // --- Location Mapping Modal & CSV Export Engine ---
+        function openLocationMappingModal() {
+            if (floorsData[currentFloorId]) {
+                floorsData[currentFloorId].nodes = nodes;
+                floorsData[currentFloorId].edges = edges;
+            }
+            const modal = document.getElementById('location-mapping-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('open');
+            }
+            renderMappingTable();
+        }
+
+        function closeLocationMappingModal() {
+            const modal = document.getElementById('location-mapping-modal');
+            if (modal) {
+                modal.classList.remove('open');
+                modal.classList.add('hidden');
+            }
+        }
+
+        function getBuildingName(node) {
+            if (!node) return '本館';
+
+            // 1. Check Location Code Prefix (Most Authoritative!)
+            if (node.code && node.code.trim() !== '') {
+                const cleanCode = node.code.trim().toUpperCase();
+                if (cleanCode.startsWith('KH') || cleanCode.startsWith('STKH') || cleanCode.startsWith('EKH')) return '国際ホール';
+                if (cleanCode.startsWith('KA') || cleanCode.startsWith('STKA') || cleanCode.startsWith('EKA')) return 'アリーナ';
+                if (cleanCode.startsWith('STN') || cleanCode.startsWith('EN') || cleanCode.startsWith('N')) return '北館';
+                if (cleanCode.startsWith('STS') || cleanCode.startsWith('ES') || cleanCode.startsWith('S')) return '南館';
+                if (cleanCode.startsWith('STM') || cleanCode.startsWith('EM') || cleanCode.startsWith('M')) return '本館';
+                if (cleanCode.startsWith('U')) return '施設外';
+            }
+
+            // 2. Check Connection ID & Name Keywords
+            const text = ((node.connectionId || '') + ' ' + (node.name || '') + ' ' + (node.eventName || '')).toLowerCase();
+            if (text.includes('kh') || text.includes('國枝') || text.includes('国際')) return '国際ホール';
+            if (text.includes('ka') || text.includes('古賀') || text.includes('アリーナ') || text.includes('剣道') || text.includes('柔道') || text.includes('卓球')) return 'アリーナ';
+            if (text.includes('north') || text.includes('北館') || text.includes('_n')) return '北館';
+            if (text.includes('south') || text.includes('南館') || text.includes('_s')) return '南館';
+            if (text.includes('main') || text.includes('本館') || text.includes('_m') || text.includes('吹き抜け') || text.includes('事務室') || text.includes('正面玄関') || text.includes('購買') || text.includes('ラウンジ')) return '本館';
+            if (text.includes('施設外') || text.includes('outdoor') || text.includes('キッチンカー')) return '施設外';
+
+            // 3. Coordinate Fallback
+            if (node.x !== undefined && node.y !== undefined) {
+                if (node.x < 500) return 'アリーナ';
+                if (node.x > 850 && node.y > 350) return '本館';
+                if (node.y > 450) return '北館';
+                if (node.y < 350) return '南館';
+            }
+
+            return '本館';
+        }
+
+        function collectAllMappingNodes() {
+            const list = [];
+            floorsConfig.forEach(floor => {
+                const fData = floorsData[floor.id];
+                if (fData && fData.nodes) {
+                    const nodeArr = (Number(floor.id) === Number(currentFloorId)) ? nodes : fData.nodes;
+                    nodeArr.forEach(n => {
+                        // Exclude pure routing junction nodes
+                        if (n.type !== 'junction') {
+                            list.push({
+                                floorId: floor.id,
+                                floorLabel: floor.label,
+                                building: getBuildingName(n),
+                                node: n
+                            });
+                        }
+                    });
+                }
+            });
+            return list;
+        }
+
+        function renderMappingTable() {
+            const searchKeyword = (document.getElementById('mapping-search-input')?.value || '').trim().toLowerCase();
+            const floorFilter = document.getElementById('mapping-floor-filter')?.value || 'all';
+            const typeFilter = document.getElementById('mapping-type-filter')?.value || 'all';
+
+            const allNodes = collectAllMappingNodes();
+
+            const filtered = allNodes.filter(item => {
+                const n = item.node;
+                if (floorFilter !== 'all' && Number(item.floorId) !== Number(floorFilter)) return false;
+                if (typeFilter !== 'all' && n.type !== typeFilter) return false;
+
+                if (searchKeyword !== '') {
+                    const searchStr = `${item.floorLabel} ${item.building} ${n.code || ''} ${n.name || ''} ${n.type || ''} ${n.connectionId || ''} ${n.eventName || ''} ${n.organization || ''}`.toLowerCase();
+                    if (!searchStr.includes(searchKeyword)) return false;
+                }
+                return true;
+            });
+
+            filtered.sort((a, b) => {
+                if (a.floorId !== b.floorId) return a.floorId - b.floorId;
+                const codeA = a.node.code || a.node.name || '';
+                const codeB = b.node.code || b.node.name || '';
+                return codeA.localeCompare(codeB, 'ja', { numeric: true, sensitivity: 'base' });
+            });
+
+            const summaryEl = document.getElementById('mapping-table-summary');
+            if (summaryEl) {
+                summaryEl.innerText = `全 ${allNodes.length} 件中 ${filtered.length} 件表示`;
+            }
+
+            const tbody = document.getElementById('mapping-table-body');
+            if (!tbody) return;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:20px; color:var(--text-sub);">条件に一致する施設が見つかりません</td></tr>`;
+                return;
+            }
+
+            const typeLabels = {
+                room: '教室', area: 'エリア', elevator: 'EV', stairs: '階段',
+                toilet: 'トイレ', vending: '自販機', entrance: '出入口', junction: '分岐点'
+            };
+
+            tbody.innerHTML = filtered.map(item => {
+                const n = item.node;
+                const codeBadge = n.code ? `<span style="font-family:monospace; font-weight:bold; background:#e8eaf6; color:#283593; padding:2px 6px; border-radius:3px;">${n.code}</span>` : `<span style="color:#aaa; font-style:italic;">未設定</span>`;
+                const typeText = typeLabels[n.type] || n.type;
+                const eventOrg = [n.eventName, n.organization].filter(Boolean).join(' / ') || '-';
+
+                return `
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding:8px 10px; font-weight:bold;">${item.floorLabel}</td>
+                        <td style="padding:8px 10px; color:var(--text-sub);">${item.building}</td>
+                        <td style="padding:8px 10px;">${codeBadge}</td>
+                        <td style="padding:8px 10px; font-weight:500;">${n.name || '(名称未設定)'}</td>
+                        <td style="padding:8px 10px;"><span class="badge badge-${n.type}">${typeText}</span></td>
+                        <td style="padding:8px 10px; font-family:monospace; color:#555;">${n.connectionId || '-'}</td>
+                        <td style="padding:8px 10px; color:#666;">${eventOrg}</td>
+                        <td style="padding:8px 10px; text-align:center;">
+                            <button class="btn btn-secondary" onclick="jumpToMappingNode(${item.floorId}, '${n.id}')" style="padding:2px 8px; font-size:11px;">移動</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function jumpToMappingNode(floorId, nodeId) {
+            closeLocationMappingModal();
+            if (Number(floorId) !== Number(currentFloorId)) {
+                switchFloor(floorId);
+            }
+            setTimeout(() => {
+                const target = nodes.find(n => String(n.id) === String(nodeId));
+                if (target) {
+                    selectNode(target);
+                    panToNode(target);
+                }
+            }, 100);
+        }
+
+        function exportMappingToCSV() {
+            const allNodes = collectAllMappingNodes();
+
+            allNodes.sort((a, b) => {
+                if (a.floorId !== b.floorId) return a.floorId - b.floorId;
+                const codeA = a.node.code || a.node.name || '';
+                const codeB = b.node.code || b.node.name || '';
+                return codeA.localeCompare(codeB, 'ja', { numeric: true, sensitivity: 'base' });
+            });
+
+            const headers = ["フロア", "館名", "ロケーションID", "施設・部屋名", "種別", "接続ID", "イベント名", "団体名", "X座標", "Y座標", "ノードID"];
+
+            const escapeCSV = (val) => {
+                if (val === undefined || val === null) return '""';
+                const str = String(val).replace(/"/g, '""');
+                return `"${str}"`;
+            };
+
+            const rows = allNodes.map(item => {
+                const n = item.node;
+                return [
+                    escapeCSV(item.floorLabel),
+                    escapeCSV(item.building),
+                    escapeCSV(n.code || ''),
+                    escapeCSV(n.name || ''),
+                    escapeCSV(n.type || ''),
+                    escapeCSV(n.connectionId || ''),
+                    escapeCSV(n.eventName || ''),
+                    escapeCSV(n.organization || ''),
+                    escapeCSV(n.x ? Math.round(n.x) : ''),
+                    escapeCSV(n.y ? Math.round(n.y) : ''),
+                    escapeCSV(n.id || '')
+                ].join(',');
+            });
+
+            const csvContent = '\uFEFF' + [headers.map(escapeCSV).join(','), ...rows].join('\r\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const nowStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            a.download = `location_id_mapping_${nowStr}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showToast(`全 ${allNodes.length} 件の対応表を CSV としてエクスポートしました！`, "success");
+        }
     </script>
+
+    <!-- Duplicate Location Code Details Modal -->
+    <div class="modal-overlay hidden" id="duplicate-code-modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <span>ロケーションID 重複一覧</span>
+                <button onclick="closeDuplicateCodeModal()" style="background:none; border:none; font-size:20px; cursor:pointer; color:var(--text-sub);">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 400px; overflow-y: auto;">
+                <p style="font-size: 12px; color: var(--text-sub); margin-bottom: 12px;">
+                    以下のロケーションIDが複数の場所で重複して使用されています。該当項目をクリックするとそのノードを選択・移動します。
+                </p>
+                <div id="duplicate-code-modal-list" style="display: flex; flex-direction: column; gap: 10px;">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeDuplicateCodeModal()">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 全フロア対応表・CSV出力モーダル -->
+    <div class="modal-overlay hidden" id="location-mapping-modal">
+        <div class="modal-content" style="max-width: 900px; width: 95%;">
+            <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-weight: bold; font-size: 16px;">全フロア ロケーションID・施設 対応一覧表</span>
+                <button onclick="closeLocationMappingModal()" style="background:none; border:none; font-size:20px; cursor:pointer; color:var(--text-sub);">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 520px; overflow-y: auto; padding: 16px;">
+                <!-- Control Bar -->
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; flex: 1;">
+                        <input type="text" id="mapping-search-input" placeholder="キーワード・ID・部屋名・団体名を検索..." oninput="renderMappingTable()" style="padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 13px; min-width: 220px; flex: 1;">
+                        <select id="mapping-floor-filter" onchange="renderMappingTable()" style="padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 13px; background: white;">
+                            <option value="all">全フロア</option>
+                            <option value="1">1階 (1F)</option>
+                            <option value="2">2階 (2F)</option>
+                            <option value="3">3階 (3F)</option>
+                            <option value="4">4階 (4F)</option>
+                        </select>
+                        <select id="mapping-type-filter" onchange="renderMappingTable()" style="padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 13px; background: white;">
+                            <option value="all">全施設種別</option>
+                            <option value="room">教室 (room)</option>
+                            <option value="area">エリア (area)</option>
+                            <option value="elevator">エレベーター (elevator)</option>
+                            <option value="stairs">階段 (stairs)</option>
+                            <option value="toilet">トイレ (toilet)</option>
+                            <option value="vending">自販機 (vending)</option>
+                            <option value="entrance">出入口 (entrance)</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="exportMappingToCSV()" style="background-color: #2e7d32; display: flex; align-items: center; gap: 6px; font-weight: bold;">
+                        <span>CSVダウンロード</span>
+                    </button>
+                </div>
+
+                <div id="mapping-table-summary" style="font-size: 12px; color: var(--text-sub); margin-bottom: 8px;">
+                    表示中: 0件
+                </div>
+
+                <div style="overflow-x: auto; border: 1px solid var(--border-color); border-radius: 6px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
+                        <thead>
+                            <tr style="background-color: #f5f5f5; border-bottom: 2px solid var(--border-color);">
+                                <th style="padding: 8px 10px; width: 60px;">フロア</th>
+                                <th style="padding: 8px 10px; width: 70px;">館名</th>
+                                <th style="padding: 8px 10px; width: 110px;">ロケーションID</th>
+                                <th style="padding: 8px 10px;">施設・部屋名</th>
+                                <th style="padding: 8px 10px; width: 90px;">種別</th>
+                                <th style="padding: 8px 10px; width: 120px;">接続ID</th>
+                                <th style="padding: 8px 10px;">イベント/団体名</th>
+                                <th style="padding: 8px 10px; width: 80px; text-align: center;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mapping-table-body">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size: 12px; color: var(--text-sub);">※「移動して選択」をクリックすると該当地点のマップへジャンプします</span>
+                <button class="btn btn-secondary" onclick="closeLocationMappingModal()">閉じる</button>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>
