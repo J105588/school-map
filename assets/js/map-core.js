@@ -18,8 +18,10 @@ class MapEngine {
         this.globalNodes = [];
         this.globalEdges = [];
 
-        // Current Location State
+        // Current Location & Marker States
         this.currentLocationNode = null;
+        this.startNode = null;
+        this.endNode = null;
 
         // Viewport Transform (Zoom/Pan)
         this.transform = { k: 1, x: 0, y: 0 };
@@ -1061,8 +1063,13 @@ class MapEngine {
             const endNode = this.getNode(this.path[this.path.length - 1]);
             this.drawMarker(startNode, 'START', '#1565c0'); // Blue for Start
             this.drawMarker(endNode, 'GOAL', '#c62828');   // Red for Goal
-        } else if (this.startNode) {
-            this.drawMarker(this.startNode, 'START', '#1565c0'); // Blue for Start
+        } else {
+            if (this.startNode) {
+                this.drawMarker(this.startNode, 'START', '#1565c0'); // Blue for Start
+            }
+            if (this.endNode) {
+                this.drawMarker(this.endNode, 'GOAL', '#c62828');   // Red for Goal
+            }
         }
 
         // Draw Current Location (Always visible if set)
@@ -1622,7 +1629,13 @@ class MapEngine {
     // --- Pathfinding ---
     setStartMarker(nodeId) {
         console.log("Setting start marker:", nodeId);
-        this.startNode = this.getNode(nodeId);
+        this.startNode = nodeId ? this.getNode(nodeId) : null;
+        this.draw();
+    }
+
+    setEndMarker(nodeId) {
+        console.log("Setting end marker:", nodeId);
+        this.endNode = nodeId ? this.getNode(nodeId) : null;
         this.draw();
     }
 
@@ -1632,6 +1645,7 @@ class MapEngine {
         console.log(`Calculating path from ${startId} to ${endId}`);
         this.path = [];
         this.startNode = null; // Clear manual start node
+        this.endNode = null;   // Clear manual end node
 
         let targetIds = new Set();
         const sNode = this.getNode(startId);

@@ -189,6 +189,10 @@ class UIController {
                         this.engine.focusNode(val);
                         this.engine.setStartMarker(val);
                     }
+                } else {
+                    if (!this.endSelect.value) {
+                        this.engine.setStartMarker(null);
+                    }
                 }
                 this.calculateRoute();
             });
@@ -197,6 +201,14 @@ class UIController {
                     const node = this.engine.getNode(val);
                     if (node && node.type === 'exit_only') {
                         this.showRestrictionWarning('exit_only');
+                    }
+                    if (!this.startSelect.value && !val.startsWith('NEAREST_')) {
+                        this.engine.focusNode(val);
+                        this.engine.setEndMarker(val);
+                    }
+                } else {
+                    if (!this.startSelect.value) {
+                        this.engine.setEndMarker(null);
                     }
                 }
                 this.calculateRoute();
@@ -414,7 +426,10 @@ class UIController {
         } else if (endResolved) {
             if (this.endSelect) this.endSelect.select(endResolved.value, endResolved.title);
             if (!endResolved.value.startsWith('NEAREST_')) {
+                this.engine.setEndMarker(endResolved.value);
                 this.engine.focusNode(endResolved.value);
+                const node = this.engine.getNode(endResolved.value);
+                if (node) this.engine.highlightNode(node);
             }
         } else {
             // Check floor query parameter if no routing or node focus is active
