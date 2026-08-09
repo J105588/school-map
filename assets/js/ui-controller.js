@@ -376,7 +376,8 @@ class UIController {
 
         // 2. Current Location & Location Code Params
         const codeParam = params.get('code') || params.get('location_id') || params.get('locationId');
-        const currentQuery = codeParam || params.get('current') || params.get('loc');
+        const currentParam = params.get('current') || params.get('loc');
+        const currentQuery = codeParam || currentParam;
         let currentResolved = null;
         if (currentQuery) {
             currentResolved = this.resolveNode(currentQuery);
@@ -407,10 +408,30 @@ class UIController {
             endResolved = this.resolveDestination(endQuery);
         }
 
+        // Fallback: If codeParam was passed, but neither current/start nor end was resolved, try resolving codeParam as destination if no endQuery was given
+        if (codeParam && !currentResolved && !startResolved && !endQuery) {
+            endResolved = this.resolveDestination(codeParam);
+        }
+
         // Check for unregistered location code / query warning
-        const unmappedQuery = codeParam || (currentQuery && !currentResolved ? currentQuery : null) || (startQuery && !startResolved ? startQuery : null);
-        if (unmappedQuery && !currentResolved && !startResolved) {
-            this.showNotificationToast(`指定されたロケーションID (${unmappedQuery}) は登録されていません`, 'warning');
+        const unmappedQueries = [];
+        if (codeParam && !currentResolved && !startResolved && !endResolved) {
+            unmappedQueries.push(codeParam);
+        } else {
+            if (currentParam && !currentResolved && !startResolved) {
+                unmappedQueries.push(currentParam);
+            }
+            if (startQuery && !startResolved) {
+                unmappedQueries.push(startQuery);
+            }
+            if (endQuery && !endResolved) {
+                unmappedQueries.push(endQuery);
+            }
+        }
+
+        if (unmappedQueries.length > 0) {
+            const firstUnmapped = unmappedQueries[0];
+            this.showNotificationToast(`指定されたロケーションID (${firstUnmapped}) は登録されていません`, 'warning');
         }
 
         // 5. Apply navigation / selection state
