@@ -38,14 +38,29 @@
         .editor-header {
             background: linear-gradient(135deg, #0b0f38 0%, #1e299a 50%, #3a1555 100%);
             color: white;
-            padding: 12px 24px;
+            padding: 10px 24px;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
+            gap: 8px;
             border-bottom: 2px solid var(--secondary-color);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
             z-index: 10;
             flex-shrink: 0;
+        }
+
+        /* ヘッダーを2段構成にする共通行レイアウト:
+           1段目=常時表示の基本情報、2段目=警告とツールメニュー */
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .header-row-tools {
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
         }
 
         .header-left {
@@ -126,6 +141,7 @@
             background: rgba(255, 255, 255, 0.1);
             border: 1px solid rgba(255, 255, 255, 0.2);
             color: white;
+            white-space: nowrap;
         }
 
         .status-badge.modified {
@@ -138,6 +154,137 @@
             border-color: var(--success-color);
             color: var(--success-color);
             background: rgba(40, 167, 69, 0.15);
+        }
+
+        /* 2段目: 警告チップ群 (左) とツールメニュー (右) */
+        .header-alerts {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* 共通チップコンポーネント。配色は --danger/--warning/--info/--success-color の
+           トークンに統一し、以前の6種類のばらばらな決め打ちHEXを廃止する */
+        .status-chip {
+            font-size: 12px;
+            padding: 5px 12px;
+            border-radius: 14px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            white-space: nowrap;
+            transition: all 0.15s;
+        }
+
+        .status-chip svg {
+            flex-shrink: 0;
+        }
+
+        .status-chip:hover {
+            filter: brightness(0.97);
+            transform: translateY(-1px);
+        }
+
+        .chip-danger {
+            background: rgba(220, 53, 69, 0.12);
+            border-color: rgba(220, 53, 69, 0.35);
+            color: #ffb4bd;
+        }
+
+        .chip-warning {
+            background: rgba(255, 193, 7, 0.14);
+            border-color: rgba(255, 193, 7, 0.35);
+            color: #ffe083;
+        }
+
+        .chip-info {
+            background: rgba(23, 162, 184, 0.16);
+            border-color: rgba(23, 162, 184, 0.4);
+            color: #8fe3ef;
+        }
+
+        .chip-success {
+            background: rgba(40, 167, 69, 0.14);
+            border-color: rgba(40, 167, 69, 0.35);
+            color: #9be3ab;
+        }
+
+        /* ツールメニュー (採番状況・対応表CSV・EV自動修正をまとめる) */
+        .header-tools-menu {
+            position: relative;
+        }
+
+        .tools-menu-trigger {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: bold;
+            padding: 5px 12px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: white;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .tools-menu-trigger:hover,
+        .header-tools-menu.open .tools-menu-trigger {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .tools-menu-trigger .chevron {
+            transition: transform 0.15s;
+        }
+
+        .header-tools-menu.open .tools-menu-trigger .chevron {
+            transform: rotate(180deg);
+        }
+
+        .tools-menu-dropdown {
+            position: absolute;
+            right: 0;
+            top: calc(100% + 8px);
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+            border: 1px solid var(--border-color);
+            padding: 6px;
+            min-width: 230px;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .tools-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 10px;
+            border-radius: 6px;
+            background: none;
+            border: none;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-main);
+            cursor: pointer;
+            text-align: left;
+            width: 100%;
+        }
+
+        .tools-menu-item:hover {
+            background: #f1f3f5;
+        }
+
+        .tools-menu-item svg {
+            color: var(--primary-color);
+            flex-shrink: 0;
         }
 
         /* Workspace Layout */
@@ -425,6 +572,47 @@
             background: #bd2130;
         }
 
+        /* ボタン幅の統一: 従来は個々にインラインstyleで幅を上書きしていたため、
+           明示的な修飾クラスに置き換える */
+        .btn-block {
+            width: 100%;
+        }
+
+        .btn-inline {
+            width: auto;
+            flex: 1;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* インスペクターフォームのサブセクション見出し */
+        .inspector-subsection {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding-top: 12px;
+            border-top: 1px dashed var(--border-color);
+        }
+
+        .inspector-subsection:first-child {
+            padding-top: 0;
+            border-top: none;
+        }
+
+        .inspector-subsection-title {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            color: var(--secondary-color);
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
         /* Facility list view */
         .search-wrapper {
             position: relative;
@@ -660,6 +848,57 @@
             gap: 8px;
         }
 
+        /* 情報センター: 「ID未設定」「ID重複」「採番状況」を1つのパネルに統合し、
+           内部タブで切り替える。右上に固定し、左上のキャンバスツールバーとの
+           重なり・パネル同士の重なりを解消する */
+        .info-center-panel {
+            left: auto;
+            right: 20px;
+            top: 20px;
+            width: 320px;
+        }
+
+        .info-center-tabs {
+            display: flex;
+            background: #fafafa;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .info-center-tab {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            padding: 9px 4px;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-sub);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .info-center-tab:hover {
+            color: var(--primary-color);
+        }
+
+        .info-center-tab.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+            background: white;
+        }
+
+        .info-center-tab .floating-badge {
+            background: var(--danger-color);
+        }
+
+        .info-center-body.hidden {
+            display: none;
+        }
+
         /* Responsive Design for smaller screens */
         @media (max-width: 900px) {
             body {
@@ -681,6 +920,14 @@
                 width: 100%;
                 min-height: 350px;
             }
+            .header-row {
+                justify-content: flex-start;
+            }
+            .info-center-panel {
+                right: 10px;
+                left: 10px;
+                width: auto;
+            }
         }
     </style>
 </head>
@@ -689,61 +936,75 @@
 
     <!-- Header Panel -->
     <header class="editor-header">
-        <div class="header-left">
-            <svg class="logo-icon" viewBox="0 0 24 24" width="28" height="28" style="flex-shrink:0;">
-                <circle cx="12" cy="12" r="10" stroke="var(--secondary-color)" stroke-width="1.5" fill="none"></circle>
-                <polygon points="12,3 15,12 12,12" fill="var(--accent-color)"></polygon>
-                <polygon points="12,3 9,12 12,12" fill="#ff5252"></polygon>
-                <polygon points="12,21 15,12 12,12" fill="var(--secondary-color)"></polygon>
-                <polygon points="12,21 9,12 12,12" fill="#e5c158"></polygon>
-                <circle cx="12" cy="12" r="1.5" fill="white"></circle>
-            </svg>
-            <div class="header-title-group">
-                <h1 class="header-title">I-Compass Map Editor</h1>
-                <span class="header-subtitle">校内マップ管理・編集システム</span>
+        <!-- 1段目: 常時表示エリア (ロゴ・タイトル・フロア切替・保存状態) -->
+        <div class="header-row header-row-main">
+            <div class="header-left">
+                <svg class="logo-icon" viewBox="0 0 24 24" width="28" height="28" style="flex-shrink:0;">
+                    <circle cx="12" cy="12" r="10" stroke="var(--secondary-color)" stroke-width="1.5" fill="none"></circle>
+                    <polygon points="12,3 15,12 12,12" fill="var(--accent-color)"></polygon>
+                    <polygon points="12,3 9,12 12,12" fill="#ff5252"></polygon>
+                    <polygon points="12,21 15,12 12,12" fill="var(--secondary-color)"></polygon>
+                    <polygon points="12,21 9,12 12,12" fill="#e5c158"></polygon>
+                    <circle cx="12" cy="12" r="1.5" fill="white"></circle>
+                </svg>
+                <div class="header-title-group">
+                    <h1 class="header-title">I-Compass Map Editor</h1>
+                    <span class="header-subtitle">校内マップ管理・編集システム</span>
+                </div>
             </div>
-        </div>
 
-        <!-- Floor Selector Tabs -->
-        <div class="floor-tabs-bar" id="floor-tabs-bar">
-            <!-- Dynamic Floor Tabs populates here -->
-        </div>
+            <!-- Floor Selector Tabs -->
+            <div class="floor-tabs-bar" id="floor-tabs-bar">
+                <!-- Dynamic Floor Tabs populates here -->
+            </div>
 
-        <div class="header-right">
-            <!-- 接続警告バッジ (デフォルト非表示) -->
-            <div class="status-badge warning hidden" id="connection-warning-status" style="background-color: #ffebee; color: #c62828; border: 1px solid #ffcdd2; cursor: pointer; margin-right: 8px;" onclick="showConnectionWarnings()">
-                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:currentColor;"></span>
-                <span id="warning-status-text">自動接続警告 0件</span>
-            </div>
-            <!-- 重複コード警告バッジ (デフォルト非表示) -->
-            <div class="status-badge warning hidden" id="duplicate-code-status" style="background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; cursor: pointer; margin-right: 8px;" onclick="toggleFloatingDuplicateWindow()">
-                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#dc3545;"></span>
-                <span id="duplicate-status-text">ID重複 0件</span>
-            </div>
-            <!-- 未設定ID浮遊ウィンドウ起動バッジ -->
-            <div class="status-badge warning" id="floating-unassigned-header-btn" style="background-color: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; cursor: pointer; margin-right: 8px;" onclick="toggleFloatingUnassignedWindow()">
-                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#1976d2;"></span>
-                <span id="floating-header-btn-text">ID未設定 0件</span>
-            </div>
-            <!-- 館・フロア別IDカウンターボタン -->
-            <div class="status-badge" id="location-counter-header-btn" style="background-color: #e0f2f1; color: #00695c; border: 1px solid #b2dfdb; cursor: pointer; margin-right: 8px;" onclick="toggleLocationCounterWindow()">
-                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#00796b;"></span>
-                <span>採番状況</span>
-            </div>
-            <!-- 全フロア対応表・CSVダウンロードボタン -->
-            <div class="status-badge" id="location-mapping-header-btn" style="background-color: #fff3e0; color: #e65100; border: 1px solid #ffe0b2; cursor: pointer; margin-right: 8px;" onclick="openLocationMappingModal()" title="全フロアのマップノード・ロケーションID一覧表を表示・検索し、CSVファイルとしてエクスポートします">
-                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#f57c00;"></span>
-                <span>対応表・CSV</span>
-            </div>
-            <!-- EV・階段全自動一括修正ボタン -->
-            <div class="status-badge" style="background-color: #f3e5f5; color: #7b1fa2; border: 1px solid #e1bee7; cursor: pointer; margin-right: 8px;" onclick="runFixAllStairsAndElevators()" title="全フロアのエレベーター・階段のタイプ、接続ID、表示名、ロケーションID(EN, STN等)をすべて一括で完全補正・修正します">
-                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#ab47bc;"></span>
-                <span>EV・階段を全自動修正</span>
-            </div>
             <div class="status-badge saved" id="modified-status">
-                <span
-                    style="display:inline-block; width:8px; height:8px; border-radius:50%; background:currentColor;"></span>
+                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:currentColor;"></span>
                 <span id="status-text">保存済み</span>
+            </div>
+        </div>
+
+        <!-- 2段目: 警告チップ (左) とツールメニュー (右) -->
+        <div class="header-row header-row-tools">
+            <div class="header-alerts">
+                <!-- 接続警告チップ (デフォルト非表示) -->
+                <div class="status-chip chip-danger hidden" id="connection-warning-status" onclick="showConnectionWarnings()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+                    <span id="warning-status-text">自動接続警告 0件</span>
+                </div>
+                <!-- 重複コード警告チップ (デフォルト非表示) -->
+                <div class="status-chip chip-warning hidden" id="duplicate-code-status" onclick="toggleFloatingDuplicateWindow()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span id="duplicate-status-text">ID重複 0件</span>
+                </div>
+                <!-- 未設定ID情報センター起動チップ -->
+                <div class="status-chip chip-info" id="floating-unassigned-header-btn" onclick="toggleFloatingUnassignedWindow()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    <span id="floating-header-btn-text">ID未設定 0件</span>
+                </div>
+            </div>
+
+            <!-- ツールメニュー: 採番状況・対応表CSV・EV自動修正をまとめる -->
+            <div class="header-tools-menu" id="header-tools-menu">
+                <button type="button" class="tools-menu-trigger" onclick="toggleToolsMenu(event)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                    <span>ツール</span>
+                    <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="tools-menu-dropdown hidden" id="tools-menu-dropdown">
+                    <button type="button" class="tools-menu-item" id="location-counter-header-btn" onclick="toggleLocationCounterWindow(); closeToolsMenu();">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                        <span>採番状況</span>
+                    </button>
+                    <button type="button" class="tools-menu-item" id="location-mapping-header-btn" onclick="openLocationMappingModal(); closeToolsMenu();" title="全フロアのマップノード・ロケーションID一覧表を表示・検索し、CSVファイルとしてエクスポートします">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="21"/></svg>
+                        <span>対応表・CSV</span>
+                    </button>
+                    <button type="button" class="tools-menu-item" onclick="runFixAllStairsAndElevators(); closeToolsMenu();" title="全フロアのエレベーター・階段のタイプ、接続ID、表示名、ロケーションID(EN, STN等)をすべて一括で完全補正・修正します">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                        <span>EV・階段を全自動修正</span>
+                    </button>
+                </div>
             </div>
         </div>
     </header>
@@ -754,52 +1015,37 @@
         <div id="canvas-container">
             <canvas id="mapCanvas"></canvas>
 
-            <!-- Floating Unassigned Location Code Window -->
-            <div id="floating-unassigned-window" class="floating-panel hidden">
+            <!-- 情報センター: ID未設定・ID重複・採番状況をタブで切り替える統合パネル -->
+            <div id="info-center-panel" class="floating-panel info-center-panel hidden">
                 <div class="floating-panel-header">
                     <div class="floating-title">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                        <span>ID未設定の施設</span>
-                        <span id="floating-unassigned-count-badge" class="floating-badge">0</span>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                        <span>情報センター</span>
                     </div>
                     <div class="floating-controls">
-                        <button onclick="toggleFloatingUnassignedWindow()" title="閉じる" class="floating-close-btn">&times;</button>
+                        <button onclick="closeInfoCenterPanel()" title="閉じる" class="floating-close-btn">&times;</button>
                     </div>
                 </div>
-                <div id="floating-unassigned-body" class="floating-panel-body">
+                <div class="info-center-tabs">
+                    <button type="button" class="info-center-tab" id="info-center-tab-unassigned" onclick="switchInfoCenterTab('unassigned')">
+                        <span>ID未設定</span>
+                        <span id="floating-unassigned-count-badge" class="floating-badge">0</span>
+                    </button>
+                    <button type="button" class="info-center-tab" id="info-center-tab-duplicate" onclick="switchInfoCenterTab('duplicate')">
+                        <span>ID重複</span>
+                        <span id="floating-duplicate-count-badge" class="floating-badge">0</span>
+                    </button>
+                    <button type="button" class="info-center-tab" id="info-center-tab-counter" onclick="switchInfoCenterTab('counter')">
+                        <span>採番状況</span>
+                    </button>
+                </div>
+                <div id="floating-unassigned-body" class="floating-panel-body info-center-body hidden">
                     <!-- Dynamic unassigned items populated by JS -->
                 </div>
-            </div>
-
-            <!-- Floating Duplicate Location Code Window -->
-            <div id="floating-duplicate-window" class="floating-panel hidden" style="left: 20px; top: 20px; width: 330px;">
-                <div class="floating-panel-header" style="background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%);">
-                    <div class="floating-title">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                        <span>ロケーションID 重複解決</span>
-                        <span id="floating-duplicate-count-badge" class="floating-badge" style="background:#ffcdd2; color:#b71c1c;">0</span>
-                    </div>
-                    <div class="floating-controls">
-                        <button onclick="toggleFloatingDuplicateWindow()" title="閉じる" class="floating-close-btn">&times;</button>
-                    </div>
-                </div>
-                <div id="floating-duplicate-body" class="floating-panel-body">
+                <div id="floating-duplicate-body" class="floating-panel-body info-center-body hidden">
                     <!-- Dynamic duplicate resolution cards populated by JS -->
                 </div>
-            </div>
-
-            <!-- Floating Location ID Counter Status Window -->
-            <div id="location-counter-window" class="floating-panel hidden" style="right: 20px; left: auto; top: 20px; width: 310px;">
-                <div class="floating-panel-header" style="background: linear-gradient(135deg, #00695c 0%, #004d40 100%);">
-                    <div class="floating-title">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-                        <span>館・フロア別 採番カウンター</span>
-                    </div>
-                    <div class="floating-controls">
-                        <button onclick="toggleLocationCounterWindow()" title="閉じる" class="floating-close-btn">&times;</button>
-                    </div>
-                </div>
-                <div id="location-counter-body" class="floating-panel-body">
+                <div id="location-counter-body" class="floating-panel-body info-center-body hidden">
                     <!-- Dynamically populated stats -->
                 </div>
             </div>
@@ -897,102 +1143,139 @@
                         <div class="sidebar-panel">
                             <h3>ポイントの属性編集</h3>
                             <div class="inspector-group">
-                                <div class="form-row">
-                                    <div class="form-field" style="flex:2;">
-                                        <label>ノードID</label>
-                                        <input type="text" id="nodeId" readonly style="background:#f8f9fa;">
+
+                                <!-- 基本情報 -->
+                                <div class="inspector-subsection">
+                                    <div class="inspector-subsection-title">
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                        基本情報
                                     </div>
-                                    <div class="form-field" style="flex:3;">
-                                        <label>種別</label>
-                                        <select id="nodeType" onchange="saveSelectedNodeProperties()">
-                                            <option value="junction">廊下・分岐点</option>
-                                            <option value="room">教室/部屋</option>
-                                            <option value="toilet">トイレ</option>
-                                            <option value="stairs">階段</option>
-                                            <option value="elevator">EV</option>
-                                            <option value="entrance">出入口</option>
-                                            <option value="entrance_only">入口専用 (出発地のみ)</option>
-                                            <option value="exit_only">出口専用 (目的地のみ)</option>
-                                            <option value="vending">自動販売機</option>
-                                            <option value="area">エリア</option>
-                                            <option value="others">その他</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="form-field">
-                                    <label>表示部屋名 (例: 1-1, 物理室)</label>
-                                    <input type="text" id="nodeName" placeholder="部屋名を入力"
-                                        oninput="saveSelectedNodeProperties()">
-                                </div>
-                                <div class="form-field">
-                                    <label>ロケーションID (例: N204, KH101)</label>
-                                    <input type="text" id="nodeCode" placeholder="ロケーションIDを入力"
-                                        oninput="saveSelectedNodeProperties()">
-                                    <div id="nodeCodeDuplicateWarning" class="hidden" style="margin-top: 6px; padding: 8px 10px; background: #fff5f5; border: 1px solid #ffcdd2; border-radius: 6px; font-size: 11px; color: #b71c1c;">
-                                        <div style="font-weight: bold; display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                                            <span>ロケーションIDが重複しています</span>
+                                    <div class="form-row">
+                                        <div class="form-field" style="flex:2;">
+                                            <label>ノードID</label>
+                                            <input type="text" id="nodeId" readonly style="background:#f8f9fa;">
                                         </div>
-                                        <div id="nodeCodeDuplicateMsg" style="margin-bottom: 4px;"></div>
-                                        <div id="nodeCodeDuplicateJumpContainer"></div>
+                                        <div class="form-field" style="flex:3;">
+                                            <label>種別</label>
+                                            <select id="nodeType" onchange="saveSelectedNodeProperties()">
+                                                <option value="junction">廊下・分岐点</option>
+                                                <option value="room">教室/部屋</option>
+                                                <option value="toilet">トイレ</option>
+                                                <option value="stairs">階段</option>
+                                                <option value="elevator">EV</option>
+                                                <option value="entrance">出入口</option>
+                                                <option value="entrance_only">入口専用 (出発地のみ)</option>
+                                                <option value="exit_only">出口専用 (目的地のみ)</option>
+                                                <option value="vending">自動販売機</option>
+                                                <option value="area">エリア</option>
+                                                <option value="others">その他</option>
+                                            </select>
+                                        </div>
                                     </div>
-                                    <div style="display: flex; gap: 6px; margin-top: 6px;">
-                                        <button type="button" class="btn btn-secondary" onclick="jumpToPreviousUnassignedNode()" style="flex: 1; padding: 6px 8px; font-size: 11px; background: #f8f9fa; border-color: #cbd5e1; color: var(--text-main); display: flex; align-items: center; justify-content: center; gap: 4px;" title="前の編集ノードまたは未設定ノードに戻る">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-                                            戻る (前へ)
-                                        </button>
-                                        <button type="button" class="btn btn-secondary" onclick="jumpToNextUnassignedNode()" style="flex: 1; padding: 6px 8px; font-size: 11px; background: #eef2f5; border-color: #cbd5e1; color: var(--primary-color); display: flex; align-items: center; justify-content: center; gap: 4px;" title="次の未設定ノードへ移動">
-                                            次へ (未設定)
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-                                        </button>
+                                    <div class="form-field">
+                                        <label>表示部屋名 (例: 1-1, 物理室)</label>
+                                        <input type="text" id="nodeName" placeholder="部屋名を入力"
+                                            oninput="saveSelectedNodeProperties()">
                                     </div>
                                 </div>
-                                <div class="form-field">
-                                    <label>展示情報 (団体名 / 企画名) - 1つの部屋に複数登録できます</label>
-                                    <div id="nodeExhibitList" style="display:flex; flex-direction:column; gap:8px;"></div>
-                                    <button type="button" class="btn btn-secondary" onclick="addExhibitRow()"
-                                        style="margin-top:6px; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px;">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                                        展示を追加
-                                    </button>
-                                </div>
-                                <div class="form-field hidden" id="connectionIdGroup">
-                                    <label>接続ID (階段/EVの階連結用)</label>
-                                    <input type="text" id="nodeConnectionId" placeholder="例: stairs_south_1"
-                                        oninput="saveSelectedNodeProperties()">
-                                    <!-- 他フロア接続状況プレビュー -->
-                                    <div id="autoConnectionPreview" style="margin-top: 8px; padding: 8px; background: rgba(0,0,0,0.03); border-radius: 4px; font-size: 11px; color: var(--text-sub); border: 1px solid var(--border-color);">
-                                        <strong style="color:var(--text-main); display:block; margin-bottom:4px;">自動接続先（他フロア）:</strong>
-                                        <div id="autoConnectionList" style="line-height: 1.4;">
-                                            <!-- 動的に挿入 -->
+
+                                <!-- ロケーションID -->
+                                <div class="inspector-subsection">
+                                    <div class="inspector-subsection-title">
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                        ロケーションID
+                                    </div>
+                                    <div class="form-field">
+                                        <label>ロケーションID (例: N204, KH101)</label>
+                                        <input type="text" id="nodeCode" placeholder="ロケーションIDを入力"
+                                            oninput="saveSelectedNodeProperties()">
+                                        <div id="nodeCodeDuplicateWarning" class="hidden" style="margin-top: 6px; padding: 8px 10px; background: #fff5f5; border: 1px solid #ffcdd2; border-radius: 6px; font-size: 11px; color: #b71c1c;">
+                                            <div style="font-weight: bold; display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                                <span>ロケーションIDが重複しています</span>
+                                            </div>
+                                            <div id="nodeCodeDuplicateMsg" style="margin-bottom: 4px;"></div>
+                                            <div id="nodeCodeDuplicateJumpContainer"></div>
+                                        </div>
+                                        <div class="btn-row" style="margin-top: 6px;">
+                                            <button type="button" class="btn btn-secondary btn-inline" onclick="jumpToPreviousUnassignedNode()" style="padding: 6px 8px; font-size: 11px; background: #f8f9fa; border-color: #cbd5e1; color: var(--text-main);" title="前の編集ノードまたは未設定ノードに戻る">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                                                戻る (前へ)
+                                            </button>
+                                            <button type="button" class="btn btn-secondary btn-inline" onclick="jumpToNextUnassignedNode()" style="padding: 6px 8px; font-size: 11px; background: #eef2f5; border-color: #cbd5e1; color: var(--primary-color);" title="次の未設定ノードへ移動">
+                                                次へ (未設定)
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
-                                <div class="form-field"
-                                    style="flex-direction:row; align-items:center; gap:8px; margin: 4px 0;">
-                                    <input type="checkbox" id="nodeBarrierFreeBlocked" onchange="saveSelectedNodeProperties()"
-                                        style="width:auto; margin:0; cursor:pointer;">
-                                    <label for="nodeBarrierFreeBlocked"
-                                        style="cursor:pointer; color:var(--text-main); font-size:13px; font-weight:normal;">バリアフリー通行不可</label>
-                                </div>
-                                <div class="form-row">
-                                    <div class="form-field">
-                                        <label>座標 X</label>
-                                        <input type="number" id="nodeX" onchange="saveSelectedNodeProperties(true)">
+
+                                <!-- 展示情報 -->
+                                <div class="inspector-subsection">
+                                    <div class="inspector-subsection-title">
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H8l-4 4V4z"/></svg>
+                                        展示情報
                                     </div>
                                     <div class="form-field">
-                                        <label>座標 Y</label>
-                                        <input type="number" id="nodeY" onchange="saveSelectedNodeProperties(true)">
+                                        <label>団体名 / 企画名 - 1つの部屋に複数登録できます</label>
+                                        <div id="nodeExhibitList" style="display:flex; flex-direction:column; gap:8px;"></div>
+                                        <button type="button" class="btn btn-secondary btn-block" onclick="addExhibitRow()"
+                                            style="margin-top:6px; font-size:12px;">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                            展示を追加
+                                        </button>
                                     </div>
                                 </div>
- 
-                                <div style="margin-top:10px;">
-                                    <button class="btn btn-danger" onclick="deleteSelectedNode()">この点を削除</button>
+
+                                <!-- 接続設定 (階段/EVのみ表示、既存の表示条件を維持) -->
+                                <div class="inspector-subsection hidden" id="connectionIdGroup">
+                                    <div class="inspector-subsection-title">
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                                        接続設定
+                                    </div>
+                                    <div class="form-field">
+                                        <label>接続ID (階段/EVの階連結用)</label>
+                                        <input type="text" id="nodeConnectionId" placeholder="例: stairs_south_1"
+                                            oninput="saveSelectedNodeProperties()">
+                                        <!-- 他フロア接続状況プレビュー -->
+                                        <div id="autoConnectionPreview" style="margin-top: 8px; padding: 8px; background: rgba(0,0,0,0.03); border-radius: 4px; font-size: 11px; color: var(--text-sub); border: 1px solid var(--border-color);">
+                                            <strong style="color:var(--text-main); display:block; margin-bottom:4px;">自動接続先（他フロア）:</strong>
+                                            <div id="autoConnectionList" style="line-height: 1.4;">
+                                                <!-- 動的に挿入 -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 座標・その他 -->
+                                <div class="inspector-subsection">
+                                    <div class="inspector-subsection-title">
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="20" x2="20" y2="4"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/></svg>
+                                        座標・その他
+                                    </div>
+                                    <div class="form-field"
+                                        style="flex-direction:row; align-items:center; gap:8px;">
+                                        <input type="checkbox" id="nodeBarrierFreeBlocked" onchange="saveSelectedNodeProperties()"
+                                            style="width:auto; margin:0; cursor:pointer;">
+                                        <label for="nodeBarrierFreeBlocked"
+                                            style="cursor:pointer; color:var(--text-main); font-size:13px; font-weight:normal;">バリアフリー通行不可</label>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-field">
+                                            <label>座標 X</label>
+                                            <input type="number" id="nodeX" onchange="saveSelectedNodeProperties(true)">
+                                        </div>
+                                        <div class="form-field">
+                                            <label>座標 Y</label>
+                                            <input type="number" id="nodeY" onchange="saveSelectedNodeProperties(true)">
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-danger btn-block" onclick="deleteSelectedNode()" style="margin-top:2px;">この点を削除</button>
                                 </div>
                             </div>
                         </div>
                     </div>
- 
+
                     <!-- Edge Inspector Form -->
                     <div id="inspector-edge" class="hidden">
                         <div class="sidebar-panel">
@@ -1079,10 +1362,10 @@
                         </div>
                         <button class="btn btn-primary" onclick="saveToSupabase()" style="margin-bottom:12px; background-color:#1a237e; font-weight:bold;">
                             Supabaseに直接保存（全フロア一括）</button>
-                        <div style="display:flex; gap:8px; margin-bottom:8px;">
-                            <button class="btn btn-secondary" onclick="exportJSONToClipboard()" style="flex:1; padding:8px 4px; font-size:12px;">
+                        <div class="btn-row" style="margin-bottom:8px;">
+                            <button class="btn btn-secondary btn-inline" onclick="exportJSONToClipboard()" style="padding:8px 4px; font-size:12px;">
                                 コピー</button>
-                            <button class="btn btn-secondary" onclick="downloadJSONFile()" style="flex:1; padding:8px 4px; font-size:12px;">
+                            <button class="btn btn-secondary btn-inline" onclick="downloadJSONFile()" style="padding:8px 4px; font-size:12px;">
                                 ダウンロード</button>
                         </div>
                         <textarea id="jsonOutput"
@@ -1109,9 +1392,9 @@
                             ブラウザに自動保存された一時データ（下書き）があります。<br>
                             <span id="local-backup-info" style="font-weight:bold; color:var(--primary-color);"></span>
                         </p>
-                        <div style="display:flex; gap:8px;">
-                            <button class="btn btn-secondary" onclick="restoreFromLocalBackup()" style="flex:2; font-size:12px;">復元する</button>
-                            <button class="btn btn-danger" onclick="clearLocalBackup()" style="flex:1; padding:10px 8px; font-size:12px;">消去</button>
+                        <div class="btn-row">
+                            <button class="btn btn-secondary btn-inline" onclick="restoreFromLocalBackup()" style="flex:2; font-size:12px;">復元する</button>
+                            <button class="btn btn-danger btn-inline" onclick="clearLocalBackup()" style="padding:10px 8px; font-size:12px;">消去</button>
                         </div>
                     </div>
                 </div>
@@ -1168,7 +1451,7 @@
                 </ol>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-primary" onclick="closeCORSModal()" style="width:auto;">閉じる</button>
+                <button class="btn btn-primary btn-inline" onclick="closeCORSModal()">閉じる</button>
             </div>
         </div>
     </div>
@@ -1182,7 +1465,7 @@
                 <input type="file" id="imageLoader" accept="image/*" style="margin-top:10px;">
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeImageLoaderModal()" style="width:auto;">閉じる</button>
+                <button class="btn btn-secondary btn-inline" onclick="closeImageLoaderModal()">閉じる</button>
             </div>
         </div>
     </div>
@@ -1206,7 +1489,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeWarningModal()" style="width:auto;">閉じる</button>
+                <button class="btn btn-secondary btn-inline" onclick="closeWarningModal()">閉じる</button>
             </div>
         </div>
     </div>
@@ -1864,12 +2147,12 @@
             const org = (ex.organization || '').replace(/"/g, '&quot;');
             const name = (ex.eventName || '').replace(/"/g, '&quot;');
             return `
-            <div class="exhibit-row" data-exhibit-id="${ex.id}" style="display:flex; gap:6px; align-items:flex-start; padding:8px; background:#f8f9fa; border:1px solid var(--border-color); border-radius:6px;">
-                <div style="flex:1; display:flex; flex-direction:column; gap:4px;">
+            <div class="exhibit-row" data-exhibit-id="${ex.id}" style="display:flex; gap:6px; align-items:center; padding:8px; background:#f8f9fa; border:1px solid var(--border-color); border-radius:6px;">
+                <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:4px;">
                     <input type="text" placeholder="団体名 (例: 1年A組)" value="${org}" oninput="updateExhibitField('${ex.id}','organization',this.value)">
                     <input type="text" placeholder="企画名 (例: お化け屋敷)" value="${name}" oninput="updateExhibitField('${ex.id}','eventName',this.value)">
                 </div>
-                <button type="button" class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="removeExhibitRow('${ex.id}')">削除</button>
+                <button type="button" class="btn btn-danger" style="width:auto; flex:0 0 auto; padding:6px 10px; font-size:11px;" onclick="removeExhibitRow('${ex.id}')">削除</button>
             </div>`;
         }
 
@@ -2344,6 +2627,67 @@
 
             document.getElementById(`tab-${tabId}`).classList.remove('hidden');
             document.getElementById(`tab-${tabId}-btn`).classList.add('active');
+        }
+
+        // --- Header Tools Menu (採番状況・対応表CSV・EV自動修正) ---
+        function toggleToolsMenu(e) {
+            if (e) e.stopPropagation();
+            const menu = document.getElementById('header-tools-menu');
+            const dropdown = document.getElementById('tools-menu-dropdown');
+            if (!menu || !dropdown) return;
+            const isOpen = !dropdown.classList.contains('hidden');
+            if (isOpen) {
+                closeToolsMenu();
+            } else {
+                dropdown.classList.remove('hidden');
+                menu.classList.add('open');
+            }
+        }
+
+        function closeToolsMenu() {
+            const menu = document.getElementById('header-tools-menu');
+            const dropdown = document.getElementById('tools-menu-dropdown');
+            if (dropdown) dropdown.classList.add('hidden');
+            if (menu) menu.classList.remove('open');
+        }
+
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('header-tools-menu');
+            if (menu && !menu.contains(e.target)) closeToolsMenu();
+        });
+
+        // --- 情報センター (ID未設定・ID重複・採番状況の統合パネル) ---
+        let infoCenterCurrentTab = null;
+
+        function switchInfoCenterTab(tab) {
+            infoCenterCurrentTab = tab;
+            const bodyIds = { unassigned: 'floating-unassigned-body', duplicate: 'floating-duplicate-body', counter: 'location-counter-body' };
+            Object.keys(bodyIds).forEach(t => {
+                const body = document.getElementById(bodyIds[t]);
+                const tabBtn = document.getElementById(`info-center-tab-${t}`);
+                if (body) body.classList.toggle('hidden', t !== tab);
+                if (tabBtn) tabBtn.classList.toggle('active', t === tab);
+            });
+            if (tab === 'unassigned') renderFloatingUnassignedList();
+            else if (tab === 'duplicate') renderFloatingDuplicateList();
+            else if (tab === 'counter') renderLocationCounterList();
+        }
+
+        function toggleInfoCenterPanel(tab) {
+            const win = document.getElementById('info-center-panel');
+            if (!win) return;
+            const isOpen = !win.classList.contains('hidden');
+            if (isOpen && infoCenterCurrentTab === tab) {
+                win.classList.add('hidden');
+                return;
+            }
+            switchInfoCenterTab(tab);
+            win.classList.remove('hidden');
+        }
+
+        function closeInfoCenterPanel() {
+            const win = document.getElementById('info-center-panel');
+            if (win) win.classList.add('hidden');
         }
 
         // --- Statistics & Unsaved status helpers ---
@@ -3509,14 +3853,7 @@
         }
 
         function toggleFloatingDuplicateWindow() {
-            const win = document.getElementById('floating-duplicate-window');
-            if (!win) return;
-            if (win.classList.contains('hidden')) {
-                renderFloatingDuplicateList();
-                win.classList.remove('hidden');
-            } else {
-                win.classList.add('hidden');
-            }
+            toggleInfoCenterPanel('duplicate');
         }
 
         function renderFloatingDuplicateList() {
@@ -3756,14 +4093,7 @@
 
         // --- Floating Unassigned Location Code Panel Engine ---
         function toggleFloatingUnassignedWindow() {
-            const win = document.getElementById('floating-unassigned-window');
-            if (!win) return;
-            if (win.classList.contains('hidden')) {
-                renderFloatingUnassignedList();
-                win.classList.remove('hidden');
-            } else {
-                win.classList.add('hidden');
-            }
+            toggleInfoCenterPanel('unassigned');
         }
 
         function renderFloatingUnassignedList() {
@@ -3969,14 +4299,7 @@
         }
 
         function toggleLocationCounterWindow() {
-            const win = document.getElementById('location-counter-window');
-            if (!win) return;
-            if (win.classList.contains('hidden')) {
-                renderLocationCounterList();
-                win.classList.remove('hidden');
-            } else {
-                win.classList.add('hidden');
-            }
+            toggleInfoCenterPanel('counter');
         }
 
         function renderLocationCounterList() {
@@ -4479,7 +4802,7 @@
                             <option value="entrance">出入口 (entrance)</option>
                         </select>
                     </div>
-                    <button class="btn btn-primary" onclick="exportMappingToCSV()" style="background-color: #2e7d32; display: flex; align-items: center; gap: 6px; font-weight: bold;">
+                    <button class="btn btn-inline" onclick="exportMappingToCSV()" style="background-color: var(--success-color); color: white; font-weight: bold;">
                         <span>CSVダウンロード</span>
                     </button>
                 </div>
