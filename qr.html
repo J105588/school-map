@@ -1120,6 +1120,23 @@
             letter-spacing: 2px;
         }
 
+        .placard-exhibit-list {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            margin: 6px 0 0 0;
+        }
+
+        .placard-exhibit-row {
+            font-family: var(--font-heading);
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--primary-color);
+            line-height: 1.2;
+            text-align: center;
+        }
+
         .placard-divider {
             width: 80%;
             height: 1px;
@@ -1212,6 +1229,10 @@
 
         .preview-scale-wrapper .placard-room-name-small {
             font-size: 20px;
+        }
+
+        .preview-scale-wrapper .placard-exhibit-row {
+            font-size: 24px;
         }
 
         .preview-scale-wrapper .placard-divider {
@@ -1498,6 +1519,37 @@
             log("ログをクリアしました", 'info');
         }
 
+        // --- Exhibit data model helpers ---
+        // ノードは複数の展示 (exhibits) を持てる。旧形式の単一 eventName/organization
+        // フィールドはここで exhibits[0] へ変換し、旧フィールドは削除する。冪等。
+        function normalizeNodeExhibits(node) {
+            if (!node || typeof node !== 'object') return node;
+            if (!Array.isArray(node.exhibits)) {
+                const legacyEvent = (node.eventName || '').toString().trim();
+                const legacyOrg = (node.organization || '').toString().trim();
+                node.exhibits = (legacyEvent || legacyOrg)
+                    ? [{ id: 'ex_legacy_' + node.id, organization: legacyOrg, eventName: legacyEvent }]
+                    : [];
+            }
+            delete node.eventName;
+            delete node.organization;
+            return node;
+        }
+
+        // 来場者向け表示フォーマット: [団体名]「企画名」(団体名が空なら「企画名」のみ)
+        function formatExhibitLabel(exhibit) {
+            if (!exhibit) return '';
+            const org = (exhibit.organization || '').trim();
+            const name = (exhibit.eventName || '').trim();
+            if (!name) return org;
+            return org ? `[${org}]「${name}」` : `「${name}」`;
+        }
+
+        function exhibitSummaryText(node) {
+            if (!node || !Array.isArray(node.exhibits) || node.exhibits.length === 0) return '';
+            return node.exhibits.map(formatExhibitLabel).join(' / ');
+        }
+
         // Data Store
         let allNodes = [];
         let filteredNodes = [];
@@ -1527,6 +1579,7 @@
                     const data = await SupabaseClient.getAdminFloorData(floor.id, window.adminPasscode);
 
                     data.nodes.forEach(n => {
+                        normalizeNodeExhibits(n);
                         n.floorId = floor.id;
                         n.floorName = floor.name;
                         n.fullId = `${floor.id}_${n.id}`;
@@ -1643,7 +1696,7 @@
                     <div class="node-item-main">
                         <span class="floor-badge ${badgeClass}">${node.floorName}</span>
                         <div style="display: flex; flex-direction: column;">
-                            <span class="node-item-name">${node.eventName ? node.eventName + ' <span style="font-size:11px;font-weight:normal;color:var(--text-sub);">(' + node.name + ')</span>' : node.name}</span>
+                            <span class="node-item-name">${node.exhibits && node.exhibits.length > 0 ? exhibitSummaryText(node) + ' <span style="font-size:11px;font-weight:normal;color:var(--text-sub);">(' + node.name + ')</span>' : node.name}</span>
                             <span class="node-item-meta">ID: ${node.fullId}</span>
                         </div>
                     </div>
@@ -1672,9 +1725,10 @@
             });
 
             // Update details on control card
-            document.getElementById('node-name-label').innerText = node.eventName ? node.eventName : node.name;
+            const hasExhibits = node.exhibits && node.exhibits.length > 0;
+            document.getElementById('node-name-label').innerText = hasExhibits ? exhibitSummaryText(node) : node.name;
             const roomLabel = document.getElementById('node-room-label');
-            if (node.eventName) {
+            if (hasExhibits) {
                 roomLabel.innerText = node.name;
                 roomLabel.style.display = 'block';
             } else {
@@ -1941,9 +1995,11 @@
                             
                             <div class="placard-location-info">
                                 <span class="placard-floor-badge ${badgeClass}">${node.floorName}</span>
-                                ${node.eventName
+                                ${node.exhibits && node.exhibits.length > 0
                     ? `<h2 class="placard-room-name-small">${node.name}</h2>
-                                       <h1 class="placard-event-name">${node.eventName}</h1>`
+                                       <div class="placard-exhibit-list">
+                                           ${node.exhibits.map(ex => `<div class="placard-exhibit-row">${formatExhibitLabel(ex)}</div>`).join('')}
+                                       </div>`
                     : `<h1 class="placard-node-name">${node.name}</h1>`
                 }
                             </div>

@@ -63,6 +63,26 @@ const SupabaseClient = {
         return { nodes: [], edges: [] };
     },
 
+    // RPC: Fetch all registered data (all floors) in a single call
+    async getPublicAllFloorData() {
+        const client = this.init();
+        if (!client) throw new Error("Supabase is not initialized");
+
+        const { data, error } = await client.rpc('get_public_all_floor_data');
+        if (error) throw error;
+        return data || [];
+    },
+
+    // RPC: Fetch node(s) matching a location ID (code)
+    async getPublicLocationByCode(code) {
+        const client = this.init();
+        if (!client) throw new Error("Supabase is not initialized");
+
+        const { data, error } = await client.rpc('get_public_location_by_code', { p_code: code });
+        if (error) throw error;
+        return data || [];
+    },
+
     // RPC: Fetch public order data
     async getPublicOrderData() {
         const client = this.init();

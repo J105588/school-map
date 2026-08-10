@@ -1,4 +1,37 @@
 /**
+ * Exhibit data model helpers.
+ * ノードは複数の展示 (exhibits) を持てる。旧形式の単一 eventName/organization
+ * フィールドはここで exhibits[0] へ変換し、旧フィールドは削除する。冪等。
+ */
+function normalizeNodeExhibits(node) {
+    if (!node || typeof node !== 'object') return node;
+    if (!Array.isArray(node.exhibits)) {
+        const legacyEvent = (node.eventName || '').toString().trim();
+        const legacyOrg = (node.organization || '').toString().trim();
+        node.exhibits = (legacyEvent || legacyOrg)
+            ? [{ id: 'ex_legacy_' + node.id, organization: legacyOrg, eventName: legacyEvent }]
+            : [];
+    }
+    delete node.eventName;
+    delete node.organization;
+    return node;
+}
+
+function primaryExhibitLabel(node) {
+    if (!node || !Array.isArray(node.exhibits) || node.exhibits.length === 0) return '';
+    return (node.exhibits[0].eventName || '').trim();
+}
+
+// 来場者向け表示フォーマット: [団体名]「企画名」(団体名が空なら「企画名」のみ)
+function formatExhibitLabel(exhibit) {
+    if (!exhibit) return '';
+    const org = (exhibit.organization || '').trim();
+    const name = (exhibit.eventName || '').trim();
+    if (!name) return org;
+    return org ? `[${org}]「${name}」` : `「${name}」`;
+}
+
+/**
  * Map Engine Core Class
  * Handles Canvas rendering, Zoom/Pan logic, and Pathfinding
  */
@@ -426,6 +459,7 @@ class MapEngine {
 
                 // Nodes
                 data.nodes.forEach(node => {
+                    normalizeNodeExhibits(node);
                     const newId = `${conf.id}_${node.id}`;
                     this.idMap.set(newId, {
                         ...node,
@@ -1600,8 +1634,8 @@ class MapEngine {
         ctx.shadowBlur = 0;
 
         // Label
-        if (label || node.eventName || node.name) {
-            let mainText = label || node.eventName || node.name;
+        if (label || primaryExhibitLabel(node) || node.name) {
+            let mainText = label || primaryExhibitLabel(node) || node.name;
 
             ctx.font = "bold 13px 'Lato', sans-serif";
             const dims = ctx.measureText(mainText);

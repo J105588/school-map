@@ -948,9 +948,13 @@
                                     </div>
                                 </div>
                                 <div class="form-field">
-                                    <label>企画展示名 (例: お化け屋敷, 喫茶店)</label>
-                                    <input type="text" id="nodeEventName" placeholder="企画展示名を入力"
-                                        oninput="saveSelectedNodeProperties()">
+                                    <label>展示情報 (団体名 / 企画名) - 1つの部屋に複数登録できます</label>
+                                    <div id="nodeExhibitList" style="display:flex; flex-direction:column; gap:8px;"></div>
+                                    <button type="button" class="btn btn-secondary" onclick="addExhibitRow()"
+                                        style="margin-top:6px; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                        展示を追加
+                                    </button>
                                 </div>
                                 <div class="form-field hidden" id="connectionIdGroup">
                                     <label>接続ID (階段/EVの階連結用)</label>
@@ -1369,7 +1373,7 @@
                     // Fetch from Supabase using admin passcode
                     const data = await SupabaseClient.getAdminFloorData(floorId, window.adminPasscode);
 
-                    floor.nodes = data.nodes || [];
+                    floor.nodes = (data.nodes || []).map(normalizeNodeExhibits);
                     floor.edges = data.edges || [];
                     floor.isLoaded = true;
 
@@ -1811,6 +1815,102 @@
             });
         }
 
+        // --- Exhibit data model helpers ---
+        // ノードは複数の展示 (exhibits) を持てる。旧形式の単一 eventName/organization
+        // フィールドは読み込み時にここで exhibits[0] へ変換し、旧フィールドは削除する
+        // (キャッシュや保存時に亡霊のように残らないようにするため)。冪等なので何度呼んでも安全。
+        function normalizeNodeExhibits(node) {
+            if (!node || typeof node !== 'object') return node;
+            if (!Array.isArray(node.exhibits)) {
+                const legacyEvent = (node.eventName || '').toString().trim();
+                const legacyOrg = (node.organization || '').toString().trim();
+                node.exhibits = (legacyEvent || legacyOrg)
+                    ? [{ id: 'ex_legacy_' + node.id, organization: legacyOrg, eventName: legacyEvent }]
+                    : [];
+            }
+            delete node.eventName;
+            delete node.organization;
+            return node;
+        }
+
+        function primaryExhibitLabel(node) {
+            if (!node || !Array.isArray(node.exhibits) || node.exhibits.length === 0) return '';
+            return (node.exhibits[0].eventName || '').trim();
+        }
+
+        function primaryOrganization(node) {
+            if (!node || !Array.isArray(node.exhibits) || node.exhibits.length === 0) return '';
+            return (node.exhibits[0].organization || '').trim();
+        }
+
+        // 来場者向け表示フォーマット: [団体名]「企画名」(団体名が空なら「企画名」のみ)
+        function formatExhibitLabel(exhibit) {
+            if (!exhibit) return '';
+            const org = (exhibit.organization || '').trim();
+            const name = (exhibit.eventName || '').trim();
+            if (!name) return org;
+            return org ? `[${org}]「${name}」` : `「${name}」`;
+        }
+
+        function newExhibitId() {
+            return 'ex_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+        }
+
+        function getSelectedNodeForExhibits() {
+            return nodes.find(node => node.id == selectedNodeId || String(node.id) === String(selectedNodeId));
+        }
+
+        function exhibitRowHTML(ex) {
+            const org = (ex.organization || '').replace(/"/g, '&quot;');
+            const name = (ex.eventName || '').replace(/"/g, '&quot;');
+            return `
+            <div class="exhibit-row" data-exhibit-id="${ex.id}" style="display:flex; gap:6px; align-items:flex-start; padding:8px; background:#f8f9fa; border:1px solid var(--border-color); border-radius:6px;">
+                <div style="flex:1; display:flex; flex-direction:column; gap:4px;">
+                    <input type="text" placeholder="団体名 (例: 1年A組)" value="${org}" oninput="updateExhibitField('${ex.id}','organization',this.value)">
+                    <input type="text" placeholder="企画名 (例: お化け屋敷)" value="${name}" oninput="updateExhibitField('${ex.id}','eventName',this.value)">
+                </div>
+                <button type="button" class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="removeExhibitRow('${ex.id}')">削除</button>
+            </div>`;
+        }
+
+        function renderExhibitRows() {
+            const n = getSelectedNodeForExhibits();
+            if (!n) return;
+            if (!Array.isArray(n.exhibits)) n.exhibits = [];
+            const container = document.getElementById('nodeExhibitList');
+            container.innerHTML = n.exhibits.length === 0
+                ? '<div style="font-size:11px; color:var(--text-sub); padding:6px 0;">この場所に展示は登録されていません</div>'
+                : n.exhibits.map(exhibitRowHTML).join('');
+        }
+
+        function addExhibitRow() {
+            const n = getSelectedNodeForExhibits();
+            if (!n) return;
+            if (!Array.isArray(n.exhibits)) n.exhibits = [];
+            n.exhibits.push({ id: newExhibitId(), organization: '', eventName: '' });
+            renderExhibitRows();
+            markAsModified();
+            updateListDelayed();
+        }
+
+        function removeExhibitRow(exhibitId) {
+            const n = getSelectedNodeForExhibits();
+            if (!n) return;
+            n.exhibits = (n.exhibits || []).filter(ex => ex.id !== exhibitId);
+            renderExhibitRows();
+            markAsModified();
+            updateListDelayed();
+        }
+
+        function updateExhibitField(exhibitId, field, value) {
+            const n = getSelectedNodeForExhibits();
+            const ex = n && (n.exhibits || []).find(e => e.id === exhibitId);
+            if (!ex) return;
+            ex[field] = value;
+            markAsModified();
+            updateListDelayed();
+        }
+
         // --- Node / Edge manipulations ---
         function addNode(x, y, type, name = '') {
             const id = Date.now() + Math.round(Math.random() * 1000);
@@ -1820,7 +1920,7 @@
                 y: Math.round(y),
                 type,
                 name,
-                eventName: ''
+                exhibits: []
             });
 
             markAsModified();
@@ -1971,7 +2071,7 @@
                 document.getElementById('nodeType').value = n.type;
                 document.getElementById('nodeName').value = n.name || '';
                 document.getElementById('nodeCode').value = n.code || '';
-                document.getElementById('nodeEventName').value = n.eventName || '';
+                renderExhibitRows();
                 document.getElementById('nodeX').value = n.x;
                 document.getElementById('nodeY').value = n.y;
                 document.getElementById('nodeBarrierFreeBlocked').checked = !!n.barrierFreeBlocked;
@@ -2035,8 +2135,7 @@
 
             n.type = document.getElementById('nodeType').value;
             n.name = document.getElementById('nodeName').value.trim();
-            n.eventName = document.getElementById('nodeEventName').value.trim();
-            
+
             const rawCode = document.getElementById('nodeCode').value.trim();
             if (rawCode) {
                 n.code = rawCode.toUpperCase();
@@ -2163,7 +2262,7 @@
 
                 if (query) {
                     const name = (n.name || '').toLowerCase().includes(query);
-                    const event = (n.eventName || '').toLowerCase().includes(query);
+                    const event = (n.exhibits || []).some(ex => (ex.eventName || '').toLowerCase().includes(query) || (ex.organization || '').toLowerCase().includes(query));
                     const code = (n.code || '').toLowerCase().includes(query);
                     const type = translateType(n.type).toLowerCase().includes(query);
                     return name || event || code || type;
@@ -2172,8 +2271,8 @@
             });
 
             filteredNodes.sort((a, b) => {
-                const keyA = a.name || a.eventName || a.code || '';
-                const keyB = b.name || b.eventName || b.code || '';
+                const keyA = a.name || primaryExhibitLabel(a) || a.code || '';
+                const keyB = b.name || primaryExhibitLabel(b) || b.code || '';
                 return keyA.localeCompare(keyB, 'ja', { numeric: true, sensitivity: 'base' });
             });
 
@@ -2196,7 +2295,7 @@
                 item.innerHTML = `
                     <div style="display:flex; flex-direction:column; gap:2px; overflow:hidden;">
                         <b style="font-size:13px; color:var(--text-main);">${n.name || '(無名ポイント)'} ${n.code ? `<span style="font-size:11px; color:#17a2b8; font-weight:normal;">[${n.code}]</span>` : ''}</b>
-                        ${n.eventName ? `<span style="font-size:11px; color:var(--secondary-color); font-weight:500;">${n.eventName}</span>` : ''}
+                        ${n.exhibits && n.exhibits.length > 0 ? `<span style="font-size:11px; color:var(--secondary-color); font-weight:500;">${primaryExhibitLabel(n)}${n.exhibits.length > 1 ? ` 他${n.exhibits.length - 1}件` : ''}</span>` : ''}
                     </div>
                     <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
                         ${isDuplicate ? `<span style="font-size:10px; padding:2px 6px; border-radius:10px; color:white; background:#dc3545; white-space:nowrap;">重複</span>` : ''}
@@ -2487,7 +2586,8 @@
                     ctx.fillStyle = '#000000';
                     ctx.textAlign = 'center';
 
-                    const text = n.eventName ? `${n.eventName} (${n.name})` : n.name;
+                    const primaryLabel = primaryExhibitLabel(n);
+                    const text = primaryLabel ? `${primaryLabel} (${n.name})` : n.name;
                     const metrics = ctx.measureText(text);
                     const labelW = metrics.width;
                     const labelH = fontSizeScreen;
@@ -2583,7 +2683,7 @@
             try {
                 const data = JSON.parse(raw);
                 if (data.nodes && data.edges) {
-                    nodes = data.nodes;
+                    nodes = data.nodes.map(normalizeNodeExhibits);
                     edges = data.edges;
 
                     // Recalculate edge distances in case they were missing or corrupted
@@ -2687,7 +2787,7 @@
                     type: n.type,
                     name: n.name
                 };
-                if (n.eventName) nodeCopy.eventName = n.eventName;
+                if (n.exhibits && n.exhibits.length > 0) nodeCopy.exhibits = n.exhibits;
                 if (n.connectionId) nodeCopy.connectionId = n.connectionId;
                 // Preserve any other custom property in nodes
                 for (let k in n) {
@@ -2940,7 +3040,7 @@
                 if (floorsData[floor.id].isLoaded) return;
                 try {
                     const data = await SupabaseClient.getAdminFloorData(floor.id, window.adminPasscode);
-                    floorsData[floor.id].nodes = data.nodes || [];
+                    floorsData[floor.id].nodes = (data.nodes || []).map(normalizeNodeExhibits);
                     floorsData[floor.id].edges = data.edges || [];
                     floorsData[floor.id].isLoaded = true;
                 } catch (e) {
@@ -3388,7 +3488,7 @@
                     
                     if (jumpContainer) {
                         jumpContainer.innerHTML = others.map(item => {
-                            const roomName = item.node.name || item.node.eventName || '(無名ポイント)';
+                            const roomName = item.node.name || primaryExhibitLabel(item.node) || '(無名ポイント)';
                             const safeNodeId = (typeof item.node.id === 'string' && isNaN(Number(item.node.id))) ? `'${item.node.id}'` : item.node.id;
                             return `
                                 <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 8px; background:white; border:1px solid #ffcdd2; border-radius:4px; margin-top:4px; font-size:11px;">
@@ -3441,7 +3541,7 @@
                 card.style.cssText = 'background:white; border:1px solid #ffcdd2; border-radius:8px; padding:10px; margin-bottom:8px; box-shadow:0 1px 3px rgba(0,0,0,0.05);';
 
                 let itemsHtml = group.map(item => {
-                    const roomName = item.node.name || item.node.eventName || '(無名ポイント)';
+                    const roomName = item.node.name || primaryExhibitLabel(item.node) || '(無名ポイント)';
                     const isSelected = (item.floorId == currentFloorId && String(item.node.id) === String(selectedNodeId));
                     const safeNodeId = (typeof item.node.id === 'string' && isNaN(Number(item.node.id))) ? `'${item.node.id}'` : item.node.id;
 
@@ -3450,7 +3550,7 @@
                             <div>
                                 <span style="font-weight:bold; color:#c62828;">${item.floorLabel}</span>
                                 <span style="margin-left:6px; font-weight:bold; color:var(--text-main);">${roomName}</span>
-                                ${item.node.eventName ? `<span style="font-size:10px; color:var(--secondary-color); margin-left:4px;">${item.node.eventName}</span>` : ''}
+                                ${item.node.exhibits && item.node.exhibits.length > 0 ? `<span style="font-size:10px; color:var(--secondary-color); margin-left:4px;">${primaryExhibitLabel(item.node)}</span>` : ''}
                             </div>
                             <button type="button" style="font-size:10px; font-weight:bold; color:#c62828; background:#ffebee; border:1px solid #ffcdd2; padding:2px 8px; border-radius:4px; cursor:pointer;" onclick="jumpToDuplicateNode(${item.floorId}, ${safeNodeId})">
                                 選択・移動
@@ -3526,8 +3626,8 @@
             // Sort unassigned nodes by FloorId ascending, then Name in Natural Order (6-2 before 6-10)
             allUnassignedNodesList.sort((a, b) => {
                 if (a.floorId !== b.floorId) return a.floorId - b.floorId;
-                const keyA = a.node.name || a.node.eventName || a.node.code || '';
-                const keyB = b.node.name || b.node.eventName || b.node.code || '';
+                const keyA = a.node.name || primaryExhibitLabel(a.node) || a.node.code || '';
+                const keyB = b.node.name || primaryExhibitLabel(b.node) || b.node.code || '';
                 return keyA.localeCompare(keyB, 'ja', { numeric: true, sensitivity: 'base' });
             });
 
@@ -3586,12 +3686,12 @@
                 groupDiv.style.cssText = 'margin-bottom: 8px;';
 
                 let itemsHtml = groupItems.map(item => {
-                    const roomName = item.node.name || item.node.eventName || '(無名ポイント)';
+                    const roomName = item.node.name || primaryExhibitLabel(item.node) || '(無名ポイント)';
                     return `
                         <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; background:white; border-radius:4px; margin-top:4px; cursor:pointer; border:1px solid #ffeeba;" onclick="selectAndEditUnassignedNode(${item.floorId}, '${item.node.id}')">
                             <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                                 <strong style="font-size:12px; color:var(--text-main);">${roomName}</strong>
-                                ${item.node.eventName ? `<span style="font-size:10px; color:var(--secondary-color); margin-left:4px;">${item.node.eventName}</span>` : ''}
+                                ${item.node.exhibits && item.node.exhibits.length > 0 ? `<span style="font-size:10px; color:var(--secondary-color); margin-left:4px;">${primaryExhibitLabel(item.node)}</span>` : ''}
                             </div>
                             <span style="font-size:10px; color:var(--primary-color); background:#eef2f5; padding:2px 6px; border-radius:4px; flex-shrink:0; font-weight:bold;">入力</span>
                         </div>
@@ -3696,14 +3796,14 @@
                 groupDiv.style.cssText = 'margin-bottom: 6px;';
 
                 let itemsHtml = groupItems.map(item => {
-                    const roomName = item.node.name || item.node.eventName || '(無名ポイント)';
+                    const roomName = item.node.name || primaryExhibitLabel(item.node) || '(無名ポイント)';
                     const isCurrentSelected = (item.floorId == currentFloorId && String(item.node.id) === String(selectedNodeId));
                     const safeNodeId = (typeof item.node.id === 'string' && isNaN(Number(item.node.id))) ? `'${item.node.id}'` : item.node.id;
                     return `
                         <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; background:${isCurrentSelected ? '#e3f2fd' : 'white'}; border:${isCurrentSelected ? '1px solid #2196f3' : '1px solid var(--border-color)'}; border-radius:6px; margin-top:4px; cursor:pointer; transition:all 0.15s;" onclick="selectNodeForFloatingEdit(${item.floorId}, ${safeNodeId})">
                             <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
                                 <strong style="font-size:12px; color:var(--text-main);">${roomName}</strong>
-                                ${item.node.eventName ? `<span style="font-size:10px; color:var(--secondary-color); margin-left:4px;">${item.node.eventName}</span>` : ''}
+                                ${item.node.exhibits && item.node.exhibits.length > 0 ? `<span style="font-size:10px; color:var(--secondary-color); margin-left:4px;">${primaryExhibitLabel(item.node)}</span>` : ''}
                             </div>
                             <span style="font-size:10px; color:${isCurrentSelected ? '#1565c0' : 'var(--primary-color)'}; background:${isCurrentSelected ? '#bbdefb' : '#f1f3f5'}; padding:2px 6px; border-radius:4px; flex-shrink:0; font-weight:bold; margin-left:6px;">入力</span>
                         </div>
@@ -4146,7 +4246,7 @@
             }
 
             // 2. Check Connection ID & Name Keywords
-            const text = ((node.connectionId || '') + ' ' + (node.name || '') + ' ' + (node.eventName || '')).toLowerCase();
+            const text = ((node.connectionId || '') + ' ' + (node.name || '') + ' ' + (node.exhibits || []).map(e => e.eventName).join(' ')).toLowerCase();
             if (text.includes('kh') || text.includes('國枝') || text.includes('国際')) return '国際ホール';
             if (text.includes('ka') || text.includes('古賀') || text.includes('アリーナ') || text.includes('剣道') || text.includes('柔道') || text.includes('卓球')) return 'アリーナ';
             if (text.includes('north') || text.includes('北館') || text.includes('_n')) return '北館';
@@ -4200,7 +4300,8 @@
                 if (typeFilter !== 'all' && n.type !== typeFilter) return false;
 
                 if (searchKeyword !== '') {
-                    const searchStr = `${item.floorLabel} ${item.building} ${n.code || ''} ${n.name || ''} ${n.type || ''} ${n.connectionId || ''} ${n.eventName || ''} ${n.organization || ''}`.toLowerCase();
+                    const exhibitText = (n.exhibits || []).map(ex => `${ex.eventName || ''} ${ex.organization || ''}`).join(' ');
+                    const searchStr = `${item.floorLabel} ${item.building} ${n.code || ''} ${n.name || ''} ${n.type || ''} ${n.connectionId || ''} ${exhibitText}`.toLowerCase();
                     if (!searchStr.includes(searchKeyword)) return false;
                 }
                 return true;
@@ -4235,7 +4336,9 @@
                 const n = item.node;
                 const codeBadge = n.code ? `<span style="font-family:monospace; font-weight:bold; background:#e8eaf6; color:#283593; padding:2px 6px; border-radius:3px;">${n.code}</span>` : `<span style="color:#aaa; font-style:italic;">未設定</span>`;
                 const typeText = typeLabels[n.type] || n.type;
-                const eventOrg = [n.eventName, n.organization].filter(Boolean).join(' / ') || '-';
+                const eventOrg = (n.exhibits && n.exhibits.length > 0)
+                    ? formatExhibitLabel(n.exhibits[0]) + (n.exhibits.length > 1 ? ` 他${n.exhibits.length - 1}件` : '')
+                    : '-';
 
                 return `
                     <tr style="border-bottom: 1px solid #eee;">
@@ -4278,7 +4381,7 @@
                 return codeA.localeCompare(codeB, 'ja', { numeric: true, sensitivity: 'base' });
             });
 
-            const headers = ["フロア", "館名", "ロケーションID", "施設・部屋名", "種別", "接続ID", "イベント名", "団体名", "X座標", "Y座標", "ノードID"];
+            const headers = ["フロア", "館名", "ロケーションID", "施設・部屋名", "種別", "接続ID", "団体名", "企画名", "X座標", "Y座標", "ノードID"];
 
             const escapeCSV = (val) => {
                 if (val === undefined || val === null) return '""';
@@ -4286,21 +4389,26 @@
                 return `"${str}"`;
             };
 
-            const rows = allNodes.map(item => {
+            // 1展示1行で出力する。展示が無いノードも団体名・企画名を空欄にした1行を出力し、全地点を網羅する。
+            const rows = [];
+            allNodes.forEach(item => {
                 const n = item.node;
-                return [
-                    escapeCSV(item.floorLabel),
-                    escapeCSV(item.building),
-                    escapeCSV(n.code || ''),
-                    escapeCSV(n.name || ''),
-                    escapeCSV(n.type || ''),
-                    escapeCSV(n.connectionId || ''),
-                    escapeCSV(n.eventName || ''),
-                    escapeCSV(n.organization || ''),
-                    escapeCSV(n.x ? Math.round(n.x) : ''),
-                    escapeCSV(n.y ? Math.round(n.y) : ''),
-                    escapeCSV(n.id || '')
-                ].join(',');
+                const exhibits = (n.exhibits && n.exhibits.length > 0) ? n.exhibits : [{ organization: '', eventName: '' }];
+                exhibits.forEach(ex => {
+                    rows.push([
+                        escapeCSV(item.floorLabel),
+                        escapeCSV(item.building),
+                        escapeCSV(n.code || ''),
+                        escapeCSV(n.name || ''),
+                        escapeCSV(n.type || ''),
+                        escapeCSV(n.connectionId || ''),
+                        escapeCSV(ex.organization || ''),
+                        escapeCSV(ex.eventName || ''),
+                        escapeCSV(n.x ? Math.round(n.x) : ''),
+                        escapeCSV(n.y ? Math.round(n.y) : ''),
+                        escapeCSV(n.id || '')
+                    ].join(','));
+                });
             });
 
             const csvContent = '\uFEFF' + [headers.map(escapeCSV).join(','), ...rows].join('\r\n');

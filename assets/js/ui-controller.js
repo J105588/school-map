@@ -1,3 +1,12 @@
+// 来場者向け表示フォーマット: [団体名]「企画名」(団体名が空なら「企画名」のみ)
+function formatExhibitLabel(exhibit) {
+    if (!exhibit) return '';
+    const org = (exhibit.organization || '').trim();
+    const name = (exhibit.eventName || '').trim();
+    if (!name) return org;
+    return org ? `[${org}]「${name}」` : `「${name}」`;
+}
+
 /**
  * UI Controller
  * Manages sidebars, inputs, and coordinates with MapEngine
@@ -181,13 +190,14 @@ class UIController {
             // Init Custom Selects
             this.startSelect = new CustomSelect('custom-start-select', (val) => {
                 if (val) {
-                    const node = this.engine.getNode(val);
+                    const nodeId = this.parseSelectValue(val).nodeId;
+                    const node = this.engine.getNode(nodeId);
                     if (node && node.type === 'entrance_only') {
                         this.showRestrictionWarning('entrance_only');
                     }
                     if (!this.endSelect.value) {
-                        this.engine.focusNode(val);
-                        this.engine.setStartMarker(val);
+                        this.engine.focusNode(nodeId);
+                        this.engine.setStartMarker(nodeId);
                     }
                 } else {
                     if (!this.endSelect.value) {
@@ -198,13 +208,14 @@ class UIController {
             });
             this.endSelect = new CustomSelect('custom-end-select', (val) => {
                 if (val) {
-                    const node = this.engine.getNode(val);
+                    const nodeId = this.parseSelectValue(val).nodeId;
+                    const node = this.engine.getNode(nodeId);
                     if (node && node.type === 'exit_only') {
                         this.showRestrictionWarning('exit_only');
                     }
                     if (!this.startSelect.value && !val.startsWith('NEAREST_')) {
-                        this.engine.focusNode(val);
-                        this.engine.setEndMarker(val);
+                        this.engine.focusNode(nodeId);
+                        this.engine.setEndMarker(nodeId);
                     }
                 } else {
                     if (!this.startSelect.value) {
@@ -382,7 +393,7 @@ class UIController {
         if (currentQuery) {
             currentResolved = this.resolveNode(currentQuery);
             if (currentResolved) {
-                this.engine.setCurrentLocation(currentResolved.id);
+                this.engine.setCurrentLocation(currentResolved.node.id);
             }
         }
 
@@ -395,9 +406,11 @@ class UIController {
 
         // If start is not defined but current location is, set start to current location
         if (!startResolved && currentResolved) {
+            const { node, exhibitId } = currentResolved;
+            const exhibit = exhibitId ? (node.exhibits || []).find(e => e.id === exhibitId) : null;
             startResolved = {
-                value: currentResolved.id,
-                title: currentResolved.eventName || currentResolved.name || '現在地'
+                value: exhibitId ? `${node.id}::${exhibitId}` : node.id,
+                title: exhibit ? formatExhibitLabel(exhibit) : (node.name || '現在地')
             };
         }
 
@@ -438,18 +451,20 @@ class UIController {
         if (startResolved && endResolved) {
             if (this.startSelect) this.startSelect.select(startResolved.value, startResolved.title);
             if (this.endSelect) this.endSelect.select(endResolved.value, endResolved.title);
-            this.engine.setStartMarker(startResolved.value);
+            this.engine.setStartMarker(this.parseSelectValue(startResolved.value).nodeId);
             this.calculateRoute();
         } else if (startResolved) {
             if (this.startSelect) this.startSelect.select(startResolved.value, startResolved.title);
-            this.engine.setStartMarker(startResolved.value);
-            this.engine.focusNode(startResolved.value);
+            const startNodeId = this.parseSelectValue(startResolved.value).nodeId;
+            this.engine.setStartMarker(startNodeId);
+            this.engine.focusNode(startNodeId);
         } else if (endResolved) {
             if (this.endSelect) this.endSelect.select(endResolved.value, endResolved.title);
             if (!endResolved.value.startsWith('NEAREST_')) {
-                this.engine.setEndMarker(endResolved.value);
-                this.engine.focusNode(endResolved.value);
-                const node = this.engine.getNode(endResolved.value);
+                const endNodeId = this.parseSelectValue(endResolved.value).nodeId;
+                this.engine.setEndMarker(endNodeId);
+                this.engine.focusNode(endNodeId);
+                const node = this.engine.getNode(endNodeId);
                 if (node) this.engine.highlightNode(node);
             }
         } else {
@@ -492,62 +507,88 @@ class UIController {
         return str.toString().trim().toLowerCase().normalize('NFKC');
     }
 
+    // 複合値 "nodeId::exhibitId" を分解する。展示を持たないノードやシステム
+    // オプション (NEAREST_*) は単なる nodeId 文字列のまま扱う。
+    parseSelectValue(val) {
+        if (typeof val !== 'string') return { nodeId: val, exhibitId: null };
+        const sep = val.indexOf('::');
+        if (sep === -1) return { nodeId: val, exhibitId: null };
+        return { nodeId: val.slice(0, sep), exhibitId: val.slice(sep + 2) };
+    }
+
+    getExhibitForSelectValue(val) {
+        const { nodeId, exhibitId } = this.parseSelectValue(val);
+        if (!exhibitId) return null;
+        const node = this.engine.getNode(nodeId);
+        return (node && node.exhibits) ? (node.exhibits.find(ex => ex.id === exhibitId) || null) : null;
+    }
+
+    // ノード・展示を検索し、{node, exhibitId} を返す (見つからなければ null)。
+    // exhibitId は該当ノードの中で一致した展示 (無ければ先頭展示、展示自体が無ければ null)。
     resolveNode(query) {
         if (!query) return null;
         const normQuery = this.normalizeString(query);
+        const firstExhibitId = (n) => (n.exhibits && n.exhibits[0]) ? n.exhibits[0].id : null;
 
         // 1. Direct Location ID (code) check (e.g. "N204", "KH101")
         let codeMatches = this.engine.globalNodes.filter(n => {
             return n.code && this.normalizeString(n.code) === normQuery;
         });
-        if (codeMatches.length > 0) return codeMatches[0];
+        if (codeMatches.length > 0) return { node: codeMatches[0], exhibitId: firstExhibitId(codeMatches[0]) };
 
-        // 2. Direct ID check (e.g. "1_101")
-        let node = this.engine.getNode(query) || this.engine.getNode(normQuery);
-        if (node) return node;
+        // 2. Direct ID check (e.g. "1_101", or compound "nodeId::exhibitId")
+        const { nodeId: directNodeId, exhibitId: explicitExhibitId } = this.parseSelectValue(query);
+        let node = this.engine.getNode(directNodeId) || this.engine.getNode(query) || this.engine.getNode(normQuery);
+        if (node) return { node, exhibitId: explicitExhibitId || firstExhibitId(node) };
 
-        // 3. Exact match check (case-insensitive and normalized)
-        let exactMatches = this.engine.globalNodes.filter(n => {
+        // 3. Exact match check (case-insensitive and normalized) — node name/code, then each exhibit's org/eventName
+        for (const n of this.engine.globalNodes) {
             const name = this.normalizeString(n.name);
-            const eventName = this.normalizeString(n.eventName);
-            const org = this.normalizeString(n.organization);
             const code = this.normalizeString(n.code);
-            return name === normQuery || eventName === normQuery || org === normQuery || code === normQuery;
-        });
-        if (exactMatches.length > 0) return exactMatches[0];
+            if (name === normQuery || code === normQuery) return { node: n, exhibitId: firstExhibitId(n) };
+            for (const ex of (n.exhibits || [])) {
+                if (this.normalizeString(ex.eventName) === normQuery || this.normalizeString(ex.organization) === normQuery) {
+                    return { node: n, exhibitId: ex.id };
+                }
+            }
+        }
 
         // 4. Partial match check (case-insensitive and normalized)
-        let partialMatches = this.engine.globalNodes.filter(n => {
+        for (const n of this.engine.globalNodes) {
             const name = this.normalizeString(n.name);
-            const eventName = this.normalizeString(n.eventName);
-            const org = this.normalizeString(n.organization);
             const code = this.normalizeString(n.code);
-            return name.includes(normQuery) || eventName.includes(normQuery) || org.includes(normQuery) || code.includes(normQuery);
-        });
-        if (partialMatches.length > 0) return partialMatches[0];
+            if (name.includes(normQuery) || code.includes(normQuery)) return { node: n, exhibitId: firstExhibitId(n) };
+            for (const ex of (n.exhibits || [])) {
+                if (this.normalizeString(ex.eventName).includes(normQuery) || this.normalizeString(ex.organization).includes(normQuery)) {
+                    return { node: n, exhibitId: ex.id };
+                }
+            }
+        }
 
         // 5. Try matching floor local ID (originalId)
         let origMatches = this.engine.globalNodes.filter(n => {
             const origId = this.normalizeString(n.originalId);
             return origId === normQuery;
         });
-        if (origMatches.length > 0) return origMatches[0];
+        if (origMatches.length > 0) return { node: origMatches[0], exhibitId: firstExhibitId(origMatches[0]) };
 
         return null;
     }
 
     resolveStart(query) {
-        const node = this.resolveNode(query);
-        if (node) {
+        const resolved = this.resolveNode(query);
+        if (resolved) {
+            const { node, exhibitId } = resolved;
             if (node.type === 'entrance_only') {
                 this.showRestrictionWarning('entrance_only');
             }
-            let title = node.eventName || node.name || '出発地';
+            const exhibit = exhibitId ? (node.exhibits || []).find(e => e.id === exhibitId) : null;
+            let title = exhibit ? formatExhibitLabel(exhibit) : (node.name || '出発地');
             if (node.type === 'stairs' || node.type === 'elevator') {
                 title += ` (${node.floorId}階)`;
             }
             return {
-                value: node.id,
+                value: exhibitId ? `${node.id}::${exhibitId}` : node.id,
                 title: title
             };
         }
@@ -570,17 +611,19 @@ class UIController {
         }
 
         // Otherwise resolve to a node
-        const node = this.resolveNode(query);
-        if (node) {
+        const resolved = this.resolveNode(query);
+        if (resolved) {
+            const { node, exhibitId } = resolved;
             if (node.type === 'exit_only') {
                 this.showRestrictionWarning('exit_only');
             }
-            let title = node.eventName || node.name || '目的地';
+            const exhibit = exhibitId ? (node.exhibits || []).find(e => e.id === exhibitId) : null;
+            let title = exhibit ? formatExhibitLabel(exhibit) : (node.name || '目的地');
             if (node.type === 'stairs' || node.type === 'elevator') {
                 title += ` (${node.floorId}階)`;
             }
             return {
-                value: node.id,
+                value: exhibitId ? `${node.id}::${exhibitId}` : node.id,
                 title: title
             };
         }
@@ -662,73 +705,71 @@ class UIController {
         // Populate Custom Selects
         const activeNodes = this.engine.globalNodes.filter(n => n.name && n.type !== 'junction');
 
-        // Helper to convert node to option format with custom sortIndex modifier
-        const toOption = (n, isStart) => {
-            let title = n.eventName ? `${n.name} (${n.eventName})` : n.name;
-            if (n.type === 'stairs' || n.type === 'elevator') {
-                title += ` (${n.floorId}階)`;
+        // sortIndex computation shared by both the plain-node option and each exhibit option
+        const computeSortIndex = (n, exhibit, isStart) => {
+            const isRestricted = (isStart && n.type === 'entrance_only') || (!isStart && n.type === 'exit_only');
+            const isRestrictedPartner = (isStart && n.type === 'exit_only') || (!isStart && n.type === 'entrance_only');
+
+            if (!this.engine.orderData) {
+                if (isRestricted) return 9999.2;
+                if (isRestrictedPartner) return 9999.1;
+                return 9999;
             }
 
-            // Determine sortIndex
-            const sortIndex = (() => {
-                const isRestricted = (isStart && n.type === 'entrance_only') || (!isStart && n.type === 'exit_only');
-                const isRestrictedPartner = (isStart && n.type === 'exit_only') || (!isStart && n.type === 'entrance_only');
+            const fullName = `${(exhibit && exhibit.eventName) || ''} ${n.name || ''}`.trim();
+            const defaultPriority = this.engine.orderData.default || 9999;
 
-                if (!this.engine.orderData) {
-                    if (isRestricted) {
-                        return 9999.2;
-                    } else if (isRestrictedPartner) {
-                        return 9999.1;
-                    } else {
-                        return 9999;
+            const matchedPriorities = [];
+            if (this.engine.orderData.items) {
+                for (const [key, priority] of Object.entries(this.engine.orderData.items)) {
+                    if (key && fullName.includes(key)) {
+                        matchedPriorities.push(priority);
                     }
                 }
+            }
 
-                const fullName = `${n.eventName || ''} ${n.name || ''}`.trim();
-                const defaultPriority = this.engine.orderData.default || 9999;
+            const basePriority = matchedPriorities.length > 0 ? Math.min(...matchedPriorities) : defaultPriority;
+            if (isRestricted) return basePriority + 0.2;
+            if (isRestrictedPartner) return basePriority + 0.1;
+            return basePriority;
+        };
 
-                // Collect all matched priorities from orderData.items
-                const matchedPriorities = [];
-                if (this.engine.orderData.items) {
-                    for (const [key, priority] of Object.entries(this.engine.orderData.items)) {
-                        if (key && fullName.includes(key)) {
-                            matchedPriorities.push(priority);
-                        }
-                    }
+        // ノードごとに、展示があれば展示ごとに1件、無ければ地点そのもので1件のオプションを生成する
+        const buildOptions = (n, isStart) => {
+            const exhibits = Array.isArray(n.exhibits) ? n.exhibits : [];
+            if (exhibits.length === 0) {
+                let title = n.name;
+                if (n.type === 'stairs' || n.type === 'elevator') {
+                    title += ` (${n.floorId}階)`;
                 }
+                return [{
+                    value: n.id,
+                    title: title,
+                    org: '',
+                    category: this.getTypeLabel(n.type),
+                    type: n.type,
+                    floor: n.floorId,
+                    sortIndex: computeSortIndex(n, null, isStart),
+                    sortKey: (n.name || '').trim()
+                }];
+            }
 
-                if (matchedPriorities.length > 0) {
-                    const basePriority = Math.min(...matchedPriorities);
-                    if (isRestricted) {
-                        return basePriority + 0.2;
-                    } else if (isRestrictedPartner) {
-                        return basePriority + 0.1;
-                    } else {
-                        return basePriority;
-                    }
-                } else {
-                    // No keyword matched
-                    if (isRestricted) {
-                        return defaultPriority + 0.2;
-                    } else if (isRestrictedPartner) {
-                        return defaultPriority + 0.1;
-                    } else {
-                        return defaultPriority;
-                    }
+            return exhibits.map(ex => {
+                let title = formatExhibitLabel(ex);
+                if (n.type === 'stairs' || n.type === 'elevator') {
+                    title += ` (${n.floorId}階)`;
                 }
-            })();
-
-            return {
-                value: n.id,
-                title: title,
-                org: n.organization || (n.eventName ? '展示場所：' + n.name : ''), // Secondary text
-                category: this.getTypeLabel(n.type),
-                type: n.type,
-                floor: n.floorId,
-                sortIndex: sortIndex,
-                // Sort Key: Priority to Organization, then Name. Ignore EventName.
-                sortKey: (n.organization || n.name || '').trim()
-            };
+                return {
+                    value: `${n.id}::${ex.id}`,
+                    title: title,
+                    org: '展示場所：' + n.name, // 部屋名(展示場所)としての表示は残す
+                    category: this.getTypeLabel(n.type),
+                    type: n.type,
+                    floor: n.floorId,
+                    sortIndex: computeSortIndex(n, ex, isStart),
+                    sortKey: (ex.organization || ex.eventName || n.name || '').trim()
+                };
+            });
         };
 
         // Sort initially by Floor and Name
@@ -737,8 +778,8 @@ class UIController {
             return a.name.localeCompare(b.name, 'ja', { numeric: true });
         });
 
-        const startOptions = sortedActiveNodes.map(n => toOption(n, true));
-        const endOptions = sortedActiveNodes.map(n => toOption(n, false));
+        const startOptions = sortedActiveNodes.flatMap(n => buildOptions(n, true));
+        const endOptions = sortedActiveNodes.flatMap(n => buildOptions(n, false));
 
         // System Options
         const systemOptions = [
@@ -777,7 +818,9 @@ class UIController {
             return;
         }
 
-        const path = this.engine.calculatePath(startVal, endVal);
+        const startNodeId = this.parseSelectValue(startVal).nodeId;
+        const endNodeId = this.parseSelectValue(endVal).nodeId;
+        const path = this.engine.calculatePath(startNodeId, endNodeId);
 
         // Auto-zoom to fit the entire path
         if (path && path.length > 0) {
@@ -815,28 +858,28 @@ class UIController {
             if (this.mobileSearchBar) this.mobileSearchBar.classList.add('hidden');
 
             // Update Mobile Route Summary Bar
-            if (this.mobileSummaryBar && this.summaryStartName && this.summaryEndName) {
-                const sNode = this.engine.getNode(startVal);
-                const eNode = this.engine.getNode(endVal);
+            const sNode = this.engine.getNode(startNodeId);
+            const eNode = this.engine.getNode(endNodeId);
+            const sExhibit = this.getExhibitForSelectValue(startVal);
+            const eExhibit = this.getExhibitForSelectValue(endVal);
 
-                let startText = sNode ? (sNode.eventName || sNode.name) : "出発地";
-                let endText = eNode ? (eNode.eventName || eNode.name) : "目的地";
+            if (this.mobileSummaryBar && this.summaryStartName && this.summaryEndName) {
+                let startText = sExhibit ? formatExhibitLabel(sExhibit) : (sNode ? sNode.name : "出発地");
+                let endText = eExhibit ? formatExhibitLabel(eExhibit) : (eNode ? eNode.name : "目的地");
 
                 // Add floor info for extra clarity if nodes exist
                 if (sNode) {
                     let startDetail = `${sNode.floorId}F`;
-                    const sOrg = sNode.organization || (sNode.eventName ? sNode.name : '');
-                    if (sOrg) {
-                        startDetail += ` - ${sOrg}`;
+                    if (sExhibit) {
+                        startDetail += ` - ${sNode.name}`; // 展示場所(部屋名)としての表示は残す
                     }
                     startText += ` (${startDetail})`;
                 }
                 if (eNode) {
                     if (eNode.floorId) {
                         let endDetail = `${eNode.floorId}F`;
-                        const eOrg = eNode.organization || (eNode.eventName ? eNode.name : '');
-                        if (eOrg) {
-                            endDetail += ` - ${eOrg}`;
+                        if (eExhibit) {
+                            endDetail += ` - ${eNode.name}`;
                         }
                         endText += ` (${endDetail})`;
                     } else if (endVal.startsWith("NEAREST_")) {
@@ -855,7 +898,7 @@ class UIController {
             }
 
             // Update Mobile Overlay with EXACT content from Route List
-            this.updateRouteList(path || []); // Generate standard list first
+            this.updateRouteList(path || [], false, { start: sExhibit, end: eExhibit }); // Generate standard list first
 
             if (this.mobileOverlay && this.mobileRouteContent) {
                 // Clone the generated list content to Mobile Overlay
@@ -900,26 +943,26 @@ class UIController {
 
                 // Update Mobile Route Summary Bar to show starting and ending points
                 if (this.mobileSummaryBar && this.summaryStartName && this.summaryEndName) {
-                    const sNode = this.engine.getNode(startVal);
-                    const eNode = this.engine.getNode(endVal);
+                    const sNode = this.engine.getNode(this.parseSelectValue(startVal).nodeId);
+                    const eNode = this.engine.getNode(this.parseSelectValue(endVal).nodeId);
+                    const sExhibit = this.getExhibitForSelectValue(startVal);
+                    const eExhibit = this.getExhibitForSelectValue(endVal);
 
-                    let startText = sNode ? (sNode.eventName || sNode.name) : "出発地";
-                    let endText = eNode ? (eNode.eventName || eNode.name) : "目的地";
+                    let startText = sExhibit ? formatExhibitLabel(sExhibit) : (sNode ? sNode.name : "出発地");
+                    let endText = eExhibit ? formatExhibitLabel(eExhibit) : (eNode ? eNode.name : "目的地");
 
                     if (sNode) {
                         let startDetail = `${sNode.floorId}F`;
-                        const sOrg = sNode.organization || (sNode.eventName ? sNode.name : '');
-                        if (sOrg) {
-                            startDetail += ` - ${sOrg}`;
+                        if (sExhibit) {
+                            startDetail += ` - ${sNode.name}`;
                         }
                         startText += ` (${startDetail})`;
                     }
                     if (eNode) {
                         if (eNode.floorId) {
                             let endDetail = `${eNode.floorId}F`;
-                            const eOrg = eNode.organization || (eNode.eventName ? eNode.name : '');
-                            if (eOrg) {
-                                endDetail += ` - ${eOrg}`;
+                            if (eExhibit) {
+                                endDetail += ` - ${eNode.name}`;
                             }
                             endText += ` (${endDetail})`;
                         } else if (endVal.startsWith("NEAREST_")) {
@@ -974,7 +1017,7 @@ class UIController {
         }
     }
 
-    updateRouteList(pathIds, hasError = false) {
+    updateRouteList(pathIds, hasError = false, endpointExhibits = {}) {
         this.routeList.innerHTML = '';
         if (hasError) {
             this.routeList.innerHTML = `
@@ -1032,12 +1075,14 @@ class UIController {
                 this.handleStepClick(node);
             };
 
-            let title = node.eventName || node.name;
+            // 出発地・到着地は選択された展示があればその表示形式 [団体名]「企画名」を優先する
+            const endpointExhibit = (isStart && endpointExhibits.start) || (isEnd && endpointExhibits.end) || null;
+            const nodeExhibitLabel = (node.exhibits && node.exhibits[0]) ? formatExhibitLabel(node.exhibits[0]) : '';
+            let title = endpointExhibit ? formatExhibitLabel(endpointExhibit) : (nodeExhibitLabel || node.name);
             if (!title && isTransfer) title = "フロア移動";
 
             let desc = `${node.floorId}階`;
-            const orgText = node.organization || (node.eventName ? node.name : '');
-            if (orgText) desc += ` - ${orgText}`;
+            if (endpointExhibit || nodeExhibitLabel) desc += ` - ${node.name}`; // 展示場所(部屋名)としての表示は残す
 
             if (isTransfer) {
                 const typeLabel = node.type === 'elevator' ? 'エレベーター' : (node.type === 'stairs' ? '階段' : '移動');
@@ -1366,13 +1411,14 @@ class UIController {
 
                     // Update Start Select if exists
                     if (this.startSelect) {
-                        const title = node.eventName || node.name || "現在地";
+                        const primaryExhibit = (node.exhibits && node.exhibits[0]) ? node.exhibits[0] : null;
+                        const title = primaryExhibit ? formatExhibitLabel(primaryExhibit) : (node.name || "現在地");
                         this.startSelect.select(currentId, title);
                         this.engine.setStartMarker(currentId);
 
                         // If we have an End point, recalculate route
                         if (this.endSelect && this.endSelect.value) {
-                            this.engine.calculatePath(currentId, this.endSelect.value);
+                            this.engine.calculatePath(currentId, this.parseSelectValue(this.endSelect.value).nodeId);
                             // Hide Mobile Overlay if showing route
                             const mobileOverlay = document.querySelector('.mobile-overlay');
                             if (mobileOverlay) mobileOverlay.classList.remove('hidden');
