@@ -22,13 +22,13 @@ function primaryExhibitLabel(node) {
     return (node.exhibits[0].eventName || '').trim();
 }
 
-// 来場者向け表示フォーマット: [団体名]「企画名」(団体名が空なら「企画名」のみ)
+// 来場者向け表示フォーマット: 団体名「企画名」(団体名が空なら「企画名」のみ)
 function formatExhibitLabel(exhibit) {
     if (!exhibit) return '';
     const org = (exhibit.organization || '').trim();
     const name = (exhibit.eventName || '').trim();
     if (!name) return org;
-    return org ? `[${org}]「${name}」` : `「${name}」`;
+    return org ? `${org}「${name}」` : `「${name}」`;
 }
 
 /**

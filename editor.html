@@ -2126,13 +2126,13 @@
             return (node.exhibits[0].organization || '').trim();
         }
 
-        // 来場者向け表示フォーマット: [団体名]「企画名」(団体名が空なら「企画名」のみ)
+        // 来場者向け表示フォーマット: 団体名「企画名」(団体名が空なら「企画名」のみ)
         function formatExhibitLabel(exhibit) {
             if (!exhibit) return '';
             const org = (exhibit.organization || '').trim();
             const name = (exhibit.eventName || '').trim();
             if (!name) return org;
-            return org ? `[${org}]「${name}」` : `「${name}」`;
+            return org ? `${org}「${name}」` : `「${name}」`;
         }
 
         function newExhibitId() {
@@ -4749,6 +4749,264 @@
 
             showToast(`全 ${allNodes.length} 件の対応表を CSV としてエクスポートしました！`, "success");
         }
+
+        // --- Location Mapping Modal & CSV Import (Overwrite) Engine ---
+        const CSV_MAPPING_HEADERS = ["フロア", "館名", "ロケーションID", "施設・部屋名", "種別", "接続ID", "団体名", "企画名", "X座標", "Y座標", "ノードID"];
+        const VALID_NODE_TYPES = ['junction', 'room', 'toilet', 'stairs', 'elevator', 'entrance', 'entrance_only', 'exit_only', 'vending', 'area', 'others'];
+
+        // RFC4180寄りの簡易CSVパーサー。ダブルクォート内のカンマ・改行・エスケープされた("")を正しく扱う
+        function parseCSVText(text) {
+            if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // 先頭のBOMを除去
+
+            const rows = [];
+            let row = [];
+            let field = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < text.length; i++) {
+                const c = text[i];
+                if (inQuotes) {
+                    if (c === '"') {
+                        if (text[i + 1] === '"') { field += '"'; i++; }
+                        else { inQuotes = false; }
+                    } else {
+                        field += c;
+                    }
+                    continue;
+                }
+
+                if (c === '"') {
+                    inQuotes = true;
+                } else if (c === ',') {
+                    row.push(field); field = '';
+                } else if (c === '\n') {
+                    row.push(field); field = '';
+                    rows.push(row); row = [];
+                } else if (c === '\r') {
+                    // \r\n の場合は次の \n 側で改行確定する
+                } else {
+                    field += c;
+                }
+            }
+            if (field !== '' || row.length > 0) {
+                row.push(field);
+                rows.push(row);
+            }
+
+            return rows.filter(r => !(r.length === 1 && r[0].trim() === ''));
+        }
+
+        function handleLocationMappingCSVFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = ev => {
+                importMappingFromCSV(ev.target.result);
+                event.target.value = ''; // 同じファイルを再選択しても change イベントが発火するようにする
+            };
+            reader.onerror = () => {
+                showToast("CSVファイルの読み込みに失敗しました", "error");
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function importMappingFromCSV(csvText) {
+            const notYetLoaded = floorsConfig.filter(f => !floorsData[f.id] || !floorsData[f.id].isLoaded);
+            if (notYetLoaded.length > 0) {
+                showToast("全フロアのデータ読込が完了していません。少し待ってから再度お試しください。", "error");
+                return;
+            }
+
+            let rows;
+            try {
+                rows = parseCSVText(csvText);
+            } catch (e) {
+                showToast("CSV解析エラー: " + e.message, "error");
+                return;
+            }
+            if (rows.length < 2) {
+                showToast("CSVにデータ行がありません", "error");
+                return;
+            }
+
+            const header = rows[0].map(h => h.trim());
+            const colIndex = {};
+            header.forEach((h, i) => { colIndex[h] = i; });
+
+            const requiredCols = ["ロケーションID", "施設・部屋名", "種別", "接続ID", "団体名", "企画名", "X座標", "Y座標"];
+            const missingCols = requiredCols.filter(c => !(c in colIndex));
+            if (missingCols.length > 0) {
+                showToast(`CSVの列見出しが対応表と一致しません。不足している列: ${missingCols.join(', ')}`, "error");
+                return;
+            }
+
+            const dataRows = rows.slice(1);
+            const normalizeCode = (v) => (v || '').trim().toUpperCase();
+
+            // ロケーションID列を唯一の照合キーとしてグルーピングする（1地点につき展示の数だけ行がある形式に対応）。
+            // ノードIDなど他の列は照合には一切用いない。
+            const groups = new Map();
+            let blankCodeCount = 0;
+            dataRows.forEach(r => {
+                const code = normalizeCode(r[colIndex["ロケーションID"]]);
+                if (!code) { blankCodeCount++; return; }
+                if (!groups.has(code)) groups.set(code, []);
+                groups.get(code).push(r);
+            });
+
+            if (groups.size === 0) {
+                showToast("有効な「ロケーションID」を持つ行がありませんでした。上書きにはロケーションIDが必要です。", "error");
+                return;
+            }
+
+            if (!confirm(`CSV内の ${groups.size} 件のロケーションIDと照合し、一致する既存の地点データを上書きします。\n「フロア」列が現在の値と異なる場合は、そのフロアへ地点を移動します（移動元フロアで接続していた経路は削除されるため、移動先での経路の引き直しが別途必要です）。\n同じロケーションIDを持つ地点が複数存在する場合（階段・エレベーター等）は一意に特定できないため、その項目はスキップされます。\nこの操作は元に戻せません。続行しますか？`)) {
+                return;
+            }
+
+            // 現在編集中のフロアの状態を floorsData に同期してから、全フロア横断でノードを検索できるようにする
+            if (floorsData[currentFloorId]) {
+                floorsData[currentFloorId].nodes = nodes;
+                floorsData[currentFloorId].edges = edges;
+            }
+            // ロケーションIDごとに該当ノードをまとめる（唯一の指標のため、コード単位で1件に定まらない場合は照合不能として扱う）
+            const codeIndex = new Map();
+            collectAllMappingNodes().forEach(item => {
+                const code = normalizeCode(item.node.code);
+                if (!code) return;
+                if (!codeIndex.has(code)) codeIndex.set(code, []);
+                codeIndex.get(code).push(item);
+            });
+            const floorLabelToId = new Map(floorsConfig.map(f => [f.label, f.id]));
+
+            let updatedCount = 0;
+            const notFound = [];
+            const ambiguous = [];
+            const floorMoves = [];
+            const unknownFloorLabels = [];
+            const typeWarnings = [];
+            const touchedFloorIds = new Set();
+
+            groups.forEach((groupRows, code) => {
+                const candidates = codeIndex.get(code) || [];
+                if (candidates.length === 0) { notFound.push(code); return; }
+                if (candidates.length > 1) {
+                    const where = candidates.map(c => c.floorLabel).join('/');
+                    ambiguous.push(`${code}（${candidates.length}件: ${where}）`);
+                    return;
+                }
+
+                const item = candidates[0];
+                const node = item.node;
+                const first = groupRows[0];
+
+                // 「フロア」列が現在の所属と異なる場合、指定フロアへ地点を移動する。
+                // フロアはノード自体の属性ではなく floorsData[floorId].nodes 配列への所属で決まる構造のため、
+                // 配列間で移動させる（旧フロア内でこのノードに繋がっていた経路は不整合になるため削除する）。
+                const csvFloorLabel = (first[colIndex["フロア"]] || '').trim();
+                if (csvFloorLabel && csvFloorLabel !== item.floorLabel) {
+                    if (floorLabelToId.has(csvFloorLabel)) {
+                        const fromFloorId = item.floorId;
+                        const toFloorId = floorLabelToId.get(csvFloorLabel);
+
+                        const fromNodes = floorsData[fromFloorId].nodes;
+                        const nodeIdx = fromNodes.indexOf(node);
+                        if (nodeIdx !== -1) fromNodes.splice(nodeIdx, 1);
+
+                        const fromEdges = floorsData[fromFloorId].edges;
+                        let removedEdgeCount = 0;
+                        for (let i = fromEdges.length - 1; i >= 0; i--) {
+                            if (fromEdges[i].from === node.id || fromEdges[i].to === node.id) {
+                                fromEdges.splice(i, 1);
+                                removedEdgeCount++;
+                            }
+                        }
+
+                        floorsData[toFloorId].nodes.push(node);
+
+                        floorMoves.push(`${code}: ${item.floorLabel} → ${csvFloorLabel}${removedEdgeCount > 0 ? `（旧フロアの経路 ${removedEdgeCount} 本を削除）` : ''}`);
+                        touchedFloorIds.add(fromFloorId);
+                        touchedFloorIds.add(toFloorId);
+                    } else {
+                        unknownFloorLabels.push(`${code} (${csvFloorLabel})`);
+                    }
+                }
+
+                const type = (first[colIndex["種別"]] || '').trim();
+                if (type && !VALID_NODE_TYPES.includes(type)) {
+                    typeWarnings.push(`${code} (${type})`);
+                }
+
+                node.code = (first[colIndex["ロケーションID"]] || '').trim();
+                node.name = (first[colIndex["施設・部屋名"]] || '').trim();
+                if (type) node.type = type;
+                node.connectionId = (first[colIndex["接続ID"]] || '').trim();
+
+                const xRaw = (first[colIndex["X座標"]] || '').trim();
+                const yRaw = (first[colIndex["Y座標"]] || '').trim();
+                if (xRaw !== '' && !Number.isNaN(Number(xRaw))) node.x = Math.round(Number(xRaw));
+                if (yRaw !== '' && !Number.isNaN(Number(yRaw))) node.y = Math.round(Number(yRaw));
+
+                // 展示情報をCSVの行から再構築。既存のexhibit IDは同じ並び順であれば引き継ぐ
+                const existingExhibits = Array.isArray(node.exhibits) ? node.exhibits : [];
+                const newExhibits = [];
+                groupRows.forEach((r, i) => {
+                    const organization = (r[colIndex["団体名"]] || '').trim();
+                    const eventName = (r[colIndex["企画名"]] || '').trim();
+                    if (!organization && !eventName && groupRows.length === 1) return; // 展示なしノードのプレースホルダ行
+                    newExhibits.push({
+                        id: (existingExhibits[i] && existingExhibits[i].id) ? existingExhibits[i].id : newExhibitId(),
+                        organization,
+                        eventName
+                    });
+                });
+                node.exhibits = newExhibits;
+
+                touchedFloorIds.add(item.floorId); // 移動が無かった場合でも所属フロアには変更が入っている
+                updatedCount++;
+            });
+
+            touchedFloorIds.forEach(fid => {
+                if (floorsData[fid]) floorsData[fid].isModified = true;
+            });
+
+            // 現在表示中フロアのエディタ状態を最新化
+            if (floorsData[currentFloorId]) {
+                nodes = floorsData[currentFloorId].nodes;
+                edges = floorsData[currentFloorId].edges;
+            }
+
+            deselectAll();
+            updateList();
+            updateStats();
+            updateStatusIndicator();
+            draw();
+            renderMappingTable();
+            if (updatedCount > 0) saveToLocalBackup();
+
+            const resultLines = [`更新: ${updatedCount} 件`];
+            if (blankCodeCount > 0) resultLines.push(`スキップ（ロケーションID空欄）: ${blankCodeCount} 行`);
+            if (notFound.length > 0) resultLines.push(`該当ロケーションIDが見つからず未反映: ${notFound.length} 件 → ${notFound.slice(0, 20).join(', ')}${notFound.length > 20 ? ' ...' : ''}`);
+            if (ambiguous.length > 0) resultLines.push(`同じロケーションIDの地点が複数存在し一意に特定できず未反映: ${ambiguous.length} 件 → ${ambiguous.slice(0, 10).join(', ')}${ambiguous.length > 10 ? ' ...' : ''}`);
+            if (floorMoves.length > 0) resultLines.push(`フロア移動を実施（移動元の接続経路は削除済み・要再接続）: ${floorMoves.length} 件 → ${floorMoves.slice(0, 10).join(', ')}${floorMoves.length > 10 ? ' ...' : ''}`);
+            if (unknownFloorLabels.length > 0) resultLines.push(`「フロア」列が不明な表記のため移動未実施: ${unknownFloorLabels.length} 件 → ${unknownFloorLabels.slice(0, 10).join(', ')}${unknownFloorLabels.length > 10 ? ' ...' : ''}`);
+            if (typeWarnings.length > 0) resultLines.push(`未知の種別値（そのまま反映）: ${typeWarnings.length} 件 → ${typeWarnings.slice(0, 10).join(', ')}${typeWarnings.length > 10 ? ' ...' : ''}`);
+
+            const resultEl = document.getElementById('csv-import-result');
+            if (resultEl) {
+                resultEl.classList.remove('hidden');
+                resultEl.innerText = resultLines.join('\n');
+            }
+
+            if (updatedCount > 0) {
+                let msg = `CSVから ${updatedCount} 件の地点データを上書きしました。「Supabaseに直接保存」を押すまで保存されません。`;
+                if (floorMoves.length > 0) msg += ` ${floorMoves.length} 件はフロアを移動したため、移動先での経路の引き直しが必要です。`;
+                showToast(msg, "success");
+            } else {
+                showToast("上書き対象の地点が見つかりませんでした。CSVのロケーションID列を確認してください。", "error");
+            }
+        }
     </script>
 
     <!-- Duplicate Location Code Details Modal -->
@@ -4802,10 +5060,22 @@
                             <option value="entrance">出入口 (entrance)</option>
                         </select>
                     </div>
-                    <button class="btn btn-inline" onclick="exportMappingToCSV()" style="background-color: var(--success-color); color: white; font-weight: bold;">
-                        <span>CSVダウンロード</span>
-                    </button>
+                    <div style="display:flex; gap:8px;">
+                        <input type="file" id="location-mapping-csv-input" accept=".csv" style="display:none;" onchange="handleLocationMappingCSVFile(event)">
+                        <button class="btn btn-inline" onclick="document.getElementById('location-mapping-csv-input').click()" style="background-color: var(--warning-color); color: #4a3800; font-weight: bold;">
+                            <span>CSVアップロード（上書き）</span>
+                        </button>
+                        <button class="btn btn-inline" onclick="exportMappingToCSV()" style="background-color: var(--success-color); color: white; font-weight: bold;">
+                            <span>CSVダウンロード</span>
+                        </button>
+                    </div>
                 </div>
+
+                <p style="font-size:11px; color:var(--text-sub); margin:0 0 12px 0; line-height:1.4;">
+                    ※アップロードは、このCSVダウンロードと同じ列構成のファイルのみ対応しています。「ロケーションID」列を唯一の照合キーとして既存の地点を検索し、名称・種別・接続ID・座標・団体名/企画名を上書きします（ロケーションIDが一致しない行、空欄の行は反映されません。同じロケーションIDを持つ地点が複数存在する場合〈階段・エレベーター等〉は一意に特定できないためスキップされます。地点の新規追加は行われません）。「フロア」列を現在と異なる値に変更すると、その地点は指定フロアへ移動します。ただし移動元フロアで接続していた経路（線）は自動的に削除されるため、移動先での経路の引き直しが別途必要です。
+                </p>
+
+                <div id="csv-import-result" class="hidden" style="font-size: 12px; line-height:1.6; background:#f8f9fa; border:1px solid var(--border-color); border-radius:6px; padding:10px 12px; margin-bottom:12px; max-height:160px; overflow-y:auto; white-space:pre-wrap;"></div>
 
                 <div id="mapping-table-summary" style="font-size: 12px; color: var(--text-sub); margin-bottom: 8px;">
                     表示中: 0件

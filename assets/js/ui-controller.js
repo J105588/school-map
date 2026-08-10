@@ -1,10 +1,10 @@
-// 来場者向け表示フォーマット: [団体名]「企画名」(団体名が空なら「企画名」のみ)
+// 来場者向け表示フォーマット: 団体名「企画名」(団体名が空なら「企画名」のみ)
 function formatExhibitLabel(exhibit) {
     if (!exhibit) return '';
     const org = (exhibit.organization || '').trim();
     const name = (exhibit.eventName || '').trim();
     if (!name) return org;
-    return org ? `[${org}]「${name}」` : `「${name}」`;
+    return org ? `${org}「${name}」` : `「${name}」`;
 }
 
 /**
@@ -394,6 +394,7 @@ class UIController {
             currentResolved = this.resolveNode(currentQuery);
             if (currentResolved) {
                 this.engine.setCurrentLocation(currentResolved.node.id);
+                this.notifyIfAmbiguousExhibits(currentResolved.node);
             }
         }
 
@@ -528,24 +529,27 @@ class UIController {
     resolveNode(query) {
         if (!query) return null;
         const normQuery = this.normalizeString(query);
-        const firstExhibitId = (n) => (n.exhibits && n.exhibits[0]) ? n.exhibits[0].id : null;
+        // 展示が1件だけならその展示を採用する。2件以上ある場合はどれか1件を勝手に
+        // 代表として選ばず null を返す（呼び出し側は地点名で表示し、どの展示かは
+        // 検索候補一覧から利用者自身に独立した選択肢として選んでもらう）。
+        const soleExhibitId = (n) => (n.exhibits && n.exhibits.length === 1) ? n.exhibits[0].id : null;
 
         // 1. Direct Location ID (code) check (e.g. "N204", "KH101")
         let codeMatches = this.engine.globalNodes.filter(n => {
             return n.code && this.normalizeString(n.code) === normQuery;
         });
-        if (codeMatches.length > 0) return { node: codeMatches[0], exhibitId: firstExhibitId(codeMatches[0]) };
+        if (codeMatches.length > 0) return { node: codeMatches[0], exhibitId: soleExhibitId(codeMatches[0]) };
 
         // 2. Direct ID check (e.g. "1_101", or compound "nodeId::exhibitId")
         const { nodeId: directNodeId, exhibitId: explicitExhibitId } = this.parseSelectValue(query);
         let node = this.engine.getNode(directNodeId) || this.engine.getNode(query) || this.engine.getNode(normQuery);
-        if (node) return { node, exhibitId: explicitExhibitId || firstExhibitId(node) };
+        if (node) return { node, exhibitId: explicitExhibitId || soleExhibitId(node) };
 
         // 3. Exact match check (case-insensitive and normalized) — node name/code, then each exhibit's org/eventName
         for (const n of this.engine.globalNodes) {
             const name = this.normalizeString(n.name);
             const code = this.normalizeString(n.code);
-            if (name === normQuery || code === normQuery) return { node: n, exhibitId: firstExhibitId(n) };
+            if (name === normQuery || code === normQuery) return { node: n, exhibitId: soleExhibitId(n) };
             for (const ex of (n.exhibits || [])) {
                 if (this.normalizeString(ex.eventName) === normQuery || this.normalizeString(ex.organization) === normQuery) {
                     return { node: n, exhibitId: ex.id };
@@ -557,7 +561,7 @@ class UIController {
         for (const n of this.engine.globalNodes) {
             const name = this.normalizeString(n.name);
             const code = this.normalizeString(n.code);
-            if (name.includes(normQuery) || code.includes(normQuery)) return { node: n, exhibitId: firstExhibitId(n) };
+            if (name.includes(normQuery) || code.includes(normQuery)) return { node: n, exhibitId: soleExhibitId(n) };
             for (const ex of (n.exhibits || [])) {
                 if (this.normalizeString(ex.eventName).includes(normQuery) || this.normalizeString(ex.organization).includes(normQuery)) {
                     return { node: n, exhibitId: ex.id };
@@ -570,7 +574,7 @@ class UIController {
             const origId = this.normalizeString(n.originalId);
             return origId === normQuery;
         });
-        if (origMatches.length > 0) return { node: origMatches[0], exhibitId: firstExhibitId(origMatches[0]) };
+        if (origMatches.length > 0) return { node: origMatches[0], exhibitId: soleExhibitId(origMatches[0]) };
 
         return null;
     }
@@ -695,6 +699,15 @@ class UIController {
                     setTimeout(() => toast.remove(), 300);
                 }
             }, durationMs);
+        }
+    }
+
+    // 同じ地点(ノード)に複数の展示が登録されている場合、QRコード読込・現在地設定では
+    // どれか1件を代表として自動選択しない。代わりに利用者へ通知し、検索候補一覧から
+    // 目的の展示を独立した選択肢として選び直してもらう。
+    notifyIfAmbiguousExhibits(node) {
+        if (node && Array.isArray(node.exhibits) && node.exhibits.length > 1) {
+            this.showNotificationToast(`「${node.name}」には複数の展示・団体が登録されています。目的地の検索欄から該当する展示をお選びください。`, 'warning');
         }
     }
 
@@ -1075,33 +1088,41 @@ class UIController {
                 this.handleStepClick(node);
             };
 
-            // 出発地・到着地は選択された展示があればその表示形式 [団体名]「企画名」を優先する
+            // 出発地・到着地は選択された展示があればその表示形式 [団体名]「企画名」を優先する。
+            // 選択されていない、または経由地(乗換階など)で展示が複数ある場合は、代表1件に
+            // 丸めず全展示をそれぞれ独立した行として列挙する。
             const endpointExhibit = (isStart && endpointExhibits.start) || (isEnd && endpointExhibits.end) || null;
-            const nodeExhibitLabel = (node.exhibits && node.exhibits[0]) ? formatExhibitLabel(node.exhibits[0]) : '';
-            let title = endpointExhibit ? formatExhibitLabel(endpointExhibit) : (nodeExhibitLabel || node.name);
-            if (!title && isTransfer) title = "フロア移動";
+            const hasExhibits = Array.isArray(node.exhibits) && node.exhibits.length > 0;
+            let titleLines = endpointExhibit
+                ? [formatExhibitLabel(endpointExhibit)]
+                : (hasExhibits ? node.exhibits.map(ex => formatExhibitLabel(ex)).filter(t => t) : []);
+            if (titleLines.length === 0) {
+                titleLines = [isTransfer ? "フロア移動" : (node.name || '')];
+            }
 
             let desc = `${node.floorId}階`;
-            if (endpointExhibit || nodeExhibitLabel) desc += ` - ${node.name}`; // 展示場所(部屋名)としての表示は残す
+            if (endpointExhibit || hasExhibits) desc += ` - ${node.name}`; // 展示場所(部屋名)としての表示は残す
 
             if (isTransfer) {
                 const typeLabel = node.type === 'elevator' ? 'エレベーター' : (node.type === 'stairs' ? '階段' : '移動');
                 const nameLabel = node.name || '';
+                let transferTitle;
                 if (prevNode && prevNode.floorId !== node.floorId) {
-                    title = `${typeLabel}で ${node.floorId}階に到着`;
+                    transferTitle = `${typeLabel}で ${node.floorId}階に到着`;
                 } else if (nextNode && nextNode.floorId !== node.floorId) {
-                    title = `${typeLabel}で ${node.floorId}階 ➔ ${nextNode.floorId}階へ`;
+                    transferTitle = `${typeLabel}で ${node.floorId}階 ➔ ${nextNode.floorId}階へ`;
                 }
                 if (nameLabel) {
-                    title = `${nameLabel} (${title})`;
+                    transferTitle = `${nameLabel} (${transferTitle})`;
                 }
+                titleLines = [transferTitle];
             }
 
             li.innerHTML = `
                 <div class="step-marker"></div>
                 <div class="step-content">
                     <div class="step-main">
-                        <span class="step-label">${title}</span>
+                        ${titleLines.map(t => `<span class="step-label">${t}</span>`).join('')}
                         <span class="step-detail">${desc}</span>
                     </div>
                 </div>
@@ -1408,12 +1429,15 @@ class UIController {
                         this.showRestrictionWarning('entrance_only');
                     }
                     this.engine.setCurrentLocation(currentId);
+                    this.notifyIfAmbiguousExhibits(node);
 
                     // Update Start Select if exists
                     if (this.startSelect) {
-                        const primaryExhibit = (node.exhibits && node.exhibits[0]) ? node.exhibits[0] : null;
-                        const title = primaryExhibit ? formatExhibitLabel(primaryExhibit) : (node.name || "現在地");
-                        this.startSelect.select(currentId, title);
+                        // 展示が2件以上ある場合はどれか1件に決め打ちせず、地点名で表示する
+                        const soleExhibit = (node.exhibits && node.exhibits.length === 1) ? node.exhibits[0] : null;
+                        const title = soleExhibit ? formatExhibitLabel(soleExhibit) : (node.name || "現在地");
+                        const selectValue = soleExhibit ? `${currentId}::${soleExhibit.id}` : currentId;
+                        this.startSelect.select(selectValue, title);
                         this.engine.setStartMarker(currentId);
 
                         // If we have an End point, recalculate route
