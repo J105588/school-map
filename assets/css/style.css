@@ -3457,53 +3457,13 @@ input:checked+.slider:before {
         background: var(--primary-color);
     }
 
-    /* --- Body: Shortcuts + Toolbar + List --- */
+    /* --- Body: Toolbar + List --- */
     .msp-body {
         flex: 1;
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
         display: flex;
         flex-direction: column;
-    }
-
-    /* --- Shortcut Chips --- */
-    .msp-shortcuts {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        padding: 14px 16px;
-        background: white;
-        border-bottom: 1px solid #f0f0f0;
-        flex-shrink: 0;
-    }
-
-    .msp-shortcut-chip {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 10px 16px;
-        border-radius: 22px;
-        border: 1.5px solid #e5e7eb;
-        background: #fafbfc;
-        color: var(--text-main);
-        font-size: 13px;
-        font-weight: 600;
-        font-family: var(--font-body);
-        cursor: pointer;
-        min-height: 40px;
-        box-sizing: border-box;
-        transition: background 0.15s, border-color 0.15s, transform 0.1s;
-        -webkit-tap-highlight-color: transparent;
-    }
-
-    .msp-shortcut-chip:active {
-        background: rgba(26, 35, 126, 0.08);
-        border-color: var(--primary-color);
-        transform: scale(0.96);
-    }
-
-    .msp-shortcut-chip svg {
-        flex-shrink: 0;
     }
 
     /* --- Toolbar (sort / filter row) --- */

@@ -2166,11 +2166,14 @@ class CustomSelect {
             // Group Header (For Floor and Default modes)
             if (this.sortBy === 'floor' || this.sortBy === 'default') {
                 // Auto Header (Once)
+                // 「自動検索」は階見出しのような大区分ではなく、他の種別小見出し(教室/トイレ等)と
+                // 並列の分類のひとつなので、select-group-header(大見出し)ではなく
+                // select-subgroup-header(小見出し)で統一する。
                 if (isAuto && !hasShownAutoHeader) {
                     hasShownAutoHeader = true;
                     lastFloor = 'AUTO';
                     const groupHeader = document.createElement('div');
-                    groupHeader.className = 'select-group-header';
+                    groupHeader.className = 'select-subgroup-header';
                     groupHeader.innerText = "自動検索";
                     this.listContainer.appendChild(groupHeader);
                 }
@@ -2289,7 +2292,6 @@ class MobileSearchPanel {
         this.clearStart = this.panel.querySelector('[data-clear="start"]');
         this.clearEnd = this.panel.querySelector('[data-clear="end"]');
         this.swapBtn = document.getElementById('msp-swap');
-        this.shortcutsContainer = document.getElementById('msp-shortcuts');
         this.toolbarContainer = document.getElementById('msp-toolbar');
         this.listContainer = document.getElementById('msp-list');
 
@@ -2383,7 +2385,6 @@ class MobileSearchPanel {
         this.activeField = field;
         this.panel.classList.remove('hidden');
         this.syncFields();
-        this.renderShortcuts();
         this.updateActiveFieldUI();
         this.renderList();
 
@@ -2438,8 +2439,7 @@ class MobileSearchPanel {
     }
 
     // PC版 (CustomSelect) と同じ並び替え機能をスマホの検索パネルにも用意する。
-    // ショートカット(自動検索チップ)の下・結果リストの上という、リストに触れる前に
-    // 必ず目に入る位置に固定表示する。
+    // 入力欄の下・結果リストの上という、リストに触れる前に必ず目に入る位置に固定表示する。
     renderToolbar() {
         if (!this.toolbarContainer) return;
         this.toolbarContainer.innerHTML = '';
@@ -2466,25 +2466,8 @@ class MobileSearchPanel {
         this.toolbarContainer.insertAdjacentElement('afterend', this.exhibitFilterPanel.panelEl);
     }
 
-    renderShortcuts() {
-        if (!this.shortcutsContainer || !this.ui.startSelect) return;
-        this.shortcutsContainer.innerHTML = '';
-
-        const autoOpts = this.ui.startSelect.options.filter(o => o.category === 'AUTO');
-        autoOpts.forEach(opt => {
-            const chip = document.createElement('button');
-            chip.type = 'button';
-            chip.className = 'msp-shortcut-chip';
-            chip.textContent = opt.title;
-            chip.addEventListener('click', () => {
-                this.selectOption(opt);
-            });
-            this.shortcutsContainer.appendChild(chip);
-        });
-    }
-
     renderList() {
-        if (!this.listContainer || !this.ui.startSelect) return;
+        if (!this.listContainer || !this.ui.startSelect || !this.ui.endSelect) return;
         this.listContainer.innerHTML = '';
 
         const currentInput = this.activeField === 'start' ? this.inputStart : this.inputEnd;
@@ -2500,7 +2483,10 @@ class MobileSearchPanel {
         }
 
         const filterText = normalizeSearchText(rawInput);
-        const filtered = filterAndSortOptions(this.ui.startSelect.options, filterText, this.sortBy, this.filteredCodes);
+        // 出発地(start)を編集中は startSelect、目的地(end)を編集中は endSelect のオプションを使う。
+        // 「最寄りの◯◯」自動検索は endSelect にしか存在しないため、常に startSelect を見ていると
+        // 目的地選択時にも表示されなくなってしまう。
+        const filtered = filterAndSortOptions(currentSelect.options, filterText, this.sortBy, this.filteredCodes);
 
         if (filtered.length === 0) {
             const empty = document.createElement('div');
@@ -2525,11 +2511,14 @@ class MobileSearchPanel {
             const isAuto = opt.category === 'AUTO';
 
             if (this.sortBy === 'floor' || this.sortBy === 'default') {
+                // 「自動検索」は階見出しのような大区分ではなく、他の種別小見出し(教室/トイレ等)と
+                // 並列の分類のひとつなので、msp-list-group(大見出し)ではなく
+                // msp-list-subgroup(小見出し)で統一する。
                 if (isAuto && !hasShownAutoHeader) {
                     hasShownAutoHeader = true;
                     lastFloor = 'AUTO';
                     const groupHeader = document.createElement('div');
-                    groupHeader.className = 'msp-list-group';
+                    groupHeader.className = 'msp-list-subgroup';
                     groupHeader.textContent = '自動検索';
                     this.listContainer.appendChild(groupHeader);
                 } else if (this.sortBy === 'floor' && !isAuto && opt.floor !== lastFloor) {
