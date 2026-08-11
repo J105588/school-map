@@ -6,6 +6,12 @@ const AppConfig = {
     SUPABASE_URL: "https://rngkgtvdrlhnupczwuzx.supabase.co",
     SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJuZ2tndHZkcmxobnVwY3p3dXp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzUwNDAsImV4cCI6MjA5NTU1MTA0MH0.mtmOAD7rILbDsSHLYfepxkXxlNt1Du6WYCzXyjjWw_E",
 
+    // なずな祭サイト側 Supabase (展示企画 横断検索API `search_exhibits` 用。本サイト自身のDBとは別プロジェクト)
+    EXHIBIT_SEARCH_API: {
+        SUPABASE_URL: "https://mozptrzyuhoqfdycfgvw.supabase.co",
+        SUPABASE_ANON_KEY: "sb_publishable_faJWme-4VDU2pO7lfOybbw_bYPjv0tK"
+    },
+
     FLOORS: [
         { id: 1, name: '1F', label: '1階', imagePath: 'images/floor1.png' },
         { id: 2, name: '2F', label: '2階', imagePath: 'images/floor2.png' },

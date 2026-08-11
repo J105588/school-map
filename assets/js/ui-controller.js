@@ -34,18 +34,383 @@ const OPTION_TYPE_LABEL = {
 };
 
 /**
+ * 並び替えボタンの表示ラベル。デスクトップ(CustomSelect)とスマホ(MobileSearchPanel)で
+ * 表記が食い違わないよう共通化している。
+ * @param {'default'|'floor'|'name'} mode
+ */
+function getSortModeLabel(mode) {
+    if (mode === 'floor') return '順序: 階数';
+    if (mode === 'name') return '順序: 名前';
+    return '順序: 標準';
+}
+
+/**
+ * 検索候補が何階にあるかを示すチップ(種別タグの左隣に置く)。
+ * 自動検索(最寄り〜)など階数を持たない候補では表示しない。
+ * デスクトップ(CustomSelect)とスマホ(MobileSearchPanel)で共通利用。
+ */
+function buildFloorTagHtml(opt) {
+    if (opt.floor === undefined || opt.floor === null) return '';
+    return `<span class="option-tag tag-floor">${escapeHtml(String(opt.floor))}F</span>`;
+}
+
+// 建物ごとの識別カラー(検索結果アイコンの色分けに使用)
+const BUILDING_COLORS = {
+    '北館': '#378d44',
+    '本館': '#a22bdf',
+    '南館': '#b8ba42',
+    'アリーナ': '#4ec023',
+    '国際ホール': '#693d75' // 國枝記念国際ホール
+};
+
+/**
+ * ノードがどの建物に属するかを判定する。ロケーションID(code)の接頭辞を最優先とし、
+ * それが無い場合は connectionId/名称/展示名のキーワード、最後に座標(x/y)へフォールバックする。
+ * editor.html の getBuildingName() とロジックを揃えている(判定基準がズレると色分けの意味がなくなるため)。
+ */
+function getBuildingName(node) {
+    if (!node) return '本館';
+
+    if (node.code && node.code.trim() !== '') {
+        const cleanCode = node.code.trim().toUpperCase();
+        if (cleanCode.startsWith('KH') || cleanCode.startsWith('STKH') || cleanCode.startsWith('EKH')) return '国際ホール';
+        if (cleanCode.startsWith('KA') || cleanCode.startsWith('STKA') || cleanCode.startsWith('EKA')) return 'アリーナ';
+        if (cleanCode.startsWith('STN') || cleanCode.startsWith('EN') || cleanCode.startsWith('N')) return '北館';
+        if (cleanCode.startsWith('STS') || cleanCode.startsWith('ES') || cleanCode.startsWith('S')) return '南館';
+        if (cleanCode.startsWith('STM') || cleanCode.startsWith('EM') || cleanCode.startsWith('M')) return '本館';
+        if (cleanCode.startsWith('U')) return '施設外';
+    }
+
+    const text = ((node.connectionId || '') + ' ' + (node.name || '') + ' ' + (node.exhibits || []).map(e => e.eventName || '').join(' ')).toLowerCase();
+    if (text.includes('kh') || text.includes('國枝') || text.includes('国際')) return '国際ホール';
+    if (text.includes('ka') || text.includes('古賀') || text.includes('アリーナ') || text.includes('剣道') || text.includes('柔道') || text.includes('卓球')) return 'アリーナ';
+    if (text.includes('north') || text.includes('北館') || text.includes('_n')) return '北館';
+    if (text.includes('south') || text.includes('南館') || text.includes('_s')) return '南館';
+    if (text.includes('main') || text.includes('本館') || text.includes('_m') || text.includes('吹き抜け') || text.includes('事務室') || text.includes('正面玄関') || text.includes('購買') || text.includes('ラウンジ')) return '本館';
+    if (text.includes('施設外') || text.includes('outdoor') || text.includes('キッチンカー')) return '施設外';
+
+    if (node.x !== undefined && node.y !== undefined) {
+        if (node.x < 500) return 'アリーナ';
+        if (node.x > 850 && node.y > 350) return '本館';
+        if (node.y > 450) return '北館';
+        if (node.y < 350) return '南館';
+    }
+
+    return '本館';
+}
+
+// 建物色に応じた検索結果アイコンの style 属性(未知の建物は既定色のまま)
+function buildBuildingIconStyle(opt) {
+    const color = BUILDING_COLORS[opt.building];
+    if (!color) return '';
+    return ` style="background:${color}22; color:${color};"`;
+}
+
+// ==========================================================================
+// 展示企画 横断検索API (なずな祭サイト連携) による絞り込み機能
+// マップ側は「条件に一致するロケーションIDの集合」を得るためだけに使う。
+// 企画の詳細(name/description/image等)はこの機能では扱わない。
+// ==========================================================================
+
+const EXHIBIT_FILTER_FIELDS = ['category', 'genre', 'building', 'floor', 'grade'];
+
+const EXHIBIT_FILTER_OPTIONS = {
+    category: [
+        { value: '', label: 'すべて' },
+        { value: 'class', label: 'クラス企画' },
+        { value: 'club', label: '部活動・委員会' },
+        { value: 'volunteer', label: '有志企画' }
+    ],
+    genre: [
+        { value: '', label: 'すべて' },
+        { value: 'haunted_house', label: 'お化け屋敷' },
+        { value: 'escape_game', label: '脱出ゲーム' },
+        { value: 'mission_game', label: 'ミッションゲーム' },
+        { value: 'riddle', label: '謎解き・クイズ' },
+        { value: 'competitive_game', label: '対戦ゲーム' },
+        { value: 'cafe', label: '喫茶展示' },
+        { value: 'theater_festival', label: '中3演劇祭' },
+        { value: 'fair_casino', label: '縁日・カジノ' },
+        { value: 'performance', label: '公演' },
+        { value: 'club_committee', label: '部活・有志・委員会' },
+        { value: 'other', label: 'その他' },
+    ],
+    building: [
+        { value: '', label: 'すべて' },
+        { value: 'main', label: '本館' },
+        { value: 'north', label: '北館' },
+        { value: 'south', label: '南館' },
+        { value: 'kunieda', label: '國枝記念国際ホール' },
+        { value: 'koga', label: '古賀記念アリーナ' }
+    ],
+    floor: [
+        { value: '', label: 'すべて' },
+        { value: '1f', label: '1階' },
+        { value: '2f', label: '2階' },
+        { value: '3f', label: '3階' },
+        { value: '4f', label: '4階' },
+        { value: '5f', label: '5階' }
+    ],
+    grade: [
+        { value: '', label: 'すべて' },
+        { value: '1', label: '1年' },
+        { value: '2', label: '2年' },
+        { value: '3', label: '3年' },
+        { value: '4', label: '4年' },
+        { value: '5', label: '5年' },
+        { value: '6', label: '6年' },
+        { value: 'none', label: '部活・有志など' }
+    ]
+};
+
+const EXHIBIT_FILTER_FIELD_LABEL = {
+    category: 'カテゴリ', genre: 'ジャンル', building: '建物', floor: '階', grade: '学年'
+};
+
+const _exhibitSearchCache = new Map();
+const EXHIBIT_SEARCH_CACHE_TTL_MS = 90 * 1000; // API推奨(60〜120秒)の範囲内でキャッシュ
+
+/**
+ * なずな祭サイトの展示横断検索API (search_exhibits) を呼び、条件に一致する
+ * ロケーションID(room_code、正規化済み)の集合を返す。
+ * 同一条件の組み合わせは EXHIBIT_SEARCH_CACHE_TTL_MS の間キャッシュする。
+ * 通信失敗・タイムアウト時は null を返す(=「絞り込み結果0件」と区別する)。
+ */
+async function fetchExhibitLocationCodes(filters) {
+    const apiConf = AppConfig.EXHIBIT_SEARCH_API;
+    if (!apiConf || !apiConf.SUPABASE_URL || !apiConf.SUPABASE_ANON_KEY) return null;
+
+    const params = new URLSearchParams();
+    EXHIBIT_FILTER_FIELDS.forEach(field => {
+        const value = filters && filters[field];
+        if (value) params.set(`p_${field}`, value);
+    });
+    params.set('p_limit', '200');
+
+    const cacheKey = params.toString();
+    const cached = _exhibitSearchCache.get(cacheKey);
+    if (cached && (Date.now() - cached.ts) < EXHIBIT_SEARCH_CACHE_TTL_MS) {
+        return cached.codes;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    try {
+        const url = `${apiConf.SUPABASE_URL}/rest/v1/rpc/search_exhibits?${params.toString()}`;
+        const res = await fetch(url, {
+            method: 'GET',
+            headers: { apikey: apiConf.SUPABASE_ANON_KEY },
+            signal: controller.signal
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const rows = await res.json();
+        const codes = new Set(
+            (Array.isArray(rows) ? rows : [])
+                .map(row => normalizeLocationCode(row.room_code))
+                .filter(Boolean)
+        );
+        _exhibitSearchCache.set(cacheKey, { ts: Date.now(), codes });
+        return codes;
+    } catch (e) {
+        console.warn('[fetchExhibitLocationCodes] failed', e);
+        return null;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+/**
+ * 展示企画の条件(カテゴリ/ジャンル/建物/階/学年)による絞り込みトグルボタン+開閉パネル。
+ * デスクトップ(CustomSelect)・スマホ(MobileSearchPanel)の両方で、既存の「並び順」ボタンの
+ * 左隣に設置して共通利用する。DOM要素(toggleBtn/panelEl)は一度だけ生成し、
+ * 呼び出し側が再描画のたびに好きな場所へ差し込み直せるようにしている(状態はこのインスタンスが保持)。
+ */
+class ExhibitFilterPanel {
+    /**
+     * @param {(codes: Set<string>|null) => void} onApply 絞り込み確定/解除のたびに呼ばれる
+     * @param {string} hostButtonClass トグルボタンに追加するクラス(隣接する並び順ボタンと見た目を揃える)
+     */
+    constructor(onApply, hostButtonClass) {
+        this.onApply = onApply;
+        this.filters = { category: '', genre: '', building: '', floor: '', grade: '' };
+        this.isOpen = false;
+
+        this.toggleBtn = document.createElement('button');
+        this.toggleBtn.type = 'button';
+        this.toggleBtn.className = `exhibit-filter-btn ${hostButtonClass || ''}`.trim();
+        this.toggleBtn.addEventListener('click', () => this.toggle());
+
+        this.panelEl = document.createElement('div');
+        this.panelEl.className = 'exhibit-filter-panel';
+
+        this._buildPanelContent();
+        this._refreshToggleButton();
+    }
+
+    _activeCount() {
+        return EXHIBIT_FILTER_FIELDS.filter(f => this.filters[f]).length;
+    }
+
+    _buildPanelContent() {
+        const fieldHtml = EXHIBIT_FILTER_FIELDS.map(field => {
+            const opts = EXHIBIT_FILTER_OPTIONS[field]
+                .map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`)
+                .join('');
+            return `
+                <label class="exhibit-filter-field">
+                    <span class="exhibit-filter-field-label">${escapeHtml(EXHIBIT_FILTER_FIELD_LABEL[field])}</span>
+                    <select data-field="${field}">${opts}</select>
+                </label>
+            `;
+        }).join('');
+
+        this.panelEl.innerHTML = `
+            <div class="exhibit-filter-panel-inner">
+                <div class="exhibit-filter-row">${fieldHtml}</div>
+                <div class="exhibit-filter-status" data-role="status"></div>
+                <div class="exhibit-filter-actions">
+                    <button type="button" class="exhibit-filter-reset" data-role="reset">条件をリセット</button>
+                    <button type="button" class="exhibit-filter-apply" data-role="apply">この条件で絞り込む</button>
+                </div>
+            </div>
+        `;
+
+        this.statusEl = this.panelEl.querySelector('[data-role="status"]');
+        this.applyBtn = this.panelEl.querySelector('[data-role="apply"]');
+        this.buildingSelect = this.panelEl.querySelector('select[data-field="building"]');
+        this.floorSelect = this.panelEl.querySelector('select[data-field="floor"]');
+
+        EXHIBIT_FILTER_FIELDS.forEach(field => {
+            const sel = this.panelEl.querySelector(`select[data-field="${field}"]`);
+            sel.addEventListener('change', (e) => {
+                this.filters[field] = e.target.value;
+                if (field === 'building') this._syncFloorAvailability();
+            });
+        });
+
+        this.panelEl.querySelector('[data-role="reset"]').addEventListener('click', () => this.reset());
+        this.applyBtn.addEventListener('click', () => this.apply());
+    }
+
+    // 古賀記念アリーナ(koga)・國枝記念国際ホール(kunieda)は階の概念が無いため、
+    // これらが選ばれている間は階フィルターを選べないようにする(なずな祭サイト側の
+    // SearchFilter.tsx と同じ挙動)。
+    _syncFloorAvailability() {
+        if (!this.buildingSelect || !this.floorSelect) return;
+        const isFloorless = this.buildingSelect.value === 'kunieda' || this.buildingSelect.value === 'koga';
+
+        this.floorSelect.disabled = isFloorless;
+        if (isFloorless && this.floorSelect.value !== '') {
+            this.floorSelect.value = '';
+            this.filters.floor = '';
+        }
+    }
+
+    _refreshToggleButton() {
+        const count = this._activeCount();
+        const icon = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/></svg>`;
+        this.toggleBtn.innerHTML = `${icon}<span>絞り込み</span>${count > 0 ? `<span class="exhibit-filter-count">${count}</span>` : ''}`;
+        this.toggleBtn.classList.toggle('has-active-filter', count > 0);
+    }
+
+    // 通常のステータス文言を表示する(スピナーは消す)
+    _setStatus(text) {
+        this.statusEl.classList.remove('is-loading');
+        this.statusEl.textContent = text;
+    }
+
+    // 検索中はスピナー付きの表示に切り替える
+    _setStatusLoading(text) {
+        this.statusEl.classList.add('is-loading');
+        this.statusEl.innerHTML = `
+            <svg class="exhibit-filter-spinner" viewBox="0 0 24 24" width="14" height="14" fill="none">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="42" stroke-dashoffset="16"/>
+            </svg>
+            <span>${escapeHtml(text)}</span>
+        `;
+    }
+
+    toggle() {
+        if (this.isOpen) this.close();
+        else this.open();
+    }
+
+    open() {
+        this.isOpen = true;
+        this.panelEl.classList.add('open');
+        this.toggleBtn.classList.add('is-open');
+    }
+
+    close() {
+        this.isOpen = false;
+        this.panelEl.classList.remove('open');
+        this.toggleBtn.classList.remove('is-open');
+    }
+
+    reset() {
+        this.filters = { category: '', genre: '', building: '', floor: '', grade: '' };
+        EXHIBIT_FILTER_FIELDS.forEach(field => {
+            const sel = this.panelEl.querySelector(`select[data-field="${field}"]`);
+            if (sel) sel.value = '';
+        });
+        this._syncFloorAvailability();
+        this._setStatus('');
+        this._refreshToggleButton();
+        if (this.onApply) this.onApply(null);
+    }
+
+    async apply() {
+        if (this._activeCount() === 0) {
+            this._setStatus('');
+            this._refreshToggleButton();
+            if (this.onApply) this.onApply(null);
+            return;
+        }
+
+        this._setStatusLoading('検索中...');
+        this.applyBtn.disabled = true;
+        this.toggleBtn.classList.add('is-loading');
+
+        const codes = await fetchExhibitLocationCodes(this.filters);
+
+        this.applyBtn.disabled = false;
+        this.toggleBtn.classList.remove('is-loading');
+
+        if (codes === null) {
+            this._setStatus('絞り込みに失敗しました。通信環境をご確認のうえ、もう一度お試しください。');
+            return;
+        }
+
+        this._setStatus(codes.size > 0
+            ? `${codes.size}件のロケーションが該当しました`
+            : '該当するロケーションが見つかりませんでした');
+        this._refreshToggleButton();
+        if (this.onApply) this.onApply(codes);
+    }
+}
+
+// ロケーションID(room_code)の比較用正規化。展示検索APIの room_code とローカルの opt.code を
+// 大文字/前後空白の揺れなく突き合わせるために使う。
+function normalizeLocationCode(code) {
+    return (code || '').toString().trim().toUpperCase();
+}
+
+/**
  * 検索候補の絞り込みと並べ替え。デスクトップのドロップダウン(CustomSelect)と
  * スマホの検索パネル(MobileSearchPanel)で完全に同じ結果になるよう共通化している。
  *
  * @param {Array} options  候補一覧
  * @param {string} filterText  正規化済みの検索文字列 (normalizeSearchText を通した値)
  * @param {'default'|'floor'|'name'} sortBy
+ * @param {Set<string>|null} [allowedCodes]  展示企画の絞り込みパネルで条件が指定されている場合、
+ *   一致したロケーションID(正規化済み)の集合。null/undefined なら絞り込みなし。
  */
-function filterAndSortOptions(options, filterText, sortBy) {
+function filterAndSortOptions(options, filterText, sortBy, allowedCodes) {
     // 全角/半角を正規化し、ロケーションIDも対象に含める。
     // スペース区切りで複数キーワードを入力した場合はすべてを満たすものに絞り込む(AND検索)。
     const terms = filterText ? filterText.split(/\s+/).filter(Boolean) : [];
     const result = options.filter(opt => {
+        if (allowedCodes && !allowedCodes.has(normalizeLocationCode(opt.code))) return false;
         if (terms.length === 0) return true;
         const haystack = normalizeSearchText(`${opt.title} ${opt.org || ''} ${opt.code || ''}`);
         return terms.every(term => haystack.includes(term));
@@ -847,6 +1212,7 @@ class UIController {
 
         // ノードごとに、展示があれば展示ごとに1件、無ければ地点そのもので1件のオプションを生成する
         const buildOptions = (n, isStart) => {
+            const building = getBuildingName(n);
             const exhibits = Array.isArray(n.exhibits) ? n.exhibits : [];
             if (exhibits.length === 0) {
                 let title = n.name;
@@ -861,6 +1227,7 @@ class UIController {
                     category: this.getTypeLabel(n.type),
                     type: n.type,
                     floor: n.floorId,
+                    building: building,
                     sortIndex: computeSortIndex(n, isStart),
                     sortKey: (n.name || '').trim()
                 }];
@@ -879,6 +1246,7 @@ class UIController {
                     category: this.getTypeLabel(n.type),
                     type: n.type,
                     floor: n.floorId,
+                    building: building,
                     sortIndex: computeSortIndex(n, isStart),
                     sortKey: (ex.organization || ex.eventName || n.name || '').trim()
                 };
@@ -1624,6 +1992,13 @@ class CustomSelect {
         this.sortBy = 'default'; // 'default' | 'floor' | 'name'
         this.filterText = '';
 
+        // 展示企画API(カテゴリ/ジャンル/建物/階/学年)による絞り込み。null = 絞り込みなし。
+        this.filteredCodes = null;
+        this.exhibitFilterPanel = new ExhibitFilterPanel((codes) => {
+            this.filteredCodes = codes;
+            this.renderList();
+        }, 'select-sort-btn');
+
         // スマホでは自前のドロップダウンを開かず、MobileSearchPanel に処理を委ねる。
         // UIController 側でパネル生成後に設定される。
         this.onMobileOpen = null;
@@ -1672,26 +2047,27 @@ class CustomSelect {
         // Sort Button
         const sortBtn = document.createElement('button');
         sortBtn.className = 'select-sort-btn';
-        const getLabel = (mode) => {
-            if (mode === 'floor') return '順序: 階数';
-            if (mode === 'name') return '順序: 名前';
-            return '順序: 標準'; // default
-        };
-        sortBtn.innerText = getLabel(this.sortBy);
+        sortBtn.innerText = getSortModeLabel(this.sortBy);
 
         sortBtn.onclick = () => {
             if (this.sortBy === 'default') this.sortBy = 'floor';
             else if (this.sortBy === 'floor') this.sortBy = 'name';
             else this.sortBy = 'default';
 
-            sortBtn.innerText = getLabel(this.sortBy);
+            sortBtn.innerText = getSortModeLabel(this.sortBy);
             this.renderList();
         };
 
+        // 絞り込みボタンは並び順ボタンのすぐ左に設置する
         header.appendChild(input);
+        header.appendChild(this.exhibitFilterPanel.toggleBtn);
         header.appendChild(sortBtn);
 
         this.optionsContainer.appendChild(header);
+
+        // 絞り込みパネル(開閉ドロワー): ヘッダー直下・リストの上に配置
+        this.exhibitFilterPanel.panelEl.onclick = (e) => e.stopPropagation();
+        this.optionsContainer.appendChild(this.exhibitFilterPanel.panelEl);
 
         // 2. Container for items
         this.listContainer = document.createElement('div');
@@ -1715,6 +2091,7 @@ class CustomSelect {
         // スペース区切りで複数キーワードを入力した場合はすべてを満たすものに絞り込む(AND検索)。
         const terms = this.filterText ? this.filterText.split(/\s+/).filter(Boolean) : [];
         let displayOptions = this.options.filter(opt => {
+            if (this.filteredCodes && !this.filteredCodes.has(normalizeLocationCode(opt.code))) return false;
             if (terms.length === 0) return true;
             const haystack = normalizeSearchText(`${opt.title} ${opt.org || ''} ${opt.code || ''}`);
             return terms.every(term => haystack.includes(term));
@@ -1812,11 +2189,7 @@ class CustomSelect {
                 // Sub Header: Type (Skip for Auto)
                 if (!isAuto && opt.type !== lastType) {
                     lastType = opt.type;
-                    const typeLabel = {
-                        'room': '教室', 'area': '施設・エリア', 'entrance': '出入口',
-                        'toilet': 'トイレ', 'stairs': '階段', 'elevator': 'エレベーター',
-                        'vending': '自販機'
-                    }[opt.type] || 'その他';
+                    const typeLabel = OPTION_TYPE_LABEL[opt.type] || 'その他';
 
                     const subHeader = document.createElement('div');
                     subHeader.className = 'select-subgroup-header';
@@ -1838,6 +2211,7 @@ class CustomSelect {
                     <span class="option-org">${escapeHtml(opt.org || '')}</span>
                 </div>
                 <div class="option-meta">
+                    ${buildFloorTagHtml(opt)}
                     <span class="option-tag ${escapeHtml(typeClass)}">${opt.category}</span>
                 </div>
             `;
@@ -1916,11 +2290,21 @@ class MobileSearchPanel {
         this.clearEnd = this.panel.querySelector('[data-clear="end"]');
         this.swapBtn = document.getElementById('msp-swap');
         this.shortcutsContainer = document.getElementById('msp-shortcuts');
+        this.toolbarContainer = document.getElementById('msp-toolbar');
         this.listContainer = document.getElementById('msp-list');
 
         this.activeField = 'end'; // 'start' | 'end'
+        this.sortBy = 'default'; // 'default' | 'floor' | 'name' (PC版の CustomSelect と同じ3モード)
+
+        // 展示企画API(カテゴリ/ジャンル/建物/階/学年)による絞り込み。null = 絞り込みなし。
+        this.filteredCodes = null;
+        this.exhibitFilterPanel = new ExhibitFilterPanel((codes) => {
+            this.filteredCodes = codes;
+            this.renderList();
+        }, 'msp-sort-btn');
 
         this.initEvents();
+        this.renderToolbar();
     }
 
     initEvents() {
@@ -2053,6 +2437,35 @@ class MobileSearchPanel {
         }
     }
 
+    // PC版 (CustomSelect) と同じ並び替え機能をスマホの検索パネルにも用意する。
+    // ショートカット(自動検索チップ)の下・結果リストの上という、リストに触れる前に
+    // 必ず目に入る位置に固定表示する。
+    renderToolbar() {
+        if (!this.toolbarContainer) return;
+        this.toolbarContainer.innerHTML = '';
+
+        const sortBtn = document.createElement('button');
+        sortBtn.type = 'button';
+        sortBtn.className = 'msp-sort-btn';
+        sortBtn.innerText = getSortModeLabel(this.sortBy);
+
+        sortBtn.addEventListener('click', () => {
+            if (this.sortBy === 'default') this.sortBy = 'floor';
+            else if (this.sortBy === 'floor') this.sortBy = 'name';
+            else this.sortBy = 'default';
+
+            sortBtn.innerText = getSortModeLabel(this.sortBy);
+            this.renderList();
+        });
+
+        // 絞り込みボタンは並び順ボタンのすぐ左に設置する
+        this.toolbarContainer.appendChild(this.exhibitFilterPanel.toggleBtn);
+        this.toolbarContainer.appendChild(sortBtn);
+
+        // 絞り込みパネル(開閉ドロワー): ツールバー直下・リストの上に配置
+        this.toolbarContainer.insertAdjacentElement('afterend', this.exhibitFilterPanel.panelEl);
+    }
+
     renderShortcuts() {
         if (!this.shortcutsContainer || !this.ui.startSelect) return;
         this.shortcutsContainer.innerHTML = '';
@@ -2087,7 +2500,7 @@ class MobileSearchPanel {
         }
 
         const filterText = normalizeSearchText(rawInput);
-        const filtered = filterAndSortOptions(this.ui.startSelect.options, filterText, 'default');
+        const filtered = filterAndSortOptions(this.ui.startSelect.options, filterText, this.sortBy, this.filteredCodes);
 
         if (filtered.length === 0) {
             const empty = document.createElement('div');
@@ -2100,26 +2513,51 @@ class MobileSearchPanel {
             return;
         }
 
-        let currentGroup = null;
+        // グループ分けは PC版 (CustomSelect.renderList) と同じルールに揃える:
+        // - 'default': 自動検索の見出し + 種別ごとの小見出し
+        // - 'floor'  : 階数の見出し + 種別ごとの小見出し
+        // - 'name'   : 見出しなし(名前順に並ぶだけ)
+        let lastFloor = null;
+        let lastType = null;
+        let hasShownAutoHeader = false;
 
         filtered.forEach(opt => {
-            const groupName = opt.floor ? `${opt.floor}階` : (opt.category === 'AUTO' ? '便利機能' : '施設一覧');
-            if (groupName !== currentGroup) {
-                currentGroup = groupName;
-                const grpHeader = document.createElement('div');
-                grpHeader.className = 'msp-list-group';
-                grpHeader.textContent = currentGroup;
-                this.listContainer.appendChild(grpHeader);
+            const isAuto = opt.category === 'AUTO';
+
+            if (this.sortBy === 'floor' || this.sortBy === 'default') {
+                if (isAuto && !hasShownAutoHeader) {
+                    hasShownAutoHeader = true;
+                    lastFloor = 'AUTO';
+                    const groupHeader = document.createElement('div');
+                    groupHeader.className = 'msp-list-group';
+                    groupHeader.textContent = '自動検索';
+                    this.listContainer.appendChild(groupHeader);
+                } else if (this.sortBy === 'floor' && !isAuto && opt.floor !== lastFloor) {
+                    lastFloor = opt.floor;
+                    lastType = null;
+                    const groupHeader = document.createElement('div');
+                    groupHeader.className = 'msp-list-group';
+                    groupHeader.textContent = `${opt.floor}階`;
+                    this.listContainer.appendChild(groupHeader);
+                }
+
+                if (!isAuto && opt.type !== lastType) {
+                    lastType = opt.type;
+                    const subHeader = document.createElement('div');
+                    subHeader.className = 'msp-list-subgroup';
+                    subHeader.textContent = OPTION_TYPE_LABEL[opt.type] || 'その他';
+                    this.listContainer.appendChild(subHeader);
+                }
             }
 
             const item = document.createElement('div');
             item.className = 'msp-list-item';
 
-            const typeLabel = OPTION_TYPE_LABEL[opt.type] || '';
-            const tagClass = `tag-${opt.type || 'others'}`;
+            // タグの表記は PC版 (CustomSelect) の option.category とそろえる。
+            const tagClass = isAuto ? 'tag-auto' : `tag-${opt.type || 'others'}`;
 
             item.innerHTML = `
-                <div class="msp-list-item-icon">
+                <div class="msp-list-item-icon"${buildBuildingIconStyle(opt)}>
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                         <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z"/>
                     </svg>
@@ -2128,7 +2566,10 @@ class MobileSearchPanel {
                     <div class="msp-list-item-name">${escapeHtml(opt.title)}</div>
                     ${opt.org ? `<div class="msp-list-item-detail">${escapeHtml(opt.org)}</div>` : ''}
                 </div>
-                ${typeLabel ? `<span class="msp-list-item-tag option-tag ${tagClass}">${escapeHtml(typeLabel)}</span>` : ''}
+                <div class="msp-list-item-tags">
+                    ${buildFloorTagHtml(opt)}
+                    <span class="msp-list-item-tag option-tag ${escapeHtml(tagClass)}">${escapeHtml(opt.category)}</span>
+                </div>
             `;
 
             item.addEventListener('click', () => {
