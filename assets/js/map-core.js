@@ -758,7 +758,7 @@ class MapEngine {
         this.currentFloorId = floorId;
 
         // Pan to floor
-        const yOffset = this.floorOffsets[floorId];
+        const yOffset = this.floorOffsets[floorId] || 0;
         const img = this.images[floorId];
         const height = (img && img.height) ? img.height : 1000;
         const width = (img && img.width) ? img.width : 2000; // fallback width
@@ -767,7 +767,10 @@ class MapEngine {
         const centerX = width / 2;
         const centerY = yOffset + height / 2;
 
-        const k = 0.5; // Zoom level
+        const scaleX = (this.canvas.width * 0.88) / width;
+        const scaleY = (this.canvas.height * 0.88) / height;
+        const k = Math.min(Math.max(Math.min(scaleX, scaleY), 0.15), 1.2);
+
         const tX = (this.canvas.width / 2) - (centerX * k);
         const tY = (this.canvas.height / 2) - (centerY * k);
 
@@ -802,7 +805,10 @@ class MapEngine {
         const centerX = width / 2;
         const centerY = yOffset + height / 2;
 
-        const k = 0.5; // Default Zoom
+        const scaleX = (this.canvas.width * 0.88) / width;
+        const scaleY = (this.canvas.height * 0.88) / height;
+        const k = Math.min(Math.max(Math.min(scaleX, scaleY), 0.15), 1.2);
+
         const tX = (this.canvas.width / 2) - (centerX * k);
         const tY = (this.canvas.height / 2) - (centerY * k);
         const targetTransform = d3.zoomIdentity.translate(tX, tY).scale(k);

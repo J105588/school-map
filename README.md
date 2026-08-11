@@ -238,4 +238,4 @@ python -m http.server 8000
 
 ## Copyright
 
-&copy; 2026 市川学園 & Junxiang Jin. All rights reserved.
+&copy; 2026 なずな祭実行委員会. All rights reserved.

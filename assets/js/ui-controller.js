@@ -22,6 +22,77 @@ function escapeHtml(str) {
     })[c]);
 }
 
+// 一覧の並び順で使う種別の優先度 (小さいほど上)
+const OPTION_TYPE_ORDER = {
+    'room': 1, 'area': 2, 'entrance': 3, 'toilet': 4, 'stairs': 5, 'elevator': 6, 'vending': 7
+};
+
+const OPTION_TYPE_LABEL = {
+    'room': '教室', 'area': '施設・エリア', 'entrance': '出入口',
+    'toilet': 'トイレ', 'stairs': '階段', 'elevator': 'エレベーター',
+    'vending': '自販機'
+};
+
+/**
+ * 検索候補の絞り込みと並べ替え。デスクトップのドロップダウン(CustomSelect)と
+ * スマホの検索パネル(MobileSearchPanel)で完全に同じ結果になるよう共通化している。
+ *
+ * @param {Array} options  候補一覧
+ * @param {string} filterText  正規化済みの検索文字列 (normalizeSearchText を通した値)
+ * @param {'default'|'floor'|'name'} sortBy
+ */
+function filterAndSortOptions(options, filterText, sortBy) {
+    // 全角/半角を正規化し、ロケーションIDも対象に含める。
+    // スペース区切りで複数キーワードを入力した場合はすべてを満たすものに絞り込む(AND検索)。
+    const terms = filterText ? filterText.split(/\s+/).filter(Boolean) : [];
+    const result = options.filter(opt => {
+        if (terms.length === 0) return true;
+        const haystack = normalizeSearchText(`${opt.title} ${opt.org || ''} ${opt.code || ''}`);
+        return terms.every(term => haystack.includes(term));
+    });
+
+    result.sort((a, b) => {
+        // 0. System Auto Priority
+        const isAutoA = a.category === 'AUTO';
+        const isAutoB = b.category === 'AUTO';
+        if (isAutoA && !isAutoB) return -1;
+        if (!isAutoA && isAutoB) return 1;
+
+        if (sortBy === 'default') {
+            // Priority from JSON
+            const pA = a.sortIndex !== undefined ? a.sortIndex : 9999;
+            const pB = b.sortIndex !== undefined ? b.sortIndex : 9999;
+
+            // 1. sortIndex の数値を直接比較する。管理画面の優先順位パターンは
+            //    default(9999)より小さい値で「前の方に出す」設定にも、大きい値で
+            //    「通常項目より後ろだが指定した順番で並べる」設定にも使われるため、
+            //    数値そのものを比較すればどちらの設定意図も正しく反映できる。
+            if (pA !== pB) return pA - pB;
+
+            // 2. sortIndex が完全に同値(主に無設定同士が default 値で並ぶ場合)の時だけ、
+            //    種別(部屋→エリア→出入口→…)でグループ化してから名前順に並べる。
+            const tA = OPTION_TYPE_ORDER[a.type] || 99;
+            const tB = OPTION_TYPE_ORDER[b.type] || 99;
+            if (tA !== tB) return tA - tB;
+
+            // 3. Sort by the stable 'sortKey' (Org or Name)
+            return a.sortKey.localeCompare(b.sortKey, 'ja', { numeric: true });
+        }
+
+        if (sortBy === 'floor') {
+            if (a.floor !== b.floor) return a.floor - b.floor;
+            const tA = OPTION_TYPE_ORDER[a.type] || 99;
+            const tB = OPTION_TYPE_ORDER[b.type] || 99;
+            if (tA !== tB) return tA - tB;
+            return a.title.localeCompare(b.title, 'ja', { numeric: true });
+        }
+
+        return a.title.localeCompare(b.title, 'ja', { numeric: true });
+    });
+
+    return result;
+}
+
 /**
  * UI Controller
  * Manages sidebars, inputs, and coordinates with MapEngine
@@ -66,8 +137,14 @@ class UIController {
     }
 
     clearRoute() {
+        // select(null, ...) は onChange 経由で calculateRoute() を呼ぶが、その中の
+        // モバイル自動遷移ロジック(出発地/目的地どちらかだけ空いたら該当シートを
+        // 自動で開く)が、クリア処理の途中(片方だけ消えた瞬間)に誤って発火して
+        // しまわないようにガードする。
+        this._isClearingRoute = true;
         if (this.startSelect) this.startSelect.select(null, "出発地を選択...");
         if (this.endSelect) this.endSelect.select(null, "目的地を選択...");
+        this._isClearingRoute = false;
 
         // Clear engine route
         this.engine.path = [];
@@ -89,6 +166,9 @@ class UIController {
 
         // Reset route list
         this.updateRouteList([]);
+
+        // 検索パネルが開いたままなら入力欄も空に戻す
+        if (this.mobileSearchPanel) this.mobileSearchPanel.syncFields();
     }
 
     handleStepClick(node) {
@@ -109,12 +189,7 @@ class UIController {
         // Mobile Event Listeners
         if (this.mobileSearchTrigger) {
             this.mobileSearchTrigger.addEventListener('click', () => {
-                this.sidebar.classList.add('active');
-                if (this.sidebar) {
-                    this.sidebar.style.transform = ''; // Clear inline drag transform
-                }
-                // プレースホルダー「目的地を検索...」の通り、まず目的地の全画面検索を直接開く
-                if (this.endSelect) this.endSelect.open();
+                this.openMobileSearchEntry();
             });
         }
         if (this.mobileQrBtn) {
@@ -167,12 +242,8 @@ class UIController {
             const summaryContent = this.mobileSummaryBar.querySelector('.summary-content');
             if (summaryContent) {
                 summaryContent.addEventListener('click', () => {
-                    if (this.sidebar) {
-                        this.sidebar.classList.add('active');
-                        this.sidebar.style.transform = '';
-                    }
-                    // 経路編集 = まず目的地の全画面検索を開く(出発地はヘッダーから切り替え可能)
-                    if (this.endSelect) this.endSelect.open();
+                    // 経路編集: 既に両方埋まっているので、変更頻度の高い目的地から開く
+                    this.openMobileSearchEntry('end');
                 });
             }
         }
@@ -244,10 +315,11 @@ class UIController {
                 this.calculateRoute();
             });
 
-            // スマホの全画面検索シート: 出発地/目的地の切り替えヘッダーを構築するフックを
-            // 双方が揃った後に配線する(CustomSelect同士はお互いを知らないため)。
-            this.startSelect.onBuildMobileHeader = () => this.buildMobileFieldSwitcher(this.startSelect);
-            this.endSelect.onBuildMobileHeader = () => this.buildMobileFieldSwitcher(this.endSelect);
+            // スマホでは CustomSelect のドロップダウンを使わず、出発地・目的地を
+            // 1画面でまとめて扱う専用パネルに委譲する。
+            this.mobileSearchPanel = new MobileSearchPanel(this);
+            this.startSelect.onMobileOpen = () => this.mobileSearchPanel.open('start');
+            this.endSelect.onMobileOpen = () => this.mobileSearchPanel.open('end');
 
             this.updateSelects();
             await this.engine.switchFloor(this.currentFloorId);
@@ -842,52 +914,21 @@ class UIController {
         return map[type] || 'Others';
     }
 
-    // スマホの全画面検索シート内に表示する、出発地/目的地の切り替えヘッダーを構築する。
-    // forSelect: このヘッダーを表示する側(現在開いている)CustomSelect。
-    buildMobileFieldSwitcher(forSelect) {
-        const wrap = document.createElement('div');
-        wrap.className = 'select-mobile-header';
-        wrap.onclick = (e) => e.stopPropagation();
-
-        const makeField = (fieldSelect, label, isCurrent) => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'select-mobile-field' + (isCurrent ? ' current' : '');
-
-            const labelEl = document.createElement('span');
-            labelEl.className = 'select-mobile-field-label';
-            labelEl.textContent = label;
-
-            const valueEl = document.createElement('span');
-            valueEl.className = 'select-mobile-field-value';
-            valueEl.textContent = fieldSelect.value ? fieldSelect.textSpan.innerText : 'タップして検索';
-
-            btn.appendChild(labelEl);
-            btn.appendChild(valueEl);
-
-            if (!isCurrent) {
-                btn.onclick = () => this.switchMobileField(fieldSelect === this.startSelect ? 'start' : 'end');
-            }
-            return btn;
-        };
-
-        wrap.appendChild(makeField(this.startSelect, '出発地', forSelect === this.startSelect));
-        wrap.appendChild(makeField(this.endSelect, '目的地', forSelect === this.endSelect));
-        return wrap;
+    // モバイルの検索パネルを、出発地(start)/目的地(end)いずれかの編集状態で開く。
+    switchMobileField(target) {
+        if (this.mobileSearchPanel) this.mobileSearchPanel.open(target);
     }
 
-    // モバイルの全画面検索シートを、出発地(start)/目的地(end)いずれかの編集に切り替える。
-    switchMobileField(target) {
-        const targetSelect = target === 'start' ? this.startSelect : this.endSelect;
-        const otherSelect = target === 'start' ? this.endSelect : this.startSelect;
-        if (!targetSelect) return;
-
-        if (this.sidebar) {
-            this.sidebar.classList.add('active');
-            this.sidebar.style.transform = '';
+    // モバイルの検索ピル/経路要約バーから検索パネルを開く入口。
+    // preferred を指定しない場合は、未入力のフィールド(出発地優先)にフォーカスする。
+    openMobileSearchEntry(preferred) {
+        if (!this.mobileSearchPanel) return;
+        let field = preferred;
+        if (!field) {
+            if (this.startSelect && !this.startSelect.value) field = 'start';
+            else field = 'end';
         }
-        if (otherSelect) otherSelect.close();
-        targetSelect.open();
+        this.mobileSearchPanel.open(field);
     }
 
     calculateRoute() {
@@ -905,10 +946,12 @@ class UIController {
             const safetyModal = document.getElementById('safety-warning-modal');
             if (safetyModal) safetyModal.classList.add('hidden');
 
-            // モバイルで目的地だけ選ばれ出発地が未設定のまま検索が終わった場合、
-            // 無言で終わらせず出発地選択の全画面シートへ誘導する。
-            if (!startVal && endVal && window.innerWidth <= 768) {
-                this.switchMobileField('start');
+            // 検索パネルが開いていれば、片方だけ埋まった状態を入力欄に反映して
+            // 未入力側へフォーカスを移す(パネルは開いたまま = 画面遷移が起きない)。
+            // clearRoute() による一括クリアの途中(片方だけ空になった瞬間)は
+            // 誤って発火しないようガードする。
+            if (!this._isClearingRoute && this.mobileSearchPanel && this.mobileSearchPanel.isOpen()) {
+                this.mobileSearchPanel.syncFields();
             }
             return;
         }
@@ -944,10 +987,12 @@ class UIController {
                 if (safetyModal) safetyModal.classList.add('hidden');
             }
 
-            // Mobile: Close Sidebar & Show Overlay
+            // Mobile: Close Sidebar & Search Panel, Show Overlay
             if (window.innerWidth <= 768 && this.sidebar) {
                 this.sidebar.classList.remove('active');
             }
+            // 経路が確定したら検索パネルは役目を終えるので閉じ、地図を全面に出す
+            if (this.mobileSearchPanel) this.mobileSearchPanel.close();
 
             // Hide bottom search bar during active routing
             if (this.mobileSearchBar) this.mobileSearchBar.classList.add('hidden');
@@ -1028,6 +1073,7 @@ class UIController {
                 if (window.innerWidth <= 768 && this.sidebar) {
                     this.sidebar.classList.remove('active');
                 }
+                if (this.mobileSearchPanel) this.mobileSearchPanel.close();
 
                 // Hide bottom search bar
                 if (this.mobileSearchBar) this.mobileSearchBar.classList.add('hidden');
@@ -1390,12 +1436,12 @@ class UIController {
             console.error("[QR] Camera Error:", err);
             let msg = "カメラの起動に失敗しました。";
             if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-                msg = "カメラのアクセス権限がありません。\nブラウザの設定を確認してください。";
+                msg = "カメラのアクセス権限がありません。ブラウザの設定を確認してください。";
             } else if (err.message === "NotSupportedError" || err.name === "TypeError") {
-                msg = "この接続環境（HTTP接続など）またはブラウザでは、カメラ機能がサポートされていません。\nHTTPS接続でアクセスするか、ローカルホストでお試しください。";
+                msg = "この接続環境またはブラウザでは、カメラ機能がサポートされていません。HTTPS接続でお試しください。";
             }
-            alert(msg);
             this.stopScanner();
+            this.showNotificationToast(msg, 'error');
         }
     }
 
@@ -1511,29 +1557,25 @@ class UIController {
                         const soleExhibit = (node.exhibits && node.exhibits.length === 1) ? node.exhibits[0] : null;
                         const title = soleExhibit ? formatExhibitLabel(soleExhibit) : (node.name || "現在地");
                         const selectValue = soleExhibit ? `${currentId}::${soleExhibit.id}` : currentId;
+                        // select() が呼ぶ onChange コールバックが calculateRoute() を実行し、
+                        // 経路・経路要約バー・turn-by-turnリストをまとめて正しく更新する。
+                        // (以前はここで engine.calculatePath() を直接呼び直しており、
+                        //  経路自体は更新されてもリスト・要約バー表示が古いまま残っていた)
                         this.startSelect.select(selectValue, title);
                         this.engine.setStartMarker(currentId);
-
-                        // If we have an End point, recalculate route
-                        if (this.endSelect && this.endSelect.value) {
-                            this.engine.calculatePath(currentId, this.parseSelectValue(this.endSelect.value).nodeId);
-                            // Hide Mobile Overlay if showing route
-                            const mobileOverlay = document.querySelector('.mobile-overlay');
-                            if (mobileOverlay) mobileOverlay.classList.remove('hidden');
-                        }
                     }
                 } else {
                     console.warn("[QR] ID not found in map data:", currentId);
-                    alert("QRコードの場所が見つかりません (ID: " + currentId + ")");
+                    this.showNotificationToast(`QRコードの場所が見つかりません (ID: ${currentId})`, 'error');
                 }
             } else {
                 console.warn("[QR] No ID found in content");
-                alert("無効なQRコードです（位置情報が含まれていません）");
+                this.showNotificationToast("無効なQRコードです（位置情報が含まれていません）", 'error');
             }
 
         } catch (err) {
             console.error("[QR] Parse Error:", err);
-            alert("QRコードの読み取りに失敗しました");
+            this.showNotificationToast("QRコードの読み取りに失敗しました", 'error');
         }
     }
 
@@ -1582,9 +1624,9 @@ class CustomSelect {
         this.sortBy = 'default'; // 'default' | 'floor' | 'name'
         this.filterText = '';
 
-        // スマホの全画面シート化: 出発地/目的地の切り替えヘッダーを構築する
-        // フック。UIController側で両方のCustomSelectが揃った後に設定される。
-        this.onBuildMobileHeader = null;
+        // スマホでは自前のドロップダウンを開かず、MobileSearchPanel に処理を委ねる。
+        // UIController 側でパネル生成後に設定される。
+        this.onMobileOpen = null;
 
         this.trigger.addEventListener('click', () => this.toggle());
 
@@ -1606,14 +1648,6 @@ class CustomSelect {
     render() {
         if (!this.optionsContainer) return;
         this.optionsContainer.innerHTML = '';
-        const isMobile = window.innerWidth <= 768;
-
-        // 0. (Mobile only) Start/End field switcher header, shown above the search box
-        // so the user can jump between 出発地 and 目的地 without leaving the fullscreen sheet.
-        if (isMobile && this.onBuildMobileHeader) {
-            const mobileHeader = this.onBuildMobileHeader();
-            if (mobileHeader) this.optionsContainer.appendChild(mobileHeader);
-        }
 
         // 1. Render Header (Sticky)
         const header = document.createElement('div');
@@ -1657,40 +1691,7 @@ class CustomSelect {
         header.appendChild(input);
         header.appendChild(sortBtn);
 
-        // (Mobile only) Close button - the fullscreen sheet has no "click outside" area,
-        // so an explicit close affordance is required.
-        if (isMobile) {
-            const closeBtn = document.createElement('button');
-            closeBtn.type = 'button';
-            closeBtn.className = 'select-close-btn';
-            closeBtn.setAttribute('aria-label', '閉じる');
-            closeBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>';
-            closeBtn.onclick = () => this.requestClose();
-            header.appendChild(closeBtn);
-        }
-
         this.optionsContainer.appendChild(header);
-
-        // (Mobile only) Quick-access chips: reuse the "AUTO" system options (最寄りのトイレ/自販機 等)
-        // already present in this.options, shown only while the search box is empty.
-        this.quickChipsEl = null;
-        if (isMobile) {
-            const chipOptions = this.options.filter(o => o.category === 'AUTO');
-            if (chipOptions.length > 0) {
-                const chipsRow = document.createElement('div');
-                chipsRow.className = 'select-quick-chips';
-                chipOptions.forEach(opt => {
-                    const chip = document.createElement('button');
-                    chip.type = 'button';
-                    chip.className = 'select-quick-chip';
-                    chip.textContent = opt.title;
-                    chip.onclick = () => this.select(opt.value, opt.title);
-                    chipsRow.appendChild(chip);
-                });
-                this.optionsContainer.appendChild(chipsRow);
-                this.quickChipsEl = chipsRow;
-            }
-        }
 
         // 2. Container for items
         this.listContainer = document.createElement('div');
@@ -1709,11 +1710,6 @@ class CustomSelect {
     renderList() {
         if (!this.listContainer) return;
         this.listContainer.innerHTML = '';
-
-        // クイックチップは検索前(未入力時)だけ表示する
-        if (this.quickChipsEl) {
-            this.quickChipsEl.style.display = this.filterText ? 'none' : 'flex';
-        }
 
         // Filter: 全角/半角を正規化し、ロケーションIDも対象に含める。
         // スペース区切りで複数キーワードを入力した場合はすべてを満たすものに絞り込む(AND検索)。
@@ -1854,28 +1850,15 @@ class CustomSelect {
         });
     }
 
-    // 他のCustomSelectの値が変わった後でも、出発地/目的地切り替えヘッダーの
-    // 表示内容(相手フィールドの現在値)が古いまま残らないよう、開く直前に再構築する。
-    refreshMobileHeader() {
-        if (!this.onBuildMobileHeader) return;
-        const fresh = this.onBuildMobileHeader();
-        if (!fresh) return;
-        if (this._mobileHeaderEl && this._mobileHeaderEl.parentNode) {
-            this._mobileHeaderEl.replaceWith(fresh);
-        } else if (this.optionsContainer) {
-            this.optionsContainer.insertBefore(fresh, this.optionsContainer.firstChild);
-        }
-        this._mobileHeaderEl = fresh;
-    }
-
     open() {
+        // スマホでは全画面の検索パネルが代わりに開く
+        if (window.innerWidth <= 768 && this.onMobileOpen) {
+            this.onMobileOpen();
+            return;
+        }
         if (this.optionsContainer.classList.contains('open')) return;
         this.optionsContainer.classList.add('open');
         this.trigger.classList.add('active');
-
-        if (window.innerWidth <= 768) {
-            this.refreshMobileHeader();
-        }
 
         // Wait for display block to focus?
         setTimeout(() => {
@@ -1897,12 +1880,6 @@ class CustomSelect {
     close() {
         this.optionsContainer.classList.remove('open');
         this.trigger.classList.remove('active');
-
-        // モバイルで他に開いているシートが無ければ、ボトムシート(サイドバー)自体も閉じる
-        if (window.innerWidth <= 768 && !document.querySelector('.select-options.open')) {
-            const sidebar = document.querySelector('.sidebar');
-            if (sidebar) sidebar.classList.remove('active');
-        }
     }
 
     select(value, label) {
@@ -1921,4 +1898,265 @@ class CustomSelect {
 
     get value() { return this._value; }
     set value(v) { this._value = v; }
+}
+
+/**
+ * Mobile Search Panel (Fullscreen Google Maps style dual-field search UI)
+ */
+class MobileSearchPanel {
+    constructor(uiController) {
+        this.ui = uiController;
+        this.panel = document.getElementById('mobile-search-panel');
+        if (!this.panel) return;
+
+        this.closeBtn = document.getElementById('msp-close');
+        this.inputStart = document.getElementById('msp-input-start');
+        this.inputEnd = document.getElementById('msp-input-end');
+        this.clearStart = this.panel.querySelector('[data-clear="start"]');
+        this.clearEnd = this.panel.querySelector('[data-clear="end"]');
+        this.swapBtn = document.getElementById('msp-swap');
+        this.shortcutsContainer = document.getElementById('msp-shortcuts');
+        this.listContainer = document.getElementById('msp-list');
+
+        this.activeField = 'end'; // 'start' | 'end'
+
+        this.initEvents();
+    }
+
+    initEvents() {
+        if (!this.panel) return;
+
+        if (this.closeBtn) {
+            this.closeBtn.addEventListener('click', () => this.close());
+        }
+
+        if (this.inputStart) {
+            this.inputStart.addEventListener('focus', () => {
+                this.activeField = 'start';
+                this.updateActiveFieldUI();
+                this.renderList();
+            });
+            this.inputStart.addEventListener('input', () => {
+                this.updateClearButtons();
+                this.renderList();
+            });
+        }
+
+        if (this.inputEnd) {
+            this.inputEnd.addEventListener('focus', () => {
+                this.activeField = 'end';
+                this.updateActiveFieldUI();
+                this.renderList();
+            });
+            this.inputEnd.addEventListener('input', () => {
+                this.updateClearButtons();
+                this.renderList();
+            });
+        }
+
+        if (this.clearStart) {
+            this.clearStart.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.inputStart) this.inputStart.value = '';
+                if (this.ui.startSelect) this.ui.startSelect.select(null, '出発地を選択...');
+                this.updateClearButtons();
+                if (this.activeField === 'start') this.renderList();
+            });
+        }
+
+        if (this.clearEnd) {
+            this.clearEnd.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.inputEnd) this.inputEnd.value = '';
+                if (this.ui.endSelect) this.ui.endSelect.select(null, '目的地を選択...');
+                this.updateClearButtons();
+                if (this.activeField === 'end') this.renderList();
+            });
+        }
+
+        if (this.swapBtn) {
+            this.swapBtn.addEventListener('click', () => {
+                const sVal = this.ui.startSelect ? this.ui.startSelect.value : null;
+                const sText = this.ui.startSelect ? this.ui.startSelect.textSpan.innerText : '';
+                const eVal = this.ui.endSelect ? this.ui.endSelect.value : null;
+                const eText = this.ui.endSelect ? this.ui.endSelect.textSpan.innerText : '';
+
+                if (this.ui.startSelect) this.ui.startSelect.select(eVal, eText || '出発地を選択...');
+                if (this.ui.endSelect) this.ui.endSelect.select(sVal, sText || '目的地を選択...');
+
+                this.syncFields();
+                this.renderList();
+            });
+        }
+    }
+
+    isOpen() {
+        return this.panel && !this.panel.classList.contains('hidden');
+    }
+
+    open(field = 'end') {
+        if (!this.panel) return;
+        this.activeField = field;
+        this.panel.classList.remove('hidden');
+        this.syncFields();
+        this.renderShortcuts();
+        this.updateActiveFieldUI();
+        this.renderList();
+
+        setTimeout(() => {
+            const targetInput = field === 'start' ? this.inputStart : this.inputEnd;
+            if (targetInput) {
+                targetInput.focus();
+                if (typeof targetInput.select === 'function') {
+                    targetInput.select();
+                }
+            }
+        }, 100);
+    }
+
+    close() {
+        if (!this.panel) return;
+        this.panel.classList.add('hidden');
+        if (this.inputStart) this.inputStart.blur();
+        if (this.inputEnd) this.inputEnd.blur();
+    }
+
+    syncFields() {
+        if (this.inputStart && this.ui.startSelect) {
+            this.inputStart.value = this.ui.startSelect.value ? this.ui.startSelect.textSpan.innerText : '';
+        }
+        if (this.inputEnd && this.ui.endSelect) {
+            this.inputEnd.value = this.ui.endSelect.value ? this.ui.endSelect.textSpan.innerText : '';
+        }
+        this.updateClearButtons();
+    }
+
+    updateClearButtons() {
+        if (this.clearStart && this.inputStart) {
+            this.clearStart.classList.toggle('visible', !!this.inputStart.value);
+        }
+        if (this.clearEnd && this.inputEnd) {
+            this.clearEnd.classList.toggle('visible', !!this.inputEnd.value);
+        }
+    }
+
+    updateActiveFieldUI() {
+        if (!this.panel) return;
+        const startGroup = this.panel.querySelector('[data-field="start"]');
+        const endGroup = this.panel.querySelector('[data-field="end"]');
+
+        if (startGroup) {
+            startGroup.classList.toggle('active', this.activeField === 'start');
+        }
+        if (endGroup) {
+            endGroup.classList.toggle('active', this.activeField === 'end');
+        }
+    }
+
+    renderShortcuts() {
+        if (!this.shortcutsContainer || !this.ui.startSelect) return;
+        this.shortcutsContainer.innerHTML = '';
+
+        const autoOpts = this.ui.startSelect.options.filter(o => o.category === 'AUTO');
+        autoOpts.forEach(opt => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'msp-shortcut-chip';
+            chip.textContent = opt.title;
+            chip.addEventListener('click', () => {
+                this.selectOption(opt);
+            });
+            this.shortcutsContainer.appendChild(chip);
+        });
+    }
+
+    renderList() {
+        if (!this.listContainer || !this.ui.startSelect) return;
+        this.listContainer.innerHTML = '';
+
+        const currentInput = this.activeField === 'start' ? this.inputStart : this.inputEnd;
+        const currentSelect = this.activeField === 'start' ? this.ui.startSelect : this.ui.endSelect;
+        const currentSelectedText = currentSelect && currentSelect.value ? currentSelect.textSpan.innerText : '';
+
+        let rawInput = currentInput ? currentInput.value : '';
+
+        // 編集時（入力欄のテキストが現在選択済みの名称と完全一致している場合）は、
+        // ユーザーが新規検索キーワードを入力する前の初期状態とみなして絞り込みを行わず全候補を表示する
+        if (rawInput && currentSelectedText && rawInput.trim() === currentSelectedText.trim()) {
+            rawInput = '';
+        }
+
+        const filterText = normalizeSearchText(rawInput);
+        const filtered = filterAndSortOptions(this.ui.startSelect.options, filterText, 'default');
+
+        if (filtered.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'msp-empty';
+            empty.innerHTML = `
+                <div class="msp-empty-title">検索結果が見つかりません</div>
+                <div class="msp-empty-desc">別のキーワードで試してください</div>
+            `;
+            this.listContainer.appendChild(empty);
+            return;
+        }
+
+        let currentGroup = null;
+
+        filtered.forEach(opt => {
+            const groupName = opt.floor ? `${opt.floor}階` : (opt.category === 'AUTO' ? '便利機能' : '施設一覧');
+            if (groupName !== currentGroup) {
+                currentGroup = groupName;
+                const grpHeader = document.createElement('div');
+                grpHeader.className = 'msp-list-group';
+                grpHeader.textContent = currentGroup;
+                this.listContainer.appendChild(grpHeader);
+            }
+
+            const item = document.createElement('div');
+            item.className = 'msp-list-item';
+
+            const typeLabel = OPTION_TYPE_LABEL[opt.type] || '';
+            const tagClass = `tag-${opt.type || 'others'}`;
+
+            item.innerHTML = `
+                <div class="msp-list-item-icon">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z"/>
+                    </svg>
+                </div>
+                <div class="msp-list-item-info">
+                    <div class="msp-list-item-name">${escapeHtml(opt.title)}</div>
+                    ${opt.org ? `<div class="msp-list-item-detail">${escapeHtml(opt.org)}</div>` : ''}
+                </div>
+                ${typeLabel ? `<span class="msp-list-item-tag option-tag ${tagClass}">${escapeHtml(typeLabel)}</span>` : ''}
+            `;
+
+            item.addEventListener('click', () => {
+                this.selectOption(opt);
+            });
+
+            this.listContainer.appendChild(item);
+        });
+    }
+
+    selectOption(opt) {
+        const select = this.activeField === 'start' ? this.ui.startSelect : this.ui.endSelect;
+        if (select) {
+            select.select(opt.value, opt.title);
+        }
+        this.syncFields();
+
+        const otherField = this.activeField === 'start' ? 'end' : 'start';
+        const otherSelect = otherField === 'start' ? this.ui.startSelect : this.ui.endSelect;
+
+        if (otherSelect && !otherSelect.value) {
+            this.activeField = otherField;
+            this.updateActiveFieldUI();
+            this.renderList();
+            const targetInput = otherField === 'start' ? this.inputStart : this.inputEnd;
+            if (targetInput) targetInput.focus();
+        } else {
+            this.close();
+        }
+    }
 }

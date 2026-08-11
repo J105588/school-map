@@ -388,7 +388,11 @@ function initTermsConsent() {
                 const safetyModal = document.getElementById('safety-warning-modal');
                 if (safetyModal) {
                     safetyModal.classList.remove('hidden');
-                    localStorage.setItem('last_safety_warning_time', Date.now().toString());
+                    // 経路計算時のクールダウン(ui-controller.jsのlast_safety_warning_time)とは
+                    // 別のキーで記録する。同じキーだと、規約同意直後の表示でクールダウンが
+                    // 先に消費されてしまい、その後30分以内に実際の経路検索をしても
+                    // 経路固有の安全確認が出なくなってしまうため。
+                    localStorage.setItem('last_onboarding_safety_warning_time', Date.now().toString());
                 }
             }
         });
