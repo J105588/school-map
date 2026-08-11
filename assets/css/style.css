@@ -3295,6 +3295,12 @@ input:checked+.slider:before {
         display: none !important;
     }
 
+    /* 閉じる時: mspSlideUp と対になるアニメーション。JS側(close())で
+       .closing を付けてから animationend を待ち、その後 .hidden に切り替える。 */
+    .msp.closing {
+        animation: mspSlideDown 0.3s cubic-bezier(0.4, 0, 1, 1) forwards;
+    }
+
     @keyframes mspSlideUp {
         from {
             transform: translateY(100%);
@@ -3303,6 +3309,17 @@ input:checked+.slider:before {
         to {
             transform: translateY(0);
             opacity: 1;
+        }
+    }
+
+    @keyframes mspSlideDown {
+        from {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateY(100%);
+            opacity: 0.5;
         }
     }
 

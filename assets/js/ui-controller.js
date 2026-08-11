@@ -2297,6 +2297,10 @@ class MobileSearchPanel {
         this.activeField = 'end'; // 'start' | 'end'
         this.sortBy = 'default'; // 'default' | 'floor' | 'name' (PC版の CustomSelect と同じ3モード)
 
+        // クローズアニメーション(mspSlideDown)の後始末用
+        this._closeFallbackTimer = null;
+        this._closeAnimationHandler = null;
+
         // 展示企画API(カテゴリ/ジャンル/建物/階/学年)による絞り込み。null = 絞り込みなし。
         this.filteredCodes = null;
         this.exhibitFilterPanel = new ExhibitFilterPanel((codes) => {
@@ -2381,6 +2385,7 @@ class MobileSearchPanel {
 
     open(field = 'end') {
         if (!this.panel) return;
+        this._cancelCloseAnimation();
         this.activeField = field;
         this.panel.classList.remove('hidden');
         this.syncFields();
@@ -2399,10 +2404,34 @@ class MobileSearchPanel {
     }
 
     close() {
-        if (!this.panel) return;
-        this.panel.classList.add('hidden');
+        if (!this.panel || this.panel.classList.contains('hidden')) return;
         if (this.inputStart) this.inputStart.blur();
         if (this.inputEnd) this.inputEnd.blur();
+
+        // 開く時の mspSlideUp と対になる mspSlideDown を再生してから hidden にする。
+        // (display:none への切り替えはトランジション不可のため、アニメーション終了を待つ)
+        this.panel.classList.add('closing');
+        const finishClose = () => {
+            this._cancelCloseAnimation();
+            this.panel.classList.add('hidden');
+        };
+        this._closeAnimationHandler = finishClose;
+        this.panel.addEventListener('animationend', finishClose, { once: true });
+        // アニメーションが発火しない環境(prefers-reduced-motion 等)向けの保険
+        this._closeFallbackTimer = setTimeout(finishClose, 350);
+    }
+
+    // 再オープンやクローズ完了時に、進行中のクローズアニメーション周りの後始末をする
+    _cancelCloseAnimation() {
+        if (this._closeFallbackTimer) {
+            clearTimeout(this._closeFallbackTimer);
+            this._closeFallbackTimer = null;
+        }
+        if (this._closeAnimationHandler) {
+            this.panel.removeEventListener('animationend', this._closeAnimationHandler);
+            this._closeAnimationHandler = null;
+        }
+        this.panel.classList.remove('closing');
     }
 
     syncFields() {
