@@ -148,8 +148,7 @@ const EXHIBIT_FILTER_OPTIONS = {
         { value: '1f', label: '1階' },
         { value: '2f', label: '2階' },
         { value: '3f', label: '3階' },
-        { value: '4f', label: '4階' },
-        { value: '5f', label: '5階' }
+        { value: '4f', label: '4階' }
     ],
     grade: [
         { value: '', label: 'すべて' },
