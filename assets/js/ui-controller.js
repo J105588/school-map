@@ -113,6 +113,8 @@ class UIController {
                 if (this.sidebar) {
                     this.sidebar.style.transform = ''; // Clear inline drag transform
                 }
+                // プレースホルダー「目的地を検索...」の通り、まず目的地の全画面検索を直接開く
+                if (this.endSelect) this.endSelect.open();
             });
         }
         if (this.mobileQrBtn) {
@@ -169,6 +171,8 @@ class UIController {
                         this.sidebar.classList.add('active');
                         this.sidebar.style.transform = '';
                     }
+                    // 経路編集 = まず目的地の全画面検索を開く(出発地はヘッダーから切り替え可能)
+                    if (this.endSelect) this.endSelect.open();
                 });
             }
         }
@@ -239,6 +243,11 @@ class UIController {
                 }
                 this.calculateRoute();
             });
+
+            // スマホの全画面検索シート: 出発地/目的地の切り替えヘッダーを構築するフックを
+            // 双方が揃った後に配線する(CustomSelect同士はお互いを知らないため)。
+            this.startSelect.onBuildMobileHeader = () => this.buildMobileFieldSwitcher(this.startSelect);
+            this.endSelect.onBuildMobileHeader = () => this.buildMobileFieldSwitcher(this.endSelect);
 
             this.updateSelects();
             await this.engine.switchFloor(this.currentFloorId);
@@ -833,6 +842,54 @@ class UIController {
         return map[type] || 'Others';
     }
 
+    // スマホの全画面検索シート内に表示する、出発地/目的地の切り替えヘッダーを構築する。
+    // forSelect: このヘッダーを表示する側(現在開いている)CustomSelect。
+    buildMobileFieldSwitcher(forSelect) {
+        const wrap = document.createElement('div');
+        wrap.className = 'select-mobile-header';
+        wrap.onclick = (e) => e.stopPropagation();
+
+        const makeField = (fieldSelect, label, isCurrent) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'select-mobile-field' + (isCurrent ? ' current' : '');
+
+            const labelEl = document.createElement('span');
+            labelEl.className = 'select-mobile-field-label';
+            labelEl.textContent = label;
+
+            const valueEl = document.createElement('span');
+            valueEl.className = 'select-mobile-field-value';
+            valueEl.textContent = fieldSelect.value ? fieldSelect.textSpan.innerText : 'タップして検索';
+
+            btn.appendChild(labelEl);
+            btn.appendChild(valueEl);
+
+            if (!isCurrent) {
+                btn.onclick = () => this.switchMobileField(fieldSelect === this.startSelect ? 'start' : 'end');
+            }
+            return btn;
+        };
+
+        wrap.appendChild(makeField(this.startSelect, '出発地', forSelect === this.startSelect));
+        wrap.appendChild(makeField(this.endSelect, '目的地', forSelect === this.endSelect));
+        return wrap;
+    }
+
+    // モバイルの全画面検索シートを、出発地(start)/目的地(end)いずれかの編集に切り替える。
+    switchMobileField(target) {
+        const targetSelect = target === 'start' ? this.startSelect : this.endSelect;
+        const otherSelect = target === 'start' ? this.endSelect : this.startSelect;
+        if (!targetSelect) return;
+
+        if (this.sidebar) {
+            this.sidebar.classList.add('active');
+            this.sidebar.style.transform = '';
+        }
+        if (otherSelect) otherSelect.close();
+        targetSelect.open();
+    }
+
     calculateRoute() {
         const startVal = this.startSelect.value;
         const endVal = this.endSelect.value;
@@ -847,6 +904,12 @@ class UIController {
             if (warnBanner) warnBanner.classList.add('hidden');
             const safetyModal = document.getElementById('safety-warning-modal');
             if (safetyModal) safetyModal.classList.add('hidden');
+
+            // モバイルで目的地だけ選ばれ出発地が未設定のまま検索が終わった場合、
+            // 無言で終わらせず出発地選択の全画面シートへ誘導する。
+            if (!startVal && endVal && window.innerWidth <= 768) {
+                this.switchMobileField('start');
+            }
             return;
         }
 
@@ -1519,14 +1582,18 @@ class CustomSelect {
         this.sortBy = 'default'; // 'default' | 'floor' | 'name'
         this.filterText = '';
 
+        // スマホの全画面シート化: 出発地/目的地の切り替えヘッダーを構築する
+        // フック。UIController側で両方のCustomSelectが揃った後に設定される。
+        this.onBuildMobileHeader = null;
+
         this.trigger.addEventListener('click', () => this.toggle());
 
         // Close on click outside
         document.addEventListener('click', (e) => {
-            if (!this.container.contains(e.target)) this.close();
+            if (!this.container.contains(e.target)) this.requestClose();
         });
 
-        // Init header elements (create once to attach events, but we render inside render() loop usually? 
+        // Init header elements (create once to attach events, but we render inside render() loop usually?
         // actually easier to render header in render() to make it sticky relative to scrolling content if it's all in one box)
         // Check css: .select-options is the scroll box. So header must be inside it and sticky.
     }
@@ -1539,6 +1606,14 @@ class CustomSelect {
     render() {
         if (!this.optionsContainer) return;
         this.optionsContainer.innerHTML = '';
+        const isMobile = window.innerWidth <= 768;
+
+        // 0. (Mobile only) Start/End field switcher header, shown above the search box
+        // so the user can jump between 出発地 and 目的地 without leaving the fullscreen sheet.
+        if (isMobile && this.onBuildMobileHeader) {
+            const mobileHeader = this.onBuildMobileHeader();
+            if (mobileHeader) this.optionsContainer.appendChild(mobileHeader);
+        }
 
         // 1. Render Header (Sticky)
         const header = document.createElement('div');
@@ -1581,10 +1656,45 @@ class CustomSelect {
 
         header.appendChild(input);
         header.appendChild(sortBtn);
+
+        // (Mobile only) Close button - the fullscreen sheet has no "click outside" area,
+        // so an explicit close affordance is required.
+        if (isMobile) {
+            const closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'select-close-btn';
+            closeBtn.setAttribute('aria-label', '閉じる');
+            closeBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>';
+            closeBtn.onclick = () => this.requestClose();
+            header.appendChild(closeBtn);
+        }
+
         this.optionsContainer.appendChild(header);
+
+        // (Mobile only) Quick-access chips: reuse the "AUTO" system options (最寄りのトイレ/自販機 等)
+        // already present in this.options, shown only while the search box is empty.
+        this.quickChipsEl = null;
+        if (isMobile) {
+            const chipOptions = this.options.filter(o => o.category === 'AUTO');
+            if (chipOptions.length > 0) {
+                const chipsRow = document.createElement('div');
+                chipsRow.className = 'select-quick-chips';
+                chipOptions.forEach(opt => {
+                    const chip = document.createElement('button');
+                    chip.type = 'button';
+                    chip.className = 'select-quick-chip';
+                    chip.textContent = opt.title;
+                    chip.onclick = () => this.select(opt.value, opt.title);
+                    chipsRow.appendChild(chip);
+                });
+                this.optionsContainer.appendChild(chipsRow);
+                this.quickChipsEl = chipsRow;
+            }
+        }
 
         // 2. Container for items
         this.listContainer = document.createElement('div');
+        this.listContainer.className = 'select-list-container';
         this.optionsContainer.appendChild(this.listContainer);
 
         this.renderList();
@@ -1599,6 +1709,11 @@ class CustomSelect {
     renderList() {
         if (!this.listContainer) return;
         this.listContainer.innerHTML = '';
+
+        // クイックチップは検索前(未入力時)だけ表示する
+        if (this.quickChipsEl) {
+            this.quickChipsEl.style.display = this.filterText ? 'none' : 'flex';
+        }
 
         // Filter: 全角/半角を正規化し、ロケーションIDも対象に含める。
         // スペース区切りで複数キーワードを入力した場合はすべてを満たすものに絞り込む(AND検索)。
@@ -1739,33 +1854,61 @@ class CustomSelect {
         });
     }
 
+    // 他のCustomSelectの値が変わった後でも、出発地/目的地切り替えヘッダーの
+    // 表示内容(相手フィールドの現在値)が古いまま残らないよう、開く直前に再構築する。
+    refreshMobileHeader() {
+        if (!this.onBuildMobileHeader) return;
+        const fresh = this.onBuildMobileHeader();
+        if (!fresh) return;
+        if (this._mobileHeaderEl && this._mobileHeaderEl.parentNode) {
+            this._mobileHeaderEl.replaceWith(fresh);
+        } else if (this.optionsContainer) {
+            this.optionsContainer.insertBefore(fresh, this.optionsContainer.firstChild);
+        }
+        this._mobileHeaderEl = fresh;
+    }
+
+    open() {
+        if (this.optionsContainer.classList.contains('open')) return;
+        this.optionsContainer.classList.add('open');
+        this.trigger.classList.add('active');
+
+        if (window.innerWidth <= 768) {
+            this.refreshMobileHeader();
+        }
+
+        // Wait for display block to focus?
+        setTimeout(() => {
+            if (this._inputEl) this._inputEl.focus();
+        }, 50);
+    }
+
     toggle() {
         const isOpen = this.optionsContainer.classList.contains('open');
-        if (!isOpen) {
-            this.optionsContainer.classList.add('open');
-            this.trigger.classList.add('active');
-            // Reset filter on open? Maybe nice.
-            // this.filterText = ''; 
-            // this.render(); // Ensure fresh render
+        if (!isOpen) this.open();
+        else this.requestClose();
+    }
 
-            // Wait for display block to focus?
-            setTimeout(() => {
-                if (this._inputEl) this._inputEl.focus();
-            }, 50);
-        } else {
-            this.close();
-        }
+    // ユーザー操作(×ボタン・候補選択・外側タップ)によるクローズ。
+    requestClose() {
+        this.close();
     }
 
     close() {
         this.optionsContainer.classList.remove('open');
         this.trigger.classList.remove('active');
+
+        // モバイルで他に開いているシートが無ければ、ボトムシート(サイドバー)自体も閉じる
+        if (window.innerWidth <= 768 && !document.querySelector('.select-options.open')) {
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar) sidebar.classList.remove('active');
+        }
     }
 
     select(value, label) {
         this.value = value;
         this.textSpan.innerText = label;
-        this.close();
+        this.requestClose();
         // Update visual selection without re-rendering everything
         if (this.listContainer) {
             Array.from(this.listContainer.children).forEach(child => {
