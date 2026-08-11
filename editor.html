@@ -1519,6 +1519,9 @@
 
         const defaultFloorId = 1;
         let currentFloorId = defaultFloorId;
+        // switchFloor()の非同期フェッチが競合したとき、後から呼ばれた方だけが
+        // グローバルなnodes/edgesを更新できるようにするためのトークン
+        let floorSwitchToken = 0;
 
         // Data Storage for all Floors
         let floorsData = {};
@@ -1623,6 +1626,8 @@
         }
 
         async function switchFloor(floorId) {
+            const myToken = ++floorSwitchToken;
+
             // Save current state back to floorsData cache
             if (floorsData[currentFloorId]) {
                 floorsData[currentFloorId].nodes = JSON.parse(JSON.stringify(nodes));
@@ -1656,9 +1661,15 @@
                     // Fetch from Supabase using admin passcode
                     const data = await SupabaseClient.getAdminFloorData(floorId, window.adminPasscode);
 
+                    // 待機中に別のswitchFloor()が呼ばれ、既にこのフロアを表示していない場合は
+                    // グローバルなnodes/edgesを上書きしない(フロア間のデータ競合・破損防止)。
+                    // フェッチ結果自体はfloorsDataキャッシュには保存し、次回このフロアを
+                    // 開いたときに再フェッチせず使えるようにする。
                     floor.nodes = (data.nodes || []).map(normalizeNodeExhibits);
                     floor.edges = data.edges || [];
                     floor.isLoaded = true;
+
+                    if (myToken !== floorSwitchToken) return;
 
                     nodes = floor.nodes;
                     edges = floor.edges;
@@ -1667,6 +1678,8 @@
                     showToast(`${floor.label}のデータを読み込みました`, 'success');
                 } catch (e) {
                     console.warn(e);
+                    if (myToken !== floorSwitchToken) return;
+
                     // Initialize empty floor
                     floor.nodes = [];
                     floor.edges = [];
@@ -2116,6 +2129,30 @@
             return node;
         }
 
+        // HTMLエスケープ: インポートしたJSON/CSVや外部からの入力に由来するノード名・
+        // 展示名・団体名等をinnerHTMLへ挿入する前に必ず通し、XSSを防止する。
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/[&<>"']/g, (c) => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[c]);
+        }
+
+        // 動的生成する onclick="fn('...')" 属性へ値を安全に埋め込むためのヘルパー。
+        // JS文字列リテラルとしてのエスケープ(\, ')を行った後、HTML属性としてもエスケープする。
+        // (ブラウザはHTML実体参照を先にデコードしてからJSとして解釈するため、この順序が必須)
+        function escapeForInlineJsAttr(str) {
+            const jsEscaped = String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            return escapeHtml(jsEscaped);
+        }
+
+        // onclick属性内にそのまま埋め込めるJS引数リテラルを生成する(数値はそのまま、
+        // 文字列は安全にエスケープした上でシングルクォートで囲む)。
+        function jsArgLiteral(val) {
+            if (typeof val === 'number') return String(val);
+            return `'${escapeForInlineJsAttr(val)}'`;
+        }
+
         function primaryExhibitLabel(node) {
             if (!node || !Array.isArray(node.exhibits) || node.exhibits.length === 0) return '';
             return (node.exhibits[0].eventName || '').trim();
@@ -2144,15 +2181,16 @@
         }
 
         function exhibitRowHTML(ex) {
-            const org = (ex.organization || '').replace(/"/g, '&quot;');
-            const name = (ex.eventName || '').replace(/"/g, '&quot;');
+            const org = escapeHtml(ex.organization || '');
+            const name = escapeHtml(ex.eventName || '');
+            const idArg = jsArgLiteral(ex.id);
             return `
-            <div class="exhibit-row" data-exhibit-id="${ex.id}" style="display:flex; gap:6px; align-items:center; padding:8px; background:#f8f9fa; border:1px solid var(--border-color); border-radius:6px;">
+            <div class="exhibit-row" data-exhibit-id="${escapeHtml(ex.id)}" style="display:flex; gap:6px; align-items:center; padding:8px; background:#f8f9fa; border:1px solid var(--border-color); border-radius:6px;">
                 <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:4px;">
-                    <input type="text" placeholder="団体名 (例: 1年A組)" value="${org}" oninput="updateExhibitField('${ex.id}','organization',this.value)">
-                    <input type="text" placeholder="企画名 (例: お化け屋敷)" value="${name}" oninput="updateExhibitField('${ex.id}','eventName',this.value)">
+                    <input type="text" placeholder="団体名 (例: 1年A組)" value="${org}" oninput="updateExhibitField(${idArg},'organization',this.value)">
+                    <input type="text" placeholder="企画名 (例: お化け屋敷)" value="${name}" oninput="updateExhibitField(${idArg},'eventName',this.value)">
                 </div>
-                <button type="button" class="btn btn-danger" style="width:auto; flex:0 0 auto; padding:6px 10px; font-size:11px;" onclick="removeExhibitRow('${ex.id}')">削除</button>
+                <button type="button" class="btn btn-danger" style="width:auto; flex:0 0 auto; padding:6px 10px; font-size:11px;" onclick="removeExhibitRow(${idArg})">削除</button>
             </div>`;
         }
 
@@ -2577,8 +2615,8 @@
 
                 item.innerHTML = `
                     <div style="display:flex; flex-direction:column; gap:2px; overflow:hidden;">
-                        <b style="font-size:13px; color:var(--text-main);">${n.name || '(無名ポイント)'} ${n.code ? `<span style="font-size:11px; color:#17a2b8; font-weight:normal;">[${n.code}]</span>` : ''}</b>
-                        ${n.exhibits && n.exhibits.length > 0 ? `<span style="font-size:11px; color:var(--secondary-color); font-weight:500;">${primaryExhibitLabel(n)}${n.exhibits.length > 1 ? ` 他${n.exhibits.length - 1}件` : ''}</span>` : ''}
+                        <b style="font-size:13px; color:var(--text-main);">${escapeHtml(n.name) || '(無名ポイント)'} ${n.code ? `<span style="font-size:11px; color:#17a2b8; font-weight:normal;">[${escapeHtml(n.code)}]</span>` : ''}</b>
+                        ${n.exhibits && n.exhibits.length > 0 ? `<span style="font-size:11px; color:var(--secondary-color); font-weight:500;">${escapeHtml(primaryExhibitLabel(n))}${n.exhibits.length > 1 ? ` 他${n.exhibits.length - 1}件` : ''}</span>` : ''}
                     </div>
                     <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
                         ${isDuplicate ? `<span style="font-size:10px; padding:2px 6px; border-radius:10px; color:white; background:#dc3545; white-space:nowrap;">重複</span>` : ''}
@@ -3544,7 +3582,7 @@
                         typeLabel = '[警告]';
                     }
 
-                    item.innerHTML = `<span style="color:${iconColor}; font-weight:bold; margin-right:6px;">${typeLabel}</span> ${w.message}`;
+                    item.innerHTML = `<span style="color:${iconColor}; font-weight:bold; margin-right:6px;">${typeLabel}</span> ${escapeHtml(w.message)}`;
                     container.appendChild(item);
                 });
             }
@@ -3597,7 +3635,7 @@
                     row.style.display = 'flex';
                     row.style.justifyContent = 'space-between';
                     row.style.padding = '2px 0';
-                    row.innerHTML = `<span style="color:var(--primary-color); font-weight:bold;">${m.floorLabel}</span> <span>${m.nodeName} (${m.type === 'elevator' ? 'EV' : '階段'})</span>`;
+                    row.innerHTML = `<span style="color:var(--primary-color); font-weight:bold;">${escapeHtml(m.floorLabel)}</span> <span>${escapeHtml(m.nodeName)} (${m.type === 'elevator' ? 'EV' : '階段'})</span>`;
                     listDiv.appendChild(row);
                 });
             }
@@ -3640,7 +3678,7 @@
                 const row = document.createElement('div');
                 row.style.cssText = 'display:flex; gap:6px; align-items:center;';
                 row.innerHTML = `
-                    <input type="text" class="order-pattern-input" value="${key}" placeholder="パターン（例: トイレ）" style="flex:2; padding:6px; font-size:12px; border:1px solid var(--border-color); border-radius:4px;">
+                    <input type="text" class="order-pattern-input" value="${escapeHtml(key)}" placeholder="パターン（例: トイレ）" style="flex:2; padding:6px; font-size:12px; border:1px solid var(--border-color); border-radius:4px;">
                     <input type="number" class="order-weight-input" value="${weight}" style="flex:1; width:60px; padding:6px; font-size:12px; border:1px solid var(--border-color); border-radius:4px;">
                     <button onclick="deleteOrderRow(${index})" style="background:none; border:none; color:var(--danger-color); font-size:18px; cursor:pointer; padding:0 8px; font-weight:bold; display:flex; align-items:center; justify-content:center; flex-shrink:0;" title="削除">×</button>
                 `;
@@ -3763,7 +3801,11 @@
             for (let code in codeToNodes) {
                 const group = codeToNodes[code];
                 if (group.length > 1) {
-                    const isElevatorOrStairs = group.every(item => item.node.type === 'elevator' || item.node.type === 'stairs' || code.startsWith('E') || code.startsWith('ST'));
+                    // 注意: code.startsWith('E'/'ST') は group 全体で共通の値のため、これを条件に
+                    // 加えると .every() がコード先頭文字だけで真になり、type が room 等の通常
+                    // ノードでも「EV/階段」扱いされ、フロアをまたぐ重複検出が素通りしてしまう。
+                    // 実際の node.type だけで判定する。
+                    const isElevatorOrStairs = group.every(item => item.node.type === 'elevator' || item.node.type === 'stairs');
 
                     if (isElevatorOrStairs) {
                         // For Elevators and Stairs, it's valid to share the same ID across different floors.
@@ -3833,11 +3875,10 @@
                     if (jumpContainer) {
                         jumpContainer.innerHTML = others.map(item => {
                             const roomName = item.node.name || primaryExhibitLabel(item.node) || '(無名ポイント)';
-                            const safeNodeId = (typeof item.node.id === 'string' && isNaN(Number(item.node.id))) ? `'${item.node.id}'` : item.node.id;
                             return `
                                 <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 8px; background:white; border:1px solid #ffcdd2; border-radius:4px; margin-top:4px; font-size:11px;">
-                                    <span><strong>${item.floorLabel}</strong>: ${roomName}</span>
-                                    <button type="button" style="font-size:10px; font-weight:bold; color:#b71c1c; background:#ffebee; border:1px solid #ffcdd2; padding:2px 6px; border-radius:3px; cursor:pointer;" onclick="jumpToDuplicateNode(${item.floorId}, ${safeNodeId})">
+                                    <span><strong>${escapeHtml(item.floorLabel)}</strong>: ${escapeHtml(roomName)}</span>
+                                    <button type="button" style="font-size:10px; font-weight:bold; color:#b71c1c; background:#ffebee; border:1px solid #ffcdd2; padding:2px 6px; border-radius:3px; cursor:pointer;" onclick="jumpToDuplicateNode(${jsArgLiteral(item.floorId)}, ${jsArgLiteral(item.node.id)})">
                                         移動して修正
                                     </button>
                                 </div>
@@ -3880,16 +3921,15 @@
                 let itemsHtml = group.map(item => {
                     const roomName = item.node.name || primaryExhibitLabel(item.node) || '(無名ポイント)';
                     const isSelected = (item.floorId == currentFloorId && String(item.node.id) === String(selectedNodeId));
-                    const safeNodeId = (typeof item.node.id === 'string' && isNaN(Number(item.node.id))) ? `'${item.node.id}'` : item.node.id;
 
                     return `
                         <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; background:${isSelected ? '#ffebee' : '#fafafa'}; border:${isSelected ? '1px solid #e53935' : '1px solid #eee'}; border-radius:6px; margin-top:4px; font-size:11px;">
                             <div>
-                                <span style="font-weight:bold; color:#c62828;">${item.floorLabel}</span>
-                                <span style="margin-left:6px; font-weight:bold; color:var(--text-main);">${roomName}</span>
-                                ${item.node.exhibits && item.node.exhibits.length > 0 ? `<span style="font-size:10px; color:var(--secondary-color); margin-left:4px;">${primaryExhibitLabel(item.node)}</span>` : ''}
+                                <span style="font-weight:bold; color:#c62828;">${escapeHtml(item.floorLabel)}</span>
+                                <span style="margin-left:6px; font-weight:bold; color:var(--text-main);">${escapeHtml(roomName)}</span>
+                                ${item.node.exhibits && item.node.exhibits.length > 0 ? `<span style="font-size:10px; color:var(--secondary-color); margin-left:4px;">${escapeHtml(primaryExhibitLabel(item.node))}</span>` : ''}
                             </div>
-                            <button type="button" style="font-size:10px; font-weight:bold; color:#c62828; background:#ffebee; border:1px solid #ffcdd2; padding:2px 8px; border-radius:4px; cursor:pointer;" onclick="jumpToDuplicateNode(${item.floorId}, ${safeNodeId})">
+                            <button type="button" style="font-size:10px; font-weight:bold; color:#c62828; background:#ffebee; border:1px solid #ffcdd2; padding:2px 8px; border-radius:4px; cursor:pointer;" onclick="jumpToDuplicateNode(${jsArgLiteral(item.floorId)}, ${jsArgLiteral(item.node.id)})">
                                 選択・移動
                             </button>
                         </div>
@@ -3898,7 +3938,7 @@
 
                 card.innerHTML = `
                     <div style="font-size:12px; font-weight:bold; color:#b71c1c; margin-bottom:4px; display:flex; align-items:center; justify-content:space-between;">
-                        <span>重複ID: 「${code}」</span>
+                        <span>重複ID: 「${escapeHtml(code)}」</span>
                         <span style="font-size:10px; background:#ffebee; padding:2px 6px; border-radius:10px;">${group.length}箇所で重複</span>
                     </div>
                     ${itemsHtml}
@@ -4025,10 +4065,10 @@
                 let itemsHtml = groupItems.map(item => {
                     const roomName = item.node.name || primaryExhibitLabel(item.node) || '(無名ポイント)';
                     return `
-                        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; background:white; border-radius:4px; margin-top:4px; cursor:pointer; border:1px solid #ffeeba;" onclick="selectAndEditUnassignedNode(${item.floorId}, '${item.node.id}')">
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; background:white; border-radius:4px; margin-top:4px; cursor:pointer; border:1px solid #ffeeba;" onclick="selectAndEditUnassignedNode(${jsArgLiteral(item.floorId)}, ${jsArgLiteral(item.node.id)})">
                             <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                                <strong style="font-size:12px; color:var(--text-main);">${roomName}</strong>
-                                ${item.node.exhibits && item.node.exhibits.length > 0 ? `<span style="font-size:10px; color:var(--secondary-color); margin-left:4px;">${primaryExhibitLabel(item.node)}</span>` : ''}
+                                <strong style="font-size:12px; color:var(--text-main);">${escapeHtml(roomName)}</strong>
+                                ${item.node.exhibits && item.node.exhibits.length > 0 ? `<span style="font-size:10px; color:var(--secondary-color); margin-left:4px;">${escapeHtml(primaryExhibitLabel(item.node))}</span>` : ''}
                             </div>
                             <span style="font-size:10px; color:var(--primary-color); background:#eef2f5; padding:2px 6px; border-radius:4px; flex-shrink:0; font-weight:bold;">入力</span>
                         </div>
@@ -4036,7 +4076,7 @@
                 }).join('');
 
                 groupDiv.innerHTML = `
-                    <div style="font-size:11px; font-weight:bold; color:#856404; margin-bottom:2px;">${fLabel} (${groupItems.length}件)</div>
+                    <div style="font-size:11px; font-weight:bold; color:#856404; margin-bottom:2px;">${escapeHtml(fLabel)} (${groupItems.length}件)</div>
                     ${itemsHtml}
                 `;
                 container.appendChild(groupDiv);
@@ -4128,12 +4168,11 @@
                 let itemsHtml = groupItems.map(item => {
                     const roomName = item.node.name || primaryExhibitLabel(item.node) || '(無名ポイント)';
                     const isCurrentSelected = (item.floorId == currentFloorId && String(item.node.id) === String(selectedNodeId));
-                    const safeNodeId = (typeof item.node.id === 'string' && isNaN(Number(item.node.id))) ? `'${item.node.id}'` : item.node.id;
                     return `
-                        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; background:${isCurrentSelected ? '#e3f2fd' : 'white'}; border:${isCurrentSelected ? '1px solid #2196f3' : '1px solid var(--border-color)'}; border-radius:6px; margin-top:4px; cursor:pointer; transition:all 0.15s;" onclick="selectNodeForFloatingEdit(${item.floorId}, ${safeNodeId})">
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; background:${isCurrentSelected ? '#e3f2fd' : 'white'}; border:${isCurrentSelected ? '1px solid #2196f3' : '1px solid var(--border-color)'}; border-radius:6px; margin-top:4px; cursor:pointer; transition:all 0.15s;" onclick="selectNodeForFloatingEdit(${jsArgLiteral(item.floorId)}, ${jsArgLiteral(item.node.id)})">
                             <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
-                                <strong style="font-size:12px; color:var(--text-main);">${roomName}</strong>
-                                ${item.node.exhibits && item.node.exhibits.length > 0 ? `<span style="font-size:10px; color:var(--secondary-color); margin-left:4px;">${primaryExhibitLabel(item.node)}</span>` : ''}
+                                <strong style="font-size:12px; color:var(--text-main);">${escapeHtml(roomName)}</strong>
+                                ${item.node.exhibits && item.node.exhibits.length > 0 ? `<span style="font-size:10px; color:var(--secondary-color); margin-left:4px;">${escapeHtml(primaryExhibitLabel(item.node))}</span>` : ''}
                             </div>
                             <span style="font-size:10px; color:${isCurrentSelected ? '#1565c0' : 'var(--primary-color)'}; background:${isCurrentSelected ? '#bbdefb' : '#f1f3f5'}; padding:2px 6px; border-radius:4px; flex-shrink:0; font-weight:bold; margin-left:6px;">入力</span>
                         </div>
@@ -4141,7 +4180,7 @@
                 }).join('');
 
                 groupDiv.innerHTML = `
-                    <div style="font-size:11px; font-weight:bold; color:var(--primary-color); padding:2px 4px;">${fLabel} (${groupItems.length}件)</div>
+                    <div style="font-size:11px; font-weight:bold; color:var(--primary-color); padding:2px 4px;">${escapeHtml(fLabel)} (${groupItems.length}件)</div>
                     ${itemsHtml}
                 `;
                 container.appendChild(groupDiv);
@@ -4657,7 +4696,7 @@
 
             tbody.innerHTML = filtered.map(item => {
                 const n = item.node;
-                const codeBadge = n.code ? `<span style="font-family:monospace; font-weight:bold; background:#e8eaf6; color:#283593; padding:2px 6px; border-radius:3px;">${n.code}</span>` : `<span style="color:#aaa; font-style:italic;">未設定</span>`;
+                const codeBadge = n.code ? `<span style="font-family:monospace; font-weight:bold; background:#e8eaf6; color:#283593; padding:2px 6px; border-radius:3px;">${escapeHtml(n.code)}</span>` : `<span style="color:#aaa; font-style:italic;">未設定</span>`;
                 const typeText = typeLabels[n.type] || n.type;
                 const eventOrg = (n.exhibits && n.exhibits.length > 0)
                     ? formatExhibitLabel(n.exhibits[0]) + (n.exhibits.length > 1 ? ` 他${n.exhibits.length - 1}件` : '')
@@ -4665,15 +4704,15 @@
 
                 return `
                     <tr style="border-bottom: 1px solid #eee;">
-                        <td style="padding:8px 10px; font-weight:bold;">${item.floorLabel}</td>
-                        <td style="padding:8px 10px; color:var(--text-sub);">${item.building}</td>
+                        <td style="padding:8px 10px; font-weight:bold;">${escapeHtml(item.floorLabel)}</td>
+                        <td style="padding:8px 10px; color:var(--text-sub);">${escapeHtml(item.building)}</td>
                         <td style="padding:8px 10px;">${codeBadge}</td>
-                        <td style="padding:8px 10px; font-weight:500;">${n.name || '(名称未設定)'}</td>
-                        <td style="padding:8px 10px;"><span class="badge badge-${n.type}">${typeText}</span></td>
-                        <td style="padding:8px 10px; font-family:monospace; color:#555;">${n.connectionId || '-'}</td>
-                        <td style="padding:8px 10px; color:#666;">${eventOrg}</td>
+                        <td style="padding:8px 10px; font-weight:500;">${escapeHtml(n.name) || '(名称未設定)'}</td>
+                        <td style="padding:8px 10px;"><span class="badge badge-${escapeHtml(n.type)}">${escapeHtml(typeText)}</span></td>
+                        <td style="padding:8px 10px; font-family:monospace; color:#555;">${escapeHtml(n.connectionId) || '-'}</td>
+                        <td style="padding:8px 10px; color:#666;">${escapeHtml(eventOrg)}</td>
                         <td style="padding:8px 10px; text-align:center;">
-                            <button class="btn btn-secondary" onclick="jumpToMappingNode(${item.floorId}, '${n.id}')" style="padding:2px 8px; font-size:11px;">移動</button>
+                            <button class="btn btn-secondary" onclick="jumpToMappingNode(${jsArgLiteral(item.floorId)}, ${jsArgLiteral(n.id)})" style="padding:2px 8px; font-size:11px;">移動</button>
                         </td>
                     </tr>
                 `;

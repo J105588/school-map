@@ -5,3 +5,4 @@ migrate-to-supabase.js
 docs/adr
 CONTEXT.md
 location_id_mapping_20260808.csv
+.VSCodeCounter

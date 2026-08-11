@@ -39,8 +39,20 @@ class Tutorial {
     }
 
     initDOM() {
-        // Create elements if they do not exist
-        if (document.getElementById('tutorial-overlay')) return;
+        // Reuse elements if they already exist (avoid leaving refs undefined on re-init)
+        const existingOverlay = document.getElementById('tutorial-overlay');
+        if (existingOverlay) {
+            this.overlay = existingOverlay;
+            this.spotlight = existingOverlay.querySelector('.tutorial-spotlight');
+            this.bubble = document.getElementById('tutorial-bubble');
+            this.titleEl = this.bubble.querySelector('.tutorial-title');
+            this.textEl = this.bubble.querySelector('.tutorial-text');
+            this.progressEl = this.bubble.querySelector('.tutorial-progress');
+            this.prevBtn = this.bubble.querySelector('#tutorial-prev-btn');
+            this.nextBtn = this.bubble.querySelector('#tutorial-next-btn');
+            this.closeBtn = this.bubble.querySelector('#tutorial-close-btn');
+            return;
+        }
 
         this.overlay = document.createElement('div');
         this.overlay.id = 'tutorial-overlay';

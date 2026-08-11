@@ -532,32 +532,55 @@ class MapEngine {
 
         // Create Inter-floor edges (Adjacent floors only for natural multi-floor navigation)
         Object.values(connectionMap).forEach(shaftNodes => {
-            if (shaftNodes.length > 1) {
-                // Sort shaft nodes by floorId ascending
-                const sorted = [...shaftNodes].sort((a, b) => Number(a.floorId) - Number(b.floorId));
+            if (shaftNodes.length < 2) return;
 
-                for (let i = 0; i < sorted.length - 1; i++) {
-                    const n1 = sorted[i];
-                    const n2 = sorted[i + 1];
+            // Group by floor first. A naive "sort all nodes then connect consecutive
+            // array entries" approach breaks in two real-world data situations:
+            //  1) Two distinct staircases on the same floor mistakenly share the same
+            //     code/connectionId/name (see ADR0006) - only one of them would end up
+            //     chained to the floor above/below, silently orphaning the other.
+            //  2) A shaft is missing its node on one floor (data-entry gap) - pairing
+            //     the nearest surviving neighbors by array index would bridge straight
+            //     across the missing floor with a single edge, letting the pathfinder
+            //     "warp" past a floor the shaft doesn't actually reach.
+            // Grouping by floor and only bridging floors whose numbers are exactly
+            // adjacent (diff === 1) avoids both: every same-floor node gets connected
+            // to every node on the neighboring floor, and gaps simply break the chain
+            // instead of being silently skipped over.
+            const byFloor = {};
+            shaftNodes.forEach(n => {
+                const f = Number(n.floorId);
+                if (!byFloor[f]) byFloor[f] = [];
+                byFloor[f].push(n);
+            });
 
-                    // Skip if on the exact same floor
-                    if (Number(n1.floorId) === Number(n2.floorId)) continue;
+            const floors = Object.keys(byFloor).map(Number).sort((a, b) => a - b);
 
-                    const floorDist = Math.abs(Number(n2.floorId) - Number(n1.floorId));
-                    let transferType = 'transfer';
-                    if (n1.type === 'elevator' && n2.type === 'elevator') transferType = 'elevator';
-                    else if (n1.type === 'stairs' && n2.type === 'stairs') transferType = 'stairs';
+            for (let i = 0; i < floors.length - 1; i++) {
+                const f1 = floors[i];
+                const f2 = floors[i + 1];
 
-                    // Distance weight: floorDist * 120 + 30 (entry/waiting penalty)
-                    const distWeight = floorDist * 120 + 30;
+                // Only bridge truly adjacent floors; a gap (diff > 1) means this shaft
+                // doesn't actually reach between f1 and f2, so no edge is created.
+                if (f2 - f1 !== 1) continue;
 
-                    this.globalEdges.push({
-                        from: n1.id,
-                        to: n2.id,
-                        dist: distWeight,
-                        type: transferType
+                // Distance weight: floorDist(always 1 here) * 120 + 30 (entry/waiting penalty)
+                const distWeight = 1 * 120 + 30;
+
+                byFloor[f1].forEach(n1 => {
+                    byFloor[f2].forEach(n2 => {
+                        let transferType = 'transfer';
+                        if (n1.type === 'elevator' && n2.type === 'elevator') transferType = 'elevator';
+                        else if (n1.type === 'stairs' && n2.type === 'stairs') transferType = 'stairs';
+
+                        this.globalEdges.push({
+                            from: n1.id,
+                            to: n2.id,
+                            dist: distWeight,
+                            type: transferType
+                        });
                     });
-                }
+                });
             }
         });
 
@@ -728,63 +751,7 @@ class MapEngine {
         });
     }
 
-    async switchFloor(floorId) {
-        if (!this.floorsData[floorId]) return;
-
-        // Reset layout to normal if switching (assuming path might be cleared or we just want to view this floor)
-        // Or should we maintain route view?
-        // Typically switching floor via tab implies manual inspection.
-        // Let's View Single Floor Mode?
-        // For now, allow mixed view.
-
-        this.currentFloorId = floorId;
-        this.img = this.images[floorId];
-
-        // Wait for image if not fully loaded (loaded from cache mostly)
-        if (!this.img && this.images[floorId]) {
-            this.img = this.images[floorId];
-        }
-        if (this.img && !this.img.complete) {
-            await new Promise(r => this.img.onload = r);
-        }
-
-        this.fitToScreen();
-        this.draw();
-    }
-
-    // --- Transforms ---
-    fitToScreen() {
-        if (!this.img || !this.img.width) return;
-
-        const scaleX = this.canvas.width / this.img.width;
-        const scaleY = this.canvas.height / this.img.height;
-        const scale = Math.min(scaleX, scaleY) * 0.95;
-
-        const offsetX = (this.canvas.width - this.img.width * scale) / 2;
-        const offsetY = (this.canvas.height - this.img.height * scale) / 2;
-
-        this.transform = { k: scale, x: offsetX, y: offsetY };
-        this.draw();
-    }
-
-    handleMouseDown(e) { /* ... same ... */
-        this.isDragging = true;
-        this.dragStart = { x: e.clientX, y: e.clientY };
-        this.canvas.style.cursor = 'grabbing';
-    }
-    handleMouseMove(e) {
-        if (!this.isDragging) return;
-        e.preventDefault();
-        const dx = e.clientX - this.dragStart.x;
-        const dy = e.clientY - this.dragStart.y;
-        this.transform.x += dx;
-        this.transform.y += dy;
-        this.dragStart = { x: e.clientX, y: e.clientY };
-        this.draw();
-    }
-    handleMouseUp() { this.isDragging = false; this.canvas.style.cursor = 'grab'; }
     // Load ALL data at startup to build the graph
-
 
     // Switch floor is now "Focus Floor"
     async switchFloor(floorId) {
@@ -823,7 +790,8 @@ class MapEngine {
     // --- Transforms ---
     fitToScreen() {
         // 1. Calculate Target Floor Transform (Replicating switchFloor logic)
-        const floorId = AppConfig.DEFAULT_FLOOR_ID;
+        // 現在表示中のフロアを維持する(未設定時のみ既定フロアにフォールバック)
+        const floorId = this.currentFloorId || AppConfig.DEFAULT_FLOOR_ID;
         this.currentFloorId = floorId;
 
         const yOffset = this.floorOffsets[floorId] || 0;

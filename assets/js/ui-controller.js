@@ -13,6 +13,15 @@ function normalizeSearchText(str) {
     return str.toString().trim().toLowerCase().normalize('NFKC');
 }
 
+// HTMLエスケープ: DB由来(展示名・団体名・部屋名等)やURLパラメータ由来の文字列を
+// innerHTMLへ挿入する前に必ず通し、XSSを防止する。
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str).replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[c]);
+}
+
 /**
  * UI Controller
  * Manages sidebars, inputs, and coordinates with MapEngine
@@ -689,7 +698,7 @@ class UIController {
                     <line x1="12" y1="8" x2="12" y2="12"></line>
                     <line x1="12" y1="16" x2="12.01" y2="16"></line>
                 </svg>
-                <span>${message}</span>
+                <span>${escapeHtml(message)}</span>
             </div>
             <button style="background:none; border:none; color:inherit; cursor:pointer; padding:0 4px; font-size:16px; font-weight:bold;" onclick="this.parentElement.remove()">✕</button>
         `;
@@ -724,7 +733,7 @@ class UIController {
         const activeNodes = this.engine.globalNodes.filter(n => n.name && n.type !== 'junction');
 
         // sortIndex computation shared by both the plain-node option and each exhibit option
-        const computeSortIndex = (n, exhibit, isStart) => {
+        const computeSortIndex = (n, isStart) => {
             const isRestricted = (isStart && n.type === 'entrance_only') || (!isStart && n.type === 'exit_only');
             const isRestrictedPartner = (isStart && n.type === 'exit_only') || (!isStart && n.type === 'entrance_only');
 
@@ -734,7 +743,10 @@ class UIController {
                 return 9999;
             }
 
-            const fullName = `${(exhibit && exhibit.eventName) || ''} ${n.name || ''}`.trim();
+            // 表示順は展示の企画名(eventName)ではなく、展示場所(部屋/地点)の名称のみで判断する。
+            // 企画名を含めると、部活の企画タイトルにたまたま含まれる文字列が別のパターンに
+            // 誤ってマッチし、意図しない優先順位になってしまうため。
+            const fullName = (n.name || '').trim();
             const defaultPriority = this.engine.orderData.default || 9999;
 
             const matchedPriorities = [];
@@ -768,7 +780,7 @@ class UIController {
                     category: this.getTypeLabel(n.type),
                     type: n.type,
                     floor: n.floorId,
-                    sortIndex: computeSortIndex(n, null, isStart),
+                    sortIndex: computeSortIndex(n, isStart),
                     sortKey: (n.name || '').trim()
                 }];
             }
@@ -786,7 +798,7 @@ class UIController {
                     category: this.getTypeLabel(n.type),
                     type: n.type,
                     floor: n.floorId,
-                    sortIndex: computeSortIndex(n, ex, isStart),
+                    sortIndex: computeSortIndex(n, isStart),
                     sortKey: (ex.organization || ex.eventName || n.name || '').trim()
                 };
             });
@@ -884,8 +896,13 @@ class UIController {
             const eExhibit = this.getExhibitForSelectValue(endVal);
 
             if (this.mobileSummaryBar && this.summaryStartName && this.summaryEndName) {
+                const nearestLabelMap = {
+                    "NEAREST_MALE": "最寄男子トイレ",
+                    "NEAREST_FEMALE": "最寄女子トイレ",
+                    "NEAREST_VENDING": "最寄自販機"
+                };
                 let startText = sExhibit ? formatExhibitLabel(sExhibit) : (sNode ? sNode.name : "出発地");
-                let endText = eExhibit ? formatExhibitLabel(eExhibit) : (eNode ? eNode.name : "目的地");
+                let endText = eExhibit ? formatExhibitLabel(eExhibit) : (eNode ? eNode.name : (nearestLabelMap[endVal] || "目的地"));
 
                 // Add floor info for extra clarity if nodes exist
                 if (sNode) {
@@ -896,20 +913,11 @@ class UIController {
                     startText += ` (${startDetail})`;
                 }
                 if (eNode) {
-                    if (eNode.floorId) {
-                        let endDetail = `${eNode.floorId}F`;
-                        if (eExhibit) {
-                            endDetail += ` - ${eNode.name}`;
-                        }
-                        endText += ` (${endDetail})`;
-                    } else if (endVal.startsWith("NEAREST_")) {
-                        const labelMap = {
-                            "NEAREST_MALE": "最寄男子トイレ",
-                            "NEAREST_FEMALE": "最寄女子トイレ",
-                            "NEAREST_VENDING": "最寄自販機"
-                        };
-                        endText = labelMap[endVal] || endText;
+                    let endDetail = `${eNode.floorId}F`;
+                    if (eExhibit) {
+                        endDetail += ` - ${eNode.name}`;
                     }
+                    endText += ` (${endDetail})`;
                 }
 
                 this.summaryStartName.innerText = startText;
@@ -968,8 +976,13 @@ class UIController {
                     const sExhibit = this.getExhibitForSelectValue(startVal);
                     const eExhibit = this.getExhibitForSelectValue(endVal);
 
+                    const nearestLabelMap = {
+                        "NEAREST_MALE": "最寄男子トイレ",
+                        "NEAREST_FEMALE": "最寄女子トイレ",
+                        "NEAREST_VENDING": "最寄自販機"
+                    };
                     let startText = sExhibit ? formatExhibitLabel(sExhibit) : (sNode ? sNode.name : "出発地");
-                    let endText = eExhibit ? formatExhibitLabel(eExhibit) : (eNode ? eNode.name : "目的地");
+                    let endText = eExhibit ? formatExhibitLabel(eExhibit) : (eNode ? eNode.name : (nearestLabelMap[endVal] || "目的地"));
 
                     if (sNode) {
                         let startDetail = `${sNode.floorId}F`;
@@ -979,20 +992,11 @@ class UIController {
                         startText += ` (${startDetail})`;
                     }
                     if (eNode) {
-                        if (eNode.floorId) {
-                            let endDetail = `${eNode.floorId}F`;
-                            if (eExhibit) {
-                                endDetail += ` - ${eNode.name}`;
-                            }
-                            endText += ` (${endDetail})`;
-                        } else if (endVal.startsWith("NEAREST_")) {
-                            const labelMap = {
-                                "NEAREST_MALE": "最寄男子トイレ",
-                                "NEAREST_FEMALE": "最寄女子トイレ",
-                                "NEAREST_VENDING": "最寄自販機"
-                            };
-                            endText = labelMap[endVal] || endText;
+                        let endDetail = `${eNode.floorId}F`;
+                        if (eExhibit) {
+                            endDetail += ` - ${eNode.name}`;
                         }
+                        endText += ` (${endDetail})`;
                     }
 
                     this.summaryStartName.innerText = startText;
@@ -1129,8 +1133,8 @@ class UIController {
                 <div class="step-marker"></div>
                 <div class="step-content">
                     <div class="step-main">
-                        ${titleLines.map(t => `<span class="step-label">${t}</span>`).join('')}
-                        <span class="step-detail">${desc}</span>
+                        ${titleLines.map(t => `<span class="step-label">${escapeHtml(t)}</span>`).join('')}
+                        <span class="step-detail">${escapeHtml(desc)}</span>
                     </div>
                 </div>
             `;
@@ -1617,30 +1621,26 @@ class CustomSelect {
             if (!isAutoA && isAutoB) return 1;
 
             if (this.sortBy === 'default') {
-                const defaultPriority = (window.ui && window.ui.engine && window.ui.engine.orderData && window.ui.engine.orderData.default) || 9999;
-
                 // Priority from JSON
                 const pA = a.sortIndex !== undefined ? a.sortIndex : 9999;
                 const pB = b.sortIndex !== undefined ? b.sortIndex : 9999;
 
-                const inOrderA = Math.floor(pA) < defaultPriority;
-                const inOrderB = Math.floor(pB) < defaultPriority;
-
-                // 1. If one is in order and the other is not, the one in order goes first
-                if (inOrderA && !inOrderB) return -1;
-                if (!inOrderA && inOrderB) return 1;
-
-                // 2. If both are NOT in order, sort by Type Priority first
-                if (!inOrderA && !inOrderB) {
-                    const tA = typeOrder[a.type] || 99;
-                    const tB = typeOrder[b.type] || 99;
-                    if (tA !== tB) return tA - tB;
-                }
-
-                // 3. Compare their sortIndex values (priority order or restriction penalty)
+                // 1. sortIndex の数値を直接比較する。管理画面の優先順位パターンは
+                //    default(9999)より小さい値で「前の方に出す」設定にも、大きい値で
+                //    「通常項目より後ろだが指定した順番で並べる」設定にも使われるため、
+                //    数値そのものを比較すればどちらの設定意図も正しく反映できる。
+                //    (以前は「priority < default なら明示設定」という前提で一度 type 別に
+                //    振り分けていたが、default より大きい値を割り当てたケースがこの前提から
+                //    漏れて type 順に埋もれてしまっていた)
                 if (pA !== pB) return pA - pB;
 
-                // 4. Sort by the stable 'sortKey' (Org or Name)
+                // 2. sortIndex が完全に同値(主に無設定同士が default 値で並ぶ場合)の時だけ、
+                //    種別(部屋→エリア→出入口→…)でグループ化してから名前順に並べる。
+                const tA = typeOrder[a.type] || 99;
+                const tB = typeOrder[b.type] || 99;
+                if (tA !== tB) return tA - tB;
+
+                // 3. Sort by the stable 'sortKey' (Org or Name)
                 return a.sortKey.localeCompare(b.sortKey, 'ja', { numeric: true });
             }
             else if (this.sortBy === 'floor') {
@@ -1723,11 +1723,11 @@ class CustomSelect {
 
             el.innerHTML = `
                 <div class="option-main">
-                    <span class="option-title">${opt.title}</span>
-                    <span class="option-org">${opt.org || ''}</span>
+                    <span class="option-title">${escapeHtml(opt.title)}</span>
+                    <span class="option-org">${escapeHtml(opt.org || '')}</span>
                 </div>
                 <div class="option-meta">
-                    <span class="option-tag ${typeClass}">${opt.category}</span>
+                    <span class="option-tag ${escapeHtml(typeClass)}">${opt.category}</span>
                 </div>
             `;
 
