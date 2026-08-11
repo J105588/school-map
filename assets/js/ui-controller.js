@@ -7,6 +7,12 @@ function formatExhibitLabel(exhibit) {
     return org ? `${org}「${name}」` : `「${name}」`;
 }
 
+// 検索文字列の正規化 (全角/半角・大文字/小文字・前後の空白の揺れを吸収する)
+function normalizeSearchText(str) {
+    if (!str) return '';
+    return str.toString().trim().toLowerCase().normalize('NFKC');
+}
+
 /**
  * UI Controller
  * Manages sidebars, inputs, and coordinates with MapEngine
@@ -504,8 +510,7 @@ class UIController {
 
     // Helper functions for parameter-based API/URL extensions
     normalizeString(str) {
-        if (!str) return '';
-        return str.toString().trim().toLowerCase().normalize('NFKC');
+        return normalizeSearchText(str);
     }
 
     // 複合値 "nodeId::exhibitId" を分解する。展示を持たないノードやシステム
@@ -759,6 +764,7 @@ class UIController {
                     value: n.id,
                     title: title,
                     org: '',
+                    code: n.code || '',
                     category: this.getTypeLabel(n.type),
                     type: n.type,
                     floor: n.floorId,
@@ -776,6 +782,7 @@ class UIController {
                     value: `${n.id}::${ex.id}`,
                     title: title,
                     org: '展示場所：' + n.name, // 部屋名(展示場所)としての表示は残す
+                    code: n.code || '',
                     category: this.getTypeLabel(n.type),
                     type: n.type,
                     floor: n.floorId,
@@ -1544,7 +1551,7 @@ class CustomSelect {
         input.placeholder = '検索...';
         input.value = this.filterText;
         input.oninput = (e) => {
-            this.filterText = e.target.value.toLowerCase();
+            this.filterText = normalizeSearchText(e.target.value);
             this.renderList(); // Re-render only list ideally, but for now full render is safer? No, focus is lost.
             // We need to separate renderList logic to keep input focus intact.
         };
@@ -1589,12 +1596,13 @@ class CustomSelect {
         if (!this.listContainer) return;
         this.listContainer.innerHTML = '';
 
-        // Filter
+        // Filter: 全角/半角を正規化し、ロケーションIDも対象に含める。
+        // スペース区切りで複数キーワードを入力した場合はすべてを満たすものに絞り込む(AND検索)。
+        const terms = this.filterText ? this.filterText.split(/\s+/).filter(Boolean) : [];
         let displayOptions = this.options.filter(opt => {
-            if (!this.filterText) return true;
-            const term = this.filterText;
-            return opt.title.toLowerCase().includes(term) ||
-                (opt.org && opt.org.toLowerCase().includes(term));
+            if (terms.length === 0) return true;
+            const haystack = normalizeSearchText(`${opt.title} ${opt.org || ''} ${opt.code || ''}`);
+            return terms.every(term => haystack.includes(term));
         });
 
         // Sort
