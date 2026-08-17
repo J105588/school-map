@@ -1,0 +1,248 @@
+/*
+ * Markdown PDF (拡張機能 yzane.markdown-pdf) 出力最適化用スタイルシート。
+ * .vscode/settings.json の "markdown-pdf.styles" から読み込まれる。
+ * 目的: 長いコードブロック・表・画像・Mermaid図が用紙幅からはみ出して
+ * 右端で切れる／改ページ位置が不自然になる問題を防ぐこと。
+ */
+
+body {
+  font-family: "Yu Gothic", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Meiryo", sans-serif;
+  font-size: 14px;
+  line-height: 1.75;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  page-break-after: avoid;
+  break-after: avoid-page;
+}
+
+/* 節見出し(h3)の区切り線は、本文中の <hr> ではなく見出し自身の上罫線として描く。
+   独立した <hr> を節の前に置くと、次の節が改ページで送られたときに線だけが
+   前ページの末尾に取り残される（最悪の場合「線だけのページ」ができる）。
+   見出しの border-top であれば線は必ず見出しと同じページに移動するため、
+   この種の事故が構造的に起こらなくなる。 */
+h3 {
+  margin-top: 30px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* 章見出し直後の最初の節には区切り線を引かない（章タイトルと二重線になるため）*/
+h2 + h3 {
+  margin-top: 18px;
+  padding-top: 0;
+  border-top: none;
+}
+
+/* タイトル(h1): 正式な書類らしい最低限の色味（基調色のアンダーライン）のみ付ける。
+   補足: 以前「独自classへのスタイルが反映されない」と判断していたが、これは誤りで、
+   実際には .vscode/settings.json の markdown-pdf.styles が ${workspaceFolder} を
+   含んでいたため本ファイル自体が読み込まれていなかったことが原因だった
+   （拡張機能は変数展開に非対応。settings.json 側のコメントを参照）。
+   独自class（.keep-together 等）は正しく機能する。 */
+h1 {
+  text-align: center;
+  color: #0f172a;
+  font-size: 25px;
+  letter-spacing: 0.02em;
+  margin: 0 0 22px;
+  padding-bottom: 16px;
+  border-bottom: 3px solid #D14B41;
+}
+
+/* 見出し直後の本文・図表・箇条書きが次ページへ引き離されないようにする。
+   本文には #### 【〜】/ ##### 【〜】 形式の小見出し直後に図やリストが
+   続く構成が多いため、h4〜h6 も対象に含める。 */
+h1 + *, h2 + *, h3 + *, h4 + *, h5 + *, h6 + * {
+  page-break-before: avoid;
+  break-before: avoid-page;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid #ddd;
+  margin: 28px 0;
+}
+
+/* 手動改ページ用マーカー（本文中の <div class="page"/> ）*/
+.page {
+  page-break-after: always;
+  break-after: page;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12px;
+  page-break-inside: avoid;
+  page-break-before: avoid;
+  break-inside: avoid-page;
+  break-before: avoid-page;
+  margin: 12px 0;
+}
+table th,
+table td {
+  border: 1px solid #cbd5e1;
+  padding: 6px 10px;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  vertical-align: top;
+}
+table th {
+  background-color: #f1f5f9;
+  font-weight: 700;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 12px auto;
+  page-break-inside: avoid;
+  page-break-before: avoid;
+  break-inside: avoid-page;
+  break-before: avoid-page;
+}
+
+blockquote {
+  page-break-inside: avoid;
+  page-break-before: avoid;
+  break-inside: avoid-page;
+  break-before: avoid-page;
+  border-left: 4px solid #D14B41;
+  margin: 12px 0;
+  padding: 4px 16px;
+  color: #475569;
+  background: #fafafa;
+}
+
+/* コードブロック: 横方向にはみ出さず必ず折り返す。
+   PDFにはスクロールバーが無いため、折り返さないと右端で内容が切れて見えなくなる。
+   文字サイズは、折り返しを有効にしてあるぶん極端に小さくする必要はない
+   （従来 8.5px = 約6.4pt と印刷では判読困難な値だったため 11px に是正）。 */
+pre {
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
+  overflow-wrap: break-word !important;
+  overflow-x: visible !important;
+  font-family: "SFMono-Regular", Consolas, "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  background: #f6f8fa;
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin: 10px 0;
+}
+
+pre code {
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
+  overflow-wrap: break-word !important;
+  background: transparent;
+  font-size: inherit;
+}
+
+/* 文中インラインコード（pre 以外の code）は折り返しのみ有効にし、
+   サイズはそのまま維持する */
+code {
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: break-word;
+}
+
+/* Mermaid 図: 用紙幅に収まるよう自動縮小し、可能な限りページ内に収める。
+   注意: overflow を visible 以外にすると、Chromium の印刷エンジンでは
+   page-break-inside / page-break-before の avoid 指定が効かなくなる
+   （改ページ回避が無視される既知の挙動）。従来は overflow: hidden を
+   指定していたため、図自体の改ページ回避が実質すべて無効化されていた。
+   横方向のはみ出し防止は svg 側の max-width で行い、コンテナ側の
+   overflow は visible のままにする。 */
+.mermaid {
+  max-width: 100%;
+  overflow: visible;
+  page-break-inside: avoid;
+  page-break-before: avoid;
+  break-inside: avoid-page;
+  break-before: avoid-page;
+  text-align: center;
+  margin: 12px 0;
+}
+/* 図の高さ上限。
+   「見出し＋図＋直後の説明文」を1ブロックとして同一ページに収める設計にしているが、
+   page-break-inside: avoid は“中身が1ページに収まらない場合は無視される”ため、
+   図が縦に大きすぎるとブロックごと任意の位置で分割され、見出しと図が離れてしまう。
+   A4(余白18mm)の版面高さは約986px。実測ベースの内訳は次のとおり:
+     h2 見出し 約72px / h3 見出し 約92px / 本文1行 24.5px /
+     説明の箇条書き 最大4項目・10行で約289px
+   最も大きい「2章」「5章」のブロックがこの版面に収まるよう逆算し、上限を480pxとする。
+   これを超える図は viewBox の比率を保ったまま自動で縮小される。 */
+.mermaid svg {
+  max-width: 100% !important;
+  max-height: 480px !important;
+  height: auto !important;
+}
+
+/* 見出し＋説明文＋図（または見出し＋図）を1つの塊として明示的にまとめ、
+   途中で改ページされないようにする。兄弟要素どうしの avoid 指定の連鎖
+   （見出し→説明文の境目、説明文→図の境目、それぞれ別々に avoid を
+   付ける方式）は境目が複数あると正しく伝播しないことがあるため、
+   本文側で <div class="keep-together"> 〜 </div> により対象範囲を
+   1つのブロックとして囲み、page-break-inside: avoid を直接効かせる。 */
+.keep-together {
+  page-break-inside: avoid;
+  break-inside: avoid-page;
+}
+
+/* 入れ子の keep-together について。
+   図を含むブロックは <div class="keep-together">(外側: 見出し＋図＋説明文)
+   の内側に、さらに <div class="keep-together">(内側: 見出し＋図) を持つ。
+
+   外側が1ページに収まる場合  … 見出し・図・説明文がすべて同じページに載る（理想）。
+   外側が1ページに収まらない場合 … 外側の avoid は無視されるが、内側の avoid は
+     生きているため、分割位置は必ず「図と説明文のあいだ」になる。つまり
+     見出しと図が引き離される事故は、図が大きい章(2章・5章)でも起こらない。
+
+   単一の avoid だけでは、収まらなかった瞬間に分割位置が制御不能になり
+   見出しだけが前ページに取り残されるため、この二重化が必要。 */
+
+/* リスト全体には page-break-inside: avoid を掛けない。
+   1ページに収まらない長い手順リスト（例: 3.3節Bの入力項目一覧）に掛けると、
+   ブラウザは avoid を守れずどこかで必ず分割する一方、1ページに「ぎりぎり
+   収まらない」程度の中くらいのリストはブロックごと次ページへ送られてしまい、
+   前ページの末尾に大きな空白ができる。分割を防ぐのは「1項目(li)が途中で
+   割れないこと」で十分なため、avoid は li 側にのみ指定する。 */
+ul, ol {
+  padding-left: 1.6em;
+}
+
+li {
+  margin: 2px 0;
+  page-break-inside: avoid;
+  break-inside: avoid-page;
+  orphans: 2;
+  widows: 2;
+}
+
+p {
+  orphans: 3;
+  widows: 3;
+}
+
+/* 太字フォントについて: 本文の基本フォント「Yu Gothic」は、環境によって
+   Bold書体が正しく解決されず、太字が適用されないまま表示されることがある
+   （Windows + Chromium系の印刷エンジンで知られる挙動）。そのため太字要素
+   だけは、Bold書体が確実に存在する Meiryo / Noto Sans JP を優先したフォント
+   スタックに切り替え、font-weight も明示的に指定する。 */
+strong, b {
+  font-weight: 700 !important;
+  font-family: "Meiryo", "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  color: #0f172a;
+}
+
+table th {
+  font-family: "Meiryo", "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+}

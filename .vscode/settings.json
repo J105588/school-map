@@ -1,0 +1,23 @@
+{
+  "css.lint.unknownAtRules": "ignore",
+  // 【重要】markdown-pdf 拡張機能は ${workspaceFolder} 等の変数展開に対応していない。
+  // 変数を書くとそのままの文字列としてパス結合され（例: <repo>/${workspaceFolder}/docs/...）、
+  // 存在しないファイルを指すためスタイルシートが一切読み込まれない（改ページ・図の
+  // サイズ調整などが全て無効になる）。
+  // stylesRelativePathFile の既定値が false のため、パスはワークスペース直下からの
+  // 相対パスで書くこと。
+  "markdown-pdf.styles": ["docs/pdf-style.css"],
+  "markdown-pdf.stylesRelativePathFile": false,
+  "markdown-pdf.includeDefaultStyles": true,
+  "markdown-pdf.type": "pdf",
+  "markdown-pdf.format": "A4",
+  "markdown-pdf.orientation": "portrait",
+  "markdown-pdf.margin.top": "18mm",
+  "markdown-pdf.margin.bottom": "18mm",
+  "markdown-pdf.margin.left": "10mm",
+  "markdown-pdf.margin.right": "10mm",
+  "markdown-pdf.displayHeaderFooter": true,
+  "markdown-pdf.headerTemplate": "<div></div>",
+  "markdown-pdf.footerTemplate": "<div style='font-size:9px; width:100%; text-align:center; color:#94a3b8; -webkit-print-color-adjust: exact;'><span class='pageNumber'></span> / <span class='totalPages'></span></div>",
+  "markdown-pdf.breaks": false
+}
